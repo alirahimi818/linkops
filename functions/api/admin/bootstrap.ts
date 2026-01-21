@@ -1,20 +1,35 @@
 import { hashPassword } from "./_auth";
 import type { EnvAuth } from "./_auth";
 
+type Payload = {
+  username: string;
+  password: string;
+  email?: string | null;
+  role?: string | null;
+};
+
+function safeJsonParse(s: string): any | null {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
 export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const body = (await request.json().catch(() => null)) as null | {
-    username: string;
-    password: string;
-    email?: string | null;
-    role?: string | null;
-  };
+  const raw = await request.text();
+  const body = (safeJsonParse(raw) as Payload | null);
 
-  if (!body?.username || !body?.password) {
-    return Response.json({ error: "Invalid payload" }, { status: 400 });
+  if (!body) {
+    return Response.json({ error: "Invalid JSON", raw }, { status: 400 });
+  }
+
+  if (!body.username || !body.password) {
+    return Response.json({ error: "Invalid payload", received: body }, { status: 400 });
   }
 
   const id = crypto.randomUUID();
