@@ -81,7 +81,7 @@ export function getBearerToken(req: Request): string | null {
  * Stored format: pbkdf2$<iterations>$<salt_b64url>$<hash_b64url>
  */
 export async function hashPassword(password: string): Promise<string> {
-  const iterations = 150000;
+  const iterations = 100000;
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
   const key = await crypto.subtle.importKey(
