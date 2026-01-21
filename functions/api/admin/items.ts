@@ -14,7 +14,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // Allowed roles to manage items (adjust later)
-  if (!requireRole(user, ["admin", "editor"])) {
+  if (!requireRole(user, ["superadmin", "admin", "editor"])) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -75,7 +75,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
   if (method === "DELETE") {
     // You can restrict delete to admin only if you want
-    if (!requireRole(user, ["admin"])) {
+    if (!requireRole(user, ["superadmin", "admin"])) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
