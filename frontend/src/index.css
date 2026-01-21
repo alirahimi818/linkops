@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@source "../index.html";
+@source "../src/**/*.{js,ts,jsx,tsx}";
+
+:root { color-scheme: light; }
