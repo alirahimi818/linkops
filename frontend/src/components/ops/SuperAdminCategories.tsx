@@ -115,24 +115,8 @@ export default function SuperAdminCategories() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-sm font-semibold text-zinc-900">{r.name}</div>
-                    <Badge>category</Badge>
                   </div>
-
-                  <div className="mt-1">
-                    {r.image ? (
-                      <a
-                        className="block truncate text-xs text-zinc-600 underline"
-                        href={r.image}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {r.image}
-                      </a>
-                    ) : (
-                      <div className="text-xs text-zinc-500">No image</div>
-                    )}
-                  </div>
-
+                  
                   {/* Inline edit */}
                   <div className="mt-2">
                     <InlineEdit<EditDraft>
