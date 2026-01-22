@@ -40,8 +40,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         return Response.json({ error: "Invalid date. Use YYYY-MM-DD" }, { status: 400 });
       }
 
-      // IMPORTANT: Keep this query aligned with your DB schema.
-      // Removed c.image because your categories likely don't have it.
       const { results } = await env.DB.prepare(
         `SELECT i.*,
                 u.username AS created_by_username,
@@ -64,10 +62,10 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const placeholders = itemIds.map(() => "?").join(",");
 
       const { results: actionsRows } = await env.DB.prepare(
-        `SELECT item_id, action, sort_order
+        `SELECT item_id, action
          FROM item_actions
          WHERE item_id IN (${placeholders})
-         ORDER BY item_id, sort_order ASC`
+         ORDER BY item_id ASC`
       ).bind(...itemIds).all();
 
       const { results: commentsRows } = await env.DB.prepare(
@@ -151,9 +149,9 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       let sortOrder = 1;
       for (const a of actions) {
         await env.DB.prepare(
-          `INSERT INTO item_actions (id, item_id, action, sort_order)
-           VALUES (?, ?, ?, ?)`
-        ).bind(crypto.randomUUID(), id, a, sortOrder++).run();
+          `INSERT INTO item_actions (id, item_id, action)
+           VALUES (?, ?, ?)`
+        ).bind(crypto.randomUUID(), id, a).run();
       }
 
       for (const c of comments) {
