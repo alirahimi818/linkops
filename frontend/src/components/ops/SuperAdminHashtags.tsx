@@ -30,7 +30,10 @@ export default function SuperAdminHashtags() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const activeCount = useMemo(() => rows.filter((r) => r.is_active === 1).length, [rows]);
+  const activeCount = useMemo(
+    () => rows.filter((r) => r.is_active === 1).length,
+    [rows],
+  );
 
   async function load() {
     setLoading(true);
@@ -74,7 +77,9 @@ export default function SuperAdminHashtags() {
   async function toggle(row: HashtagWhitelistRow) {
     setError(null);
     try {
-      await superadminUpdateHashtag(row.id, { is_active: row.is_active === 1 ? 0 : 1 });
+      await superadminUpdateHashtag(row.id, {
+        is_active: row.is_active === 1 ? 0 : 1,
+      });
       await load();
     } catch (e: any) {
       setError(e?.message ?? "Update failed.");
@@ -118,50 +123,43 @@ export default function SuperAdminHashtags() {
         columns={[
           {
             key: "tag",
-            header: "Hashtag",
-            className: "md:col-span-6",
             render: (r) => (
               <div className="flex items-center gap-2">
-                <span className="font-mono">#{r.tag}</span>
-                {r.is_active === 1 ? <Badge>active</Badge> : <span className="text-xs text-zinc-500">inactive</span>}
+                <span className="font-mono text-sm">#{r.tag}</span>
+                {r.is_active === 1 ? (
+                  <Badge>active</Badge>
+                ) : (
+                  <span className="text-xs text-zinc-500">inactive</span>
+                )}
               </div>
             ),
           },
           {
             key: "priority",
-            header: "Priority",
-            className: "md:col-span-4",
             render: (r) => (
-              <div className="max-w-[220px]">
-                <Input
-                  value={String(r.priority)}
-                  onChange={(v) => setRowPriority(r, v)}
-                  placeholder="0"
-                  inputMode="numeric"
-                />
-              </div>
-            ),
-          },
-          {
-            key: "meta",
-            header: "Meta",
-            className: "md:col-span-2",
-            render: (r) => (
-              <div className="text-xs text-zinc-500">
-                <div>ID: <span className="font-mono">{r.id.slice(0, 8)}…</span></div>
+              <div className="mt-1 flex items-center gap-2">
+                <div className="text-xs text-zinc-500 w-[70px]">Priority</div>
+                <div className="max-w-[140px]">
+                  <Input
+                    value={String(r.priority)}
+                    onChange={(v) => setRowPriority(r, v)}
+                    placeholder="0"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
             ),
           },
         ]}
         rowActions={(r) => (
-          <div className="flex flex-col gap-2">
+          <>
             <Button variant="secondary" onClick={() => toggle(r)}>
               {r.is_active === 1 ? "Disable" : "Enable"}
             </Button>
             <Button variant="secondary" onClick={() => del(r.id)}>
               Delete
             </Button>
-          </div>
+          </>
         )}
       />
 
@@ -173,18 +171,33 @@ export default function SuperAdminHashtags() {
             <label className="block text-xs text-zinc-600 mb-1" htmlFor="tag">
               Hashtag
             </label>
-            <Input value={tag} onChange={setTag} placeholder="e.g. #myhashtag" />
+            <Input
+              value={tag}
+              onChange={setTag}
+              placeholder="e.g. #myhashtag"
+            />
           </div>
 
           <div className="w-1/5 flex flex-col gap-0.5">
-            <label className="block text-xs text-zinc-600 mb-1" htmlFor="priority">
+            <label
+              className="block text-xs text-zinc-600 mb-1"
+              htmlFor="priority"
+            >
               Priority
             </label>
-            <Input value={priority} onChange={setPriority} placeholder="10" inputMode="numeric" />
+            <Input
+              value={priority}
+              onChange={setPriority}
+              placeholder="10"
+              inputMode="numeric"
+            />
           </div>
 
           <div className="w-1/5 flex flex-col gap-0.5">
-            <label className="block text-xs text-zinc-600 mb-1" htmlFor="is_active">
+            <label
+              className="block text-xs text-zinc-600 mb-1"
+              htmlFor="is_active"
+            >
               Status
             </label>
             <Select value={active} onChange={(v) => setActive(v as any)}>
