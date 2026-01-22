@@ -84,16 +84,6 @@ export default function SuperAdminCategories() {
         emptyText={loading ? "Loading…" : "No categories yet."}
         columns={[
           {
-            key: "name",
-            header: "Name",
-            className: "md:col-span-4",
-            render: (r) => (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{r.name}</span>
-              </div>
-            ),
-          },
-          {
             key: "image",
             header: "Image",
             className: "md:col-span-6",
@@ -109,15 +99,16 @@ export default function SuperAdminCategories() {
                 ) : (
                   <div className="h-8 w-8 rounded-lg border border-zinc-200 bg-zinc-50" />
                 )}
-                <div className="min-w-0">
-                  {r.image ? (
-                    <a className="block truncate text-sm text-zinc-700 underline" href={r.image} target="_blank" rel="noreferrer">
-                      {r.image}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-zinc-500">—</span>
-                  )}
-                </div>
+              </div>
+            ),
+          },
+          {
+            key: "name",
+            header: "Name",
+            className: "md:col-span-4",
+            render: (r) => (
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{r.name}</span>
               </div>
             ),
           },
@@ -131,7 +122,6 @@ export default function SuperAdminCategories() {
                 renderDisplay={(_v) => (
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>Edit</Badge>
-                    <span className="text-xs text-zinc-500">name & image</span>
                   </div>
                 )}
                 renderEditor={(draft, setDraft) => (
