@@ -46,14 +46,11 @@ export default function SuperAdminCategories() {
     setError(null);
     const n = name.trim();
     const img = image.trim();
-    const img = image.trim();
     if (!n) return;
 
     try {
       await adminCreateCategory(n, img);
-      await adminCreateCategory(n, img);
       setName("");
-      setImage("");
       setImage("");
       await load();
     } catch (e: any) {
