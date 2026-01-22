@@ -323,7 +323,7 @@ export async function adminCreateCategory(name: string, image?: string | null) {
     `/api/admin/categories`,
     {
       method: "POST",
-      body: JSON.stringify({ name, image }),
+      body: JSON.stringify({ name, image: image?.trim() ? image.trim() : null }),
     },
     { auth: true }
   );

@@ -30,7 +30,7 @@ export default function SuperAdminHashtags() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const activeCount = useMemo(() => rows.filter(r => r.is_active === 1).length, [rows]);
+  const activeCount = useMemo(() => rows.filter((r) => r.is_active === 1).length, [rows]);
 
   async function load() {
     setLoading(true);
@@ -63,6 +63,8 @@ export default function SuperAdminHashtags() {
         is_active: active === "1" ? 1 : 0,
       });
       setTag("");
+      setPriority("10");
+      setActive("1");
       await load();
     } catch (e: any) {
       setError(e?.message ?? "Create failed.");
@@ -70,13 +72,27 @@ export default function SuperAdminHashtags() {
   }
 
   async function toggle(row: HashtagWhitelistRow) {
-    await superadminUpdateHashtag(row.id, { is_active: row.is_active === 1 ? 0 : 1 });
-    await load();
+    setError(null);
+    try {
+      await superadminUpdateHashtag(row.id, { is_active: row.is_active === 1 ? 0 : 1 });
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Update failed.");
+    }
   }
 
-  async function setRowPriority(row: HashtagWhitelistRow, p: number) {
-    await superadminUpdateHashtag(row.id, { priority: p });
-    await load();
+  async function setRowPriority(row: HashtagWhitelistRow, v: string) {
+    // Allow empty while typing, but don't send NaN
+    const n = Number(v);
+    if (!Number.isFinite(n)) return;
+
+    setError(null);
+    try {
+      await superadminUpdateHashtag(row.id, { priority: n });
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Update failed.");
+    }
   }
 
   async function del(id: string) {
@@ -93,78 +109,84 @@ export default function SuperAdminHashtags() {
     <div className="grid gap-4">
       {error ? <Alert variant="error">{error}</Alert> : null}
 
-      <AdminTable
+      <AdminTable<HashtagWhitelistRow>
         title="Hashtag whitelist"
         subtitle={`Active: ${activeCount} • Total: ${rows.length}`}
         rows={rows}
+        rowKey={(r) => r.id}
         emptyText={loading ? "Loading…" : "No hashtags yet."}
         columns={[
           {
             key: "tag",
             header: "Hashtag",
+            className: "md:col-span-6",
             render: (r) => (
               <div className="flex items-center gap-2">
                 <span className="font-mono">#{r.tag}</span>
-                {r.is_active === 1 ? (
-                  <Badge>active</Badge>
-                ) : (
-                  <span className="text-xs text-zinc-500">inactive</span>
-                )}
+                {r.is_active === 1 ? <Badge>active</Badge> : <span className="text-xs text-zinc-500">inactive</span>}
               </div>
             ),
           },
           {
             key: "priority",
             header: "Priority",
-            className: "w-[220px]",
+            className: "md:col-span-4",
             render: (r) => (
-              <div className="flex items-center gap-2">
+              <div className="max-w-[220px]">
                 <Input
                   value={String(r.priority)}
-                  onChange={(v) => setRowPriority(r, Number(v))}
+                  onChange={(v) => setRowPriority(r, v)}
                   placeholder="0"
+                  inputMode="numeric"
                 />
               </div>
             ),
           },
           {
-            key: "state",
-            header: "",
-            className: "w-[150px]",
+            key: "meta",
+            header: "Meta",
+            className: "md:col-span-2",
             render: (r) => (
-              <Button variant="secondary" onClick={() => toggle(r)}>
-                {r.is_active === 1 ? "Disable" : "Enable"}
-              </Button>
-            ),
-          },
-          {
-            key: "actions",
-            header: "",
-            className: "w-[140px]",
-            render: (r) => (
-              <Button variant="secondary" onClick={() => del(r.id)}>
-                Delete
-              </Button>
+              <div className="text-xs text-zinc-500">
+                <div>ID: <span className="font-mono">{r.id.slice(0, 8)}…</span></div>
+              </div>
             ),
           },
         ]}
+        rowActions={(r) => (
+          <div className="flex flex-col gap-2">
+            <Button variant="secondary" onClick={() => toggle(r)}>
+              {r.is_active === 1 ? "Disable" : "Enable"}
+            </Button>
+            <Button variant="secondary" onClick={() => del(r.id)}>
+              Delete
+            </Button>
+          </div>
+        )}
       />
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="text-sm font-medium text-zinc-800">Add hashtag</div>
+
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="w-2/5 flex flex-col gap-0.5">
-            <label htmlFor="tag">Hashtag</label>
+            <label className="block text-xs text-zinc-600 mb-1" htmlFor="tag">
+              Hashtag
+            </label>
             <Input value={tag} onChange={setTag} placeholder="e.g. #myhashtag" />
           </div>
 
           <div className="w-1/5 flex flex-col gap-0.5">
-            <label htmlFor="priority">Priority</label>
-            <Input value={priority} onChange={setPriority} placeholder="priority" />
+            <label className="block text-xs text-zinc-600 mb-1" htmlFor="priority">
+              Priority
+            </label>
+            <Input value={priority} onChange={setPriority} placeholder="10" inputMode="numeric" />
           </div>
 
           <div className="w-1/5 flex flex-col gap-0.5">
-            <label htmlFor="is_active">Status</label>
+            <label className="block text-xs text-zinc-600 mb-1" htmlFor="is_active">
+              Status
+            </label>
             <Select value={active} onChange={(v) => setActive(v as any)}>
               <option value="1">Active</option>
               <option value="0">Inactive</option>
@@ -176,7 +198,7 @@ export default function SuperAdminHashtags() {
           </Button>
         </div>
 
-        <div className="mt-3 text-xs text-zinc-500">
+        <div className="mt-2 text-xs text-zinc-500">
           Tip: Use higher priority for hashtags you want users to focus on.
         </div>
       </div>
