@@ -10,6 +10,7 @@ import { addDaysYYYYMMDD, todayYYYYMMDD } from "../lib/date";
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
 
+import DatePicker from "../components/ui/DatePicker";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -93,12 +94,7 @@ export default function Home() {
                   ←
                 </Button>
 
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-                />
+                <DatePicker value={date} onChange={setDate} />
 
                 <Button variant="secondary" onClick={goNext} title="Next day">
                   →

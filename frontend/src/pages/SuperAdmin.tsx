@@ -10,6 +10,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Select from "../components/ui/Select";
 import Badge from "../components/ui/Badge";
+import Alert from "../components/ui/Alert";
 
 type State =
   | { status: "idle" }
@@ -87,10 +88,10 @@ export default function SuperAdmin() {
       }
     >
       {state.status === "error" ? (
-        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          {state.message}
-        </div>
-      ) : null}
+        <Alert variant="error" className="mb-6">
+            {state.message}
+        </Alert>
+        ) : null}
 
       <Card>
         <div className="grid gap-3">

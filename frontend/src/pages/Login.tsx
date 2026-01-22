@@ -8,6 +8,7 @@ import TopBar from "../components/layout/TopBar";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
+import Alert from "../components/ui/Alert";
 
 const TOKEN_KEY = "admin:jwt";
 
@@ -72,11 +73,7 @@ export default function Login() {
             {state === "loading" ? "Signing in…" : "Sign in"}
           </Button>
 
-          {state === "error" ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              Invalid username or password.
-            </div>
-          ) : null}
+          {state === "error" ? <Alert variant="error">Invalid username or password.</Alert> : null}
         </div>
       </Card>
     </PageShell>

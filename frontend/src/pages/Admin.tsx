@@ -6,6 +6,7 @@ import { todayYYYYMMDD } from "../lib/date";
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
 
+import DatePicker from "../components/ui/DatePicker";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
@@ -78,12 +79,7 @@ export default function Admin() {
           right={
             <div className="flex items-center gap-2">
               <span className="text-sm text-zinc-600">Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-              />
+              <DatePicker value={date} onChange={setDate} />
               <Button variant="secondary" onClick={logout}>
                 Logout
               </Button>
