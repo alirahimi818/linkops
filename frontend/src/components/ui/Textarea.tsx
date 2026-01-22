@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function Textarea(props: {
   value: string;
   onChange: (v: string) => void;
