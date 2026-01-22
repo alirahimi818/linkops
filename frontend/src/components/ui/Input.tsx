@@ -1,23 +1,35 @@
-export default function Input(props: {
+import React from "react";
+
+type Props = {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
   autoComplete?: string;
   className?: string;
-}) {
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "placeholder" | "type" | "autoComplete" | "className">;
+
+export default function Input({
+  value,
+  onChange,
+  placeholder,
+  type,
+  autoComplete,
+  className,
+  ...rest
+}: Props) {
   return (
     <input
-      value={props.value}
-      onChange={(e) => props.onChange(e.target.value)}
-      placeholder={props.placeholder}
-      type={props.type ?? "text"}
-      autoComplete={props.autoComplete}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      type={type}
+      autoComplete={autoComplete}
       className={[
-        "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400",
-        "focus:outline-none focus:ring-2 focus:ring-zinc-200",
-        props.className ?? "",
+        "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200",
+        className ?? "",
       ].join(" ")}
+      {...rest}
     />
   );
 }

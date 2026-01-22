@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminCreateItem, adminDeleteItem, adminFetchItems } from "../lib/api";
-import type { Item } from "../lib/api";
+import { adminCreateItem, adminDeleteItem, adminFetchCategories, adminFetchItems, fetchHashtagWhitelist } from "../lib/api";
+import type { Category, HashtagWhitelistRow, Item } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
@@ -12,6 +12,12 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Textarea from "../components/ui/Textarea";
 import Badge from "../components/ui/Badge";
+import Select from "../components/ui/Select";
+import Alert from "../components/ui/Alert";
+
+import TokenInput from "../components/ops/TokenInput";
+import CommentsEditor from "../components/ops/CommentsEditor";
+import { validateHashtags } from "../lib/hashtags";
 
 const TOKEN_KEY = "admin:jwt";
 
@@ -22,53 +28,111 @@ export default function Admin() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState<string>("");
+
+  const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
+
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
-  const [actionType, setActionType] = useState("");
 
-  async function load() {
-    setLoading(true);
-    try {
-      const it = await adminFetchItems(date);
-      setItems(it);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [actions, setActions] = useState<string[]>([]);
+  const [comments, setComments] = useState<string[]>([]);
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  const [error, setError] = useState<string | null>(null);
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     window.location.href = `/login?next=${encodeURIComponent("/admin")}`;
   }
 
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const it = await adminFetchItems(date);
+      setItems(it);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to load items.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function bootstrap() {
+    try {
+      const [cats, tags] = await Promise.all([adminFetchCategories(), fetchHashtagWhitelist()]);
+      setCategories(cats);
+
+      const active = (tags as HashtagWhitelistRow[])
+        .filter((t) => t.is_active === 1)
+        .map((t) => t.tag.toLowerCase());
+      setWhitelist(new Set(active));
+    } catch {
+      // Non-fatal: admin can still create items; hashtag validation will be limited
+    }
+  }
+
+  useEffect(() => {
+    bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
   async function onCreate() {
+    setError(null);
+
     if (!title.trim() || !url.trim() || !description.trim()) return;
 
-    await adminCreateItem({
-      date,
-      title: title.trim(),
-      url: url.trim(),
-      description: description.trim(),
-      action_type: actionType.trim() ? actionType.trim() : null,
-    });
+    // block create if hashtag issues exist (only if whitelist loaded)
+    if (whitelist.size > 0) {
+      const issues = validateHashtags(comments.join("\n"), whitelist);
+      if (issues.length > 0) {
+        setError("Please fix hashtag issues in comments before creating the item.");
+        return;
+      }
+    }
 
-    setTitle("");
-    setUrl("");
-    setDescription("");
-    setActionType("");
-    await load();
+    try {
+      await adminCreateItem({
+        date,
+        title: title.trim(),
+        url: url.trim(),
+        description: description.trim(),
+        category_id: categoryId ? categoryId : null,
+        actions,
+        comments,
+      });
+
+      setTitle("");
+      setUrl("");
+      setDescription("");
+      setCategoryId("");
+      setActions([]);
+      setComments([]);
+
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Create failed.");
+    }
   }
 
   async function onDelete(id: string) {
-    await adminDeleteItem(id);
-    await load();
+    setError(null);
+    try {
+      await adminDeleteItem(id);
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Delete failed.");
+    }
   }
+
+  const createDisabled = !title.trim() || !url.trim() || !description.trim();
 
   return (
     <PageShell
@@ -96,14 +160,47 @@ export default function Admin() {
         </>
       }
     >
+      {error ? (
+        <Alert variant="error" className="mb-6">
+          {error}
+        </Alert>
+      ) : null}
+
       <Card>
         <div className="grid gap-3">
           <Input value={title} onChange={setTitle} placeholder="Title" />
           <Input value={url} onChange={setUrl} placeholder="URL" />
-          <Input value={actionType} onChange={setActionType} placeholder="Action type (optional)" />
+
+          <Select value={categoryId} onChange={setCategoryId}>
+            <option value="">Category (optional)</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+
           <Textarea value={description} onChange={setDescription} placeholder="Short description" />
 
-          <Button onClick={onCreate} disabled={!title.trim() || !url.trim() || !description.trim()}>
+          <TokenInput
+            label="Actions"
+            placeholder='Type actions and press Enter or "," (e.g. like, comment, rate)'
+            value={actions}
+            onChange={setActions}
+            maxItems={10}
+            maxLen={60}
+          />
+
+          <CommentsEditor
+            label="Example comments (max 20)"
+            value={comments}
+            onChange={setComments}
+            whitelist={whitelist}
+            maxItems={20}
+            maxLen={400}
+          />
+
+          <Button onClick={onCreate} disabled={createDisabled}>
             Add item
           </Button>
 
@@ -133,7 +230,9 @@ export default function Admin() {
                     <div className="mt-2 text-sm text-zinc-700">{i.description}</div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {i.action_type ? <Badge>{i.action_type}</Badge> : null}
+                      {i.category_name ? <Badge>{i.category_name}</Badge> : null}
+                      {Array.isArray(i.actions) ? i.actions.map((a: string) => <Badge key={a}>{a}</Badge>) : null}
+
                       <span className="text-xs text-zinc-500">
                         by {i.created_by_username ?? "unknown"} • {new Date(i.created_at).toLocaleString()}
                       </span>
