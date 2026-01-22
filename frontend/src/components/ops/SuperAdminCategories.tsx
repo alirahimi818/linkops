@@ -104,7 +104,7 @@ export default function SuperAdminCategories() {
           {
             key: "name",
             header: "Name",
-            className: "",
+            className: "md:col-span-4",
             render: (r) => (
               <div className="flex items-center gap-2">
                 <span className="font-medium">{r.name}</span>
@@ -118,6 +118,9 @@ export default function SuperAdminCategories() {
             render: (r) => (
               <InlineEdit<EditCategoryDraft>
                 value={{ name: r.name ?? "", image: r.image ?? "" }}
+                renderDisplay={(_v) => (
+                  <div></div>
+                )}
                 renderEditor={(draft, setDraft) => (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="w-full md:w-[220px]">
