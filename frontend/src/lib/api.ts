@@ -105,3 +105,18 @@ export async function superadminDeleteUser(id: string) {
   return res.json();
 }
 
+export type Me = {
+  id: string;
+  username: string;
+  role: string;
+  email: string | null;
+};
+
+export async function adminMe(): Promise<Me> {
+  const res = await fetch(`/api/admin/me`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Unauthorized");
+  const data = await res.json();
+  return data.user as Me;
+}

@@ -3,17 +3,39 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
+import RequireAuth from "./components/RequireAuth";
 import Admin from "./pages/Admin";
 import SuperAdmin from "./pages/SuperAdmin";
+
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/superadmin" element={<SuperAdmin />} />
+
+        <Route path="/login" element={<Login />} />
+
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth allowRoles={["superadmin", "admin", "editor"]}>
+              <Admin />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/superadmin"
+          element={
+            <RequireAuth allowRoles={["superadmin"]}>
+              <SuperAdmin />
+            </RequireAuth>
+          }
+        />
       </Routes>
+
     </BrowserRouter>
   </React.StrictMode>
 );
