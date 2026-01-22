@@ -10,6 +10,7 @@ import type { Category } from "../../lib/api";
 export default function SuperAdminCategories() {
   const [rows, setRows] = useState<Category[]>([]);
   const [name, setName] = useState("");
+  const [image, setImage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,11 +34,13 @@ export default function SuperAdminCategories() {
   async function create() {
     setError(null);
     const n = name.trim();
+    const img = image.trim();
     if (!n) return;
 
     try {
-      await adminCreateCategory(n);
+      await adminCreateCategory(n, img);
       setName("");
+      setImage("");
       await load();
     } catch (e: any) {
       setError(e?.message ?? "Create failed.");
@@ -95,11 +98,16 @@ export default function SuperAdminCategories() {
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="text-sm font-medium text-zinc-800">Add category</div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <div className="w-full max-w-sm">
+        <div className="w-full mt-2 flex flex-wrap items-center gap-2">
+          <div className="w-1/3 flex flex-col gap-0.5">
+            <label htmlFor="category-name">Name</label>
             <Input value={name} onChange={setName} placeholder="e.g. Instagram, X, Review" />
           </div>
-          <Button onClick={create} disabled={!name.trim()}>
+          <div className="w-1/3 flex flex-col gap-0.5">
+            <label htmlFor="category-image">Image URL</label>
+            <Input value={image} onChange={setImage} placeholder="e.g. https://instagram.com/logo.png" />
+          </div>
+          <Button className="mt-6" onClick={create} disabled={!name.trim()}>
             Create
           </Button>
         </div>

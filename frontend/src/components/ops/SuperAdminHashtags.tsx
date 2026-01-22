@@ -153,22 +153,25 @@ export default function SuperAdminHashtags() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="text-sm font-medium text-zinc-800">Add hashtag</div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <div className="w-full max-w-sm">
+          <div className="w-2/5 flex flex-col gap-0.5">
+            <label htmlFor="tag">Hashtag</label>
             <Input value={tag} onChange={setTag} placeholder="e.g. #myhashtag" />
           </div>
 
-          <div className="w-[140px]">
+          <div className="w-1/5 flex flex-col gap-0.5">
+            <label htmlFor="priority">Priority</label>
             <Input value={priority} onChange={setPriority} placeholder="priority" />
           </div>
 
-          <div className="w-[160px]">
+          <div className="w-1/5 flex flex-col gap-0.5">
+            <label htmlFor="is_active">Status</label>
             <Select value={active} onChange={(v) => setActive(v as any)}>
               <option value="1">Active</option>
               <option value="0">Inactive</option>
             </Select>
           </div>
 
-          <Button onClick={create} disabled={!tag.trim()}>
+          <Button className="mt-6" onClick={create} disabled={!tag.trim()}>
             Create
           </Button>
         </div>
