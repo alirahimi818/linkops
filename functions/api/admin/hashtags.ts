@@ -1,3 +1,4 @@
+// functions/api/admin/hashtags.ts
 import { requireAuth, requireRole } from "./_auth";
 import type { EnvAuth } from "./_auth";
 
@@ -16,15 +17,15 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const user = await requireAuth(env, request);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!requireRole(user, ["superadmin", "admin", "editor"])) {
+    if (!requireRole(user, ["superadmin"])) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT id, tag, priority, active, created_at, created_by_user_id
+        `SELECT id, tag, priority, is_active, created_at
          FROM hashtag_whitelist
-         ORDER BY active DESC, priority DESC, tag ASC`
+         ORDER BY is_active DESC, priority DESC, tag ASC`
       ).all();
 
       return Response.json({ hashtags: results ?? [] });
@@ -34,7 +35,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const body = (await request.json().catch(() => null)) as null | {
         tag: string;
         priority?: number;
-        active?: boolean;
+        is_active?: number; // 0/1
       };
 
       if (!body?.tag) return Response.json({ error: "Invalid payload" }, { status: 400 });
@@ -44,44 +45,57 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
       const id = crypto.randomUUID();
       const priority = Number.isFinite(body.priority) ? Number(body.priority) : 0;
-      const active = body.active === false ? 0 : 1;
+      const is_active = body.is_active === 0 ? 0 : 1;
 
       await env.DB.prepare(
-        `INSERT INTO hashtag_whitelist (id, tag, priority, active, created_at, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).bind(id, tag, priority, active, nowIso(), user.id).run();
+        `INSERT INTO hashtag_whitelist (id, tag, priority, is_active, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(id, tag, priority, is_active, nowIso()).run();
 
       return Response.json({ ok: true, id });
     }
 
-    if (request.method === "PATCH") {
+    if (request.method === "PUT") {
+      const url = new URL(request.url);
+      const id = url.searchParams.get("id");
+      if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+
       const body = (await request.json().catch(() => null)) as null | {
-        id: string;
+        tag?: string;
         priority?: number;
-        active?: boolean;
+        is_active?: number; // 0/1
       };
 
-      if (!body?.id) return Response.json({ error: "Invalid payload" }, { status: 400 });
+      if (!body) return Response.json({ error: "Invalid payload" }, { status: 400 });
 
       const updates: string[] = [];
       const binds: any[] = [];
+
+      if (typeof body.tag === "string") {
+        const t = normalizeTag(body.tag);
+        if (!t || t.length > 80) return Response.json({ error: "Invalid tag" }, { status: 400 });
+        updates.push("tag = ?");
+        binds.push(t);
+      }
 
       if (typeof body.priority === "number" && Number.isFinite(body.priority)) {
         updates.push("priority = ?");
         binds.push(body.priority);
       }
 
-      if (typeof body.active === "boolean") {
-        updates.push("active = ?");
-        binds.push(body.active ? 1 : 0);
+      if (typeof body.is_active === "number") {
+        const v = body.is_active === 0 ? 0 : 1;
+        updates.push("is_active = ?");
+        binds.push(v);
       }
 
       if (updates.length === 0) return Response.json({ error: "Nothing to update" }, { status: 400 });
 
-      binds.push(body.id);
-      await env.DB.prepare(`UPDATE hashtag_whitelist SET ${updates.join(", ")} WHERE id = ?`)
-        .bind(...binds)
-        .run();
+      binds.push(id);
+
+      await env.DB.prepare(
+        `UPDATE hashtag_whitelist SET ${updates.join(", ")} WHERE id = ?`
+      ).bind(...binds).run();
 
       return Response.json({ ok: true });
     }
