@@ -17,7 +17,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     if (request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT id, name, created_at
+        `SELECT id, name, image, created_at
          FROM categories
          ORDER BY name ASC`
       ).all();
@@ -26,17 +26,18 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     }
 
     if (request.method === "POST") {
-      const body = (await request.json().catch(() => null)) as null | { name: string };
+      const body = (await request.json().catch(() => null)) as null | { name: string; image?: string };
       const name = body?.name?.trim();
+      const image = body?.image?.trim();
       if (!name || name.length > 60) {
         return Response.json({ error: "Invalid name" }, { status: 400 });
       }
 
       const id = crypto.randomUUID();
       await env.DB.prepare(
-        `INSERT INTO categories (id, name, created_at)
-         VALUES (?, ?, ?)`
-      ).bind(id, name, nowIso()).run();
+        `INSERT INTO categories (id, name, image, created_at)
+         VALUES (?, ?, ?, ?)`
+      ).bind(id, name, image, nowIso()).run();
 
       return Response.json({ ok: true, id });
     }
@@ -46,13 +47,14 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const id = url.searchParams.get("id");
       if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
-      const body = (await request.json().catch(() => null)) as null | { name: string };
+      const body = (await request.json().catch(() => null)) as null | { name: string; image?: string };
       const name = body?.name?.trim();
+      const image = body?.image?.trim();
       if (!name || name.length > 60) {
         return Response.json({ error: "Invalid name" }, { status: 400 });
       }
 
-      await env.DB.prepare(`UPDATE categories SET name = ? WHERE id = ?`).bind(name, id).run();
+      await env.DB.prepare(`UPDATE categories SET name = ?, image = ? WHERE id = ?`).bind(name, image, id).run();
       return Response.json({ ok: true });
     }
 

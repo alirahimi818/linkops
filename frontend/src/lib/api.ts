@@ -20,6 +20,7 @@ export type Item = {
   // New fields (v2)
   category_id?: string | null;
   category_name?: string | null;
+  category_image?: string | null;
   actions?: string[]; // e.g. ["like","comment"]
   comments_count?: number;
 
@@ -31,6 +32,7 @@ export type Item = {
 export type Category = {
   id: string;
   name: string;
+  image?: string | null;
   created_at?: string;
 };
 
@@ -316,12 +318,12 @@ export async function adminFetchCategories(): Promise<Category[]> {
  * Admin: create category
  * Expected endpoint: POST /api/admin/categories
  */
-export async function adminCreateCategory(name: string) {
+export async function adminCreateCategory(name: string, image?: string | null) {
   return requestJSON<{ ok: boolean; id: string }>(
     `/api/admin/categories`,
     {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, image }),
     },
     { auth: true }
   );
@@ -331,7 +333,7 @@ export async function adminCreateCategory(name: string) {
  * Admin: update category
  * Expected endpoint: PUT /api/admin/categories?id=...
  */
-export async function adminUpdateCategory(id: string, payload: { name: string }) {
+export async function adminUpdateCategory(id: string, payload: { name: string; image?: string | null }) {
   const res = await fetch(`/api/admin/categories?id=${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: {
