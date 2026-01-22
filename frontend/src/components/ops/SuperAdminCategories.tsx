@@ -128,7 +128,7 @@ export default function SuperAdminCategories() {
             render: (r) => (
               <InlineEdit<EditCategoryDraft>
                 value={{ name: r.name ?? "", image: r.image ?? "" }}
-                renderDisplay={(v) => (
+                renderDisplay={(_v) => (
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>Edit</Badge>
                     <span className="text-xs text-zinc-500">name & image</span>
