@@ -8,13 +8,6 @@ function nowIso() {
 
 export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   try {
-    const user = await requireAuth(env, request);
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-    if (!requireRole(user, ["superadmin"])) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     if (request.method === "GET") {
       const { results } = await env.DB.prepare(
         `SELECT id, name, image, created_at
@@ -23,6 +16,13 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       ).all();
 
       return Response.json({ categories: results ?? [] });
+    }
+
+    const user = await requireAuth(env, request);
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (!requireRole(user, ["superadmin"])) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (request.method === "POST") {
