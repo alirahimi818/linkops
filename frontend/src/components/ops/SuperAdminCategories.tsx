@@ -4,7 +4,6 @@ import InlineEdit from "./InlineEdit";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import Alert from "../ui/Alert";
-import Badge from "../ui/Badge";
 
 import {
   adminCreateCategory,
