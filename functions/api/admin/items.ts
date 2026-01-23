@@ -225,17 +225,18 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         .bind(body.title.trim(), body.url.trim(), body.description.trim(), body.category_id ?? null, id)
         .run();
 
+      const createdAt = new Date().toISOString();
+
       // Rebuild actions
       await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
       const actionIds = Array.isArray(body.action_ids) ? body.action_ids : [];
       for (const aid of actionIds) {
-        await env.DB.prepare(`INSERT INTO item_actions (item_id, action_id) VALUES (?, ?)`).bind(id, aid).run();
+        await env.DB.prepare(`INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`).bind(id, aid, createdAt).run();
       }
 
       // Rebuild comments
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
       const comments = Array.isArray(body.comments) ? body.comments : [];
-      const createdAt = new Date().toISOString();
       for (const text of comments) {
         const trimmed = String(text ?? "").trim();
         if (!trimmed) continue;
