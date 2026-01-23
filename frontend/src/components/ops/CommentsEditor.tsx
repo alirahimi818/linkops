@@ -23,8 +23,6 @@ export default function CommentsEditor({
   maxLen = 400,
 }: Props) {
   const [draft, setDraft] = useState("");
-  const [showWhitelist, setShowWhitelist] = useState(false);
-  const [whitelistQuery, setWhitelistQuery] = useState("");
 
   const draftIssues = useMemo(() => {
     if (!draft.trim() || whitelist.size === 0) return [];
@@ -37,13 +35,6 @@ export default function CommentsEditor({
     for (const c of value) all.push(...validateHashtags(c, whitelist));
     return all;
   }, [value, whitelist]);
-
-  const whitelistList = useMemo(() => {
-    const all = Array.from(whitelist).sort((a, b) => a.localeCompare(b));
-    const q = whitelistQuery.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter((t) => t.includes(q));
-  }, [whitelist, whitelistQuery]);
 
   function addDraft() {
     const t = draft.trim().slice(0, maxLen);
@@ -101,48 +92,21 @@ export default function CommentsEditor({
       />
 
       {draftIssues.length > 0 ? (
-        <IssueBox title="مشکلات هشتگ در متن پیش‌نویس" issues={draftIssues} onReplace={replaceDraft} />
-      ) : null}
-
-      {whitelist.size > 0 && draftIssues.length > 0 ? (
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => setShowWhitelist((s) => !s)}>
-            {showWhitelist ? "بستن هشتگ‌های مجاز" : "نمایش هشتگ‌های مجاز"}
-          </Button>
-        </div>
-      ) : null}
-
-      {showWhitelist ? (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-          <div className="mb-2 text-sm font-medium text-zinc-800">هشتگ‌های مجاز</div>
-
-          <Input value={whitelistQuery} onChange={setWhitelistQuery} placeholder="جستجو در هشتگ‌ها…" />
-
-          <div className="mt-2 flex flex-wrap gap-2">
-            {whitelistList.slice(0, 200).map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-white border border-zinc-200 px-3 py-1 text-xs font-mono"
-                dir="ltr"
-              >
-                #{t}
-              </span>
-            ))}
-          </div>
-
-          {whitelistList.length > 200 ? (
-            <div className="mt-2 text-xs text-zinc-500">برای نمایش کمتر، جستجو کنید.</div>
-          ) : null}
-        </div>
+        <IssueBox
+          title="مشکلات هشتگ در متن پیش‌نویس"
+          issues={draftIssues}
+          onReplace={replaceDraft}
+          whitelist={whitelist}
+        />
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button variant="secondary" onClick={addDraft} disabled={!draft.trim() || value.length >= maxItems}>
+        <Button variant="info" onClick={addDraft} disabled={!draft.trim() || value.length >= maxItems}>
           افزودن کامنت
         </Button>
 
         <Button
-          variant="ghost"
+          variant="warning"
           onClick={replaceAll}
           disabled={value.length === 0 || whitelist.size === 0}
           title="اصلاح خودکار غلط‌های قابل‌تبدیل در همه کامنت‌ها"
@@ -197,8 +161,45 @@ export default function CommentsEditor({
   );
 }
 
-function IssueBox(props: { title: string; issues: HashtagIssue[]; onReplace: () => void }) {
+function IssueBox(props: {
+  title: string;
+  issues: HashtagIssue[];
+  onReplace: () => void;
+  whitelist: Set<string>;
+}) {
   const hasSuggestion = props.issues.some((i) => !!i.suggestion);
+
+  const [showWhitelist, setShowWhitelist] = useState(false);
+  const [whitelistQuery, setWhitelistQuery] = useState("");
+  const [copiedTag, setCopiedTag] = useState<string | null>(null);
+
+  const whitelistList = useMemo(() => {
+    const all = Array.from(props.whitelist).sort((a, b) => a.localeCompare(b));
+    const q = whitelistQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((t) => t.includes(q));
+  }, [props.whitelist, whitelistQuery]);
+
+  async function copyTag(tag: string) {
+    const text = `#${tag}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for older browsers / non-secure context
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+
+    setCopiedTag(tag);
+    window.setTimeout(() => setCopiedTag(null), 900);
+  }
 
   return (
     <div dir="rtl" className="rounded-xl border border-red-200 bg-red-50 p-3 text-right">
@@ -223,11 +224,49 @@ function IssueBox(props: { title: string; issues: HashtagIssue[]; onReplace: () 
         ))}
       </ul>
 
-      {hasSuggestion ? (
-        <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {hasSuggestion ? (
           <Button variant="secondary" onClick={props.onReplace}>
             جایگزینی
           </Button>
+        ) : null}
+
+        {props.whitelist.size > 0 ? (
+          <Button variant="ghost" onClick={() => setShowWhitelist((s) => !s)}>
+            {showWhitelist ? "بستن هشتگ‌های مجاز" : "نمایش هشتگ‌های مجاز"}
+          </Button>
+        ) : null}
+      </div>
+
+      {showWhitelist ? (
+        <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-3">
+          <div className="mb-2 text-sm font-medium text-zinc-800">هشتگ‌های مجاز (برای کپی کلیک کنید)</div>
+
+          <Input value={whitelistQuery} onChange={setWhitelistQuery} placeholder="جستجو در هشتگ‌ها…" />
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {whitelistList.slice(0, 200).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => copyTag(t)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs font-mono transition",
+                  copiedTag === t
+                    ? "border-green-200 bg-green-50 text-green-800"
+                    : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50",
+                ].join(" ")}
+                dir="ltr"
+                title="کلیک کنید تا کپی شود"
+              >
+                #{t} {copiedTag === t ? "✓" : ""}
+              </button>
+            ))}
+          </div>
+
+          {whitelistList.length > 200 ? (
+            <div className="mt-2 text-xs text-zinc-500">برای نمایش کمتر، جستجو کنید.</div>
+          ) : null}
         </div>
       ) : null}
     </div>
