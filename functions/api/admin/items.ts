@@ -198,6 +198,56 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ ok: true, id });
     }
 
+    if (method === "PUT") {
+      const url = new URL(request.url);
+      const id = url.searchParams.get("id");
+      if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+
+      const body = (await request.json().catch(() => null)) as null | {
+        title: string;
+        url: string;
+        description: string;
+        category_id?: string | null;
+        action_ids?: string[];
+        comments?: string[];
+      };
+
+      if (!body || !body.title || !body.url || !body.description) {
+        return Response.json({ error: "Invalid payload" }, { status: 400 });
+      }
+
+      // Update base item
+      await env.DB.prepare(
+        `UPDATE items
+        SET title = ?, url = ?, description = ?, category_id = ?
+        WHERE id = ?`
+      )
+        .bind(body.title.trim(), body.url.trim(), body.description.trim(), body.category_id ?? null, id)
+        .run();
+
+      // Rebuild actions
+      await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
+      const actionIds = Array.isArray(body.action_ids) ? body.action_ids : [];
+      for (const aid of actionIds) {
+        await env.DB.prepare(`INSERT INTO item_actions (item_id, action_id) VALUES (?, ?)`).bind(id, aid).run();
+      }
+
+      // Rebuild comments
+      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
+      const comments = Array.isArray(body.comments) ? body.comments : [];
+      const createdAt = new Date().toISOString();
+      for (const text of comments) {
+        const trimmed = String(text ?? "").trim();
+        if (!trimmed) continue;
+        const cid = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO item_comments (id, item_id, text, created_at) VALUES (?, ?, ?, ?)`
+        ).bind(cid, id, trimmed, createdAt).run();
+      }
+
+      return Response.json({ ok: true });
+    }
+
     if (method === "DELETE") {
       if (!requireRole(user, ["superadmin", "admin"])) {
         return Response.json({ error: "Forbidden" }, { status: 403 });

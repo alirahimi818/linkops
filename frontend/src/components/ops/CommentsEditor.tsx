@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import Textarea from "../ui/Textarea";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
+import Input from "../ui/Input";
 import { applySuggestedReplacements, type HashtagIssue, validateHashtags } from "../../lib/hashtags";
 
 type Props = {
@@ -22,6 +23,8 @@ export default function CommentsEditor({
   maxLen = 400,
 }: Props) {
   const [draft, setDraft] = useState("");
+  const [showWhitelist, setShowWhitelist] = useState(false);
+  const [whitelistQuery, setWhitelistQuery] = useState("");
 
   const draftIssues = useMemo(() => {
     if (!draft.trim() || whitelist.size === 0) return [];
@@ -32,6 +35,13 @@ export default function CommentsEditor({
     if (value.length === 0 || whitelist.size === 0) return [];
     return validateHashtags(value.join("\n"), whitelist);
   }, [value, whitelist]);
+
+  const whitelistList = useMemo(() => {
+    const all = Array.from(whitelist).sort((a, b) => a.localeCompare(b));
+    const q = whitelistQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((t) => t.includes(q));
+  }, [whitelist, whitelistQuery]);
 
   function addDraft() {
     const t = draft.trim().slice(0, maxLen);
@@ -89,6 +99,38 @@ export default function CommentsEditor({
         <IssueBox title="مشکلات هشتگ در متن پیش‌نویس" issues={draftIssues} onReplace={replaceDraft} />
       ) : null}
 
+      {whitelist.size > 0 && draftIssues.length > 0 ? (
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => setShowWhitelist((s) => !s)}>
+            {showWhitelist ? "بستن هشتگ‌های مجاز" : "نمایش هشتگ‌های مجاز"}
+          </Button>
+        </div>
+      ) : null}
+
+      {showWhitelist ? (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="mb-2 text-sm font-medium text-zinc-800">هشتگ‌های مجاز</div>
+
+          <Input value={whitelistQuery} onChange={setWhitelistQuery} placeholder="جستجو در هشتگ‌ها…" />
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {whitelistList.slice(0, 200).map((t) => (
+              <span
+                key={t}
+                className="rounded-full bg-white border border-zinc-200 px-3 py-1 text-xs font-mono"
+                dir="ltr"
+              >
+                #{t}
+              </span>
+            ))}
+          </div>
+
+          {whitelistList.length > 200 ? (
+            <div className="mt-2 text-xs text-zinc-500">برای نمایش کمتر، جستجو کنید.</div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-2">
         <Button variant="secondary" onClick={addDraft} disabled={!draft.trim() || value.length >= maxItems}>
           افزودن کامنت
@@ -143,7 +185,7 @@ export default function CommentsEditor({
       {allIssues.length > 0 ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3">
           <div className="mb-1 text-sm font-medium text-red-800">مشکلات هشتگ در کامنت‌ها</div>
-          <div className="text-sm text-red-700">قبل از ساخت آیتم، این موارد را اصلاح کنید.</div>
+          <div className="text-sm text-red-700">قبل از ساخت/ذخیره آیتم، این موارد را اصلاح کنید.</div>
         </div>
       ) : null}
     </div>
