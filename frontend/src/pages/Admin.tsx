@@ -31,14 +31,9 @@ const TOKEN_KEY = "admin:jwt";
 
 type ItemComment = { id: string; text: string; created_at: string };
 
-type EditingDraft = {
+type EditState = {
   id: string;
-  title: string;
-  url: string;
-  description: string;
-  categoryId: string;
-  selectedActionIds: string[];
-  comments: string[];
+  originalDate: string;
 };
 
 export default function Admin() {
@@ -49,23 +44,24 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryId, setCategoryId] = useState<string>("");
-
   const [availableActions, setAvailableActions] = useState<Action[]>([]);
-  const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
-
   const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
 
+  // Form fields (shared for create/edit)
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
-
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
   const [comments, setComments] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
+  // Edit mode
+  const [editing, setEditing] = useState<EditState | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // UI state
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
-  const [editing, setEditing] = useState<EditingDraft | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
@@ -83,26 +79,30 @@ export default function Admin() {
     return [];
   }
 
-  function openEditModal(i: any) {
-    setError(null);
-
-    const actionIds = Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : [];
-    const commentStrings = mapItemCommentsToStrings(i.comments);
-
-    setEditing({
-      id: i.id,
-      title: i.title ?? "",
-      url: i.url ?? "",
-      description: i.description ?? "",
-      categoryId: i.category_id ?? "",
-      selectedActionIds: actionIds,
-      comments: commentStrings,
-    });
+  function resetForm() {
+    setTitle("");
+    setUrl("");
+    setDescription("");
+    setCategoryId("");
+    setSelectedActionIds([]);
+    setComments([]);
+    setEditing(null);
   }
 
-  function closeEditModal() {
-    setEditing(null);
-    setSavingEdit(false);
+  function startEdit(i: any) {
+    setError(null);
+
+    setTitle(i.title ?? "");
+    setUrl(i.url ?? "");
+    setDescription(i.description ?? "");
+    setCategoryId(i.category_id ?? "");
+    setSelectedActionIds(Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : []);
+    setComments(mapItemCommentsToStrings(i.comments));
+
+    setEditing({ id: i.id, originalDate: i.date ?? date });
+
+    // Optional: scroll to form
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function load() {
@@ -149,40 +149,53 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  async function onCreate() {
+  function validateBeforeSave(currentComments: string[]) {
+    if (whitelist.size === 0) return null;
+    const issues = validateHashtags(currentComments.join("\n"), whitelist);
+    if (issues.length > 0) return "قبل از ذخیره، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.";
+    return null;
+  }
+
+  async function onSubmit() {
     setError(null);
 
     if (!title.trim() || !url.trim() || !description.trim()) return;
 
-    if (whitelist.size > 0) {
-      const issues = validateHashtags(comments.join("\n"), whitelist);
-      if (issues.length > 0) {
-        setError("قبل از ایجاد آیتم، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.");
-        return;
-      }
+    const msg = validateBeforeSave(comments);
+    if (msg) {
+      setError(msg);
+      return;
     }
 
+    setSaving(true);
     try {
-      await adminCreateItem({
-        date,
-        title: title.trim(),
-        url: url.trim(),
-        description: description.trim(),
-        category_id: categoryId ? categoryId : null,
-        action_ids: selectedActionIds,
-        comments,
-      });
+      if (editing) {
+        await adminUpdateItem(editing.id, {
+          title: title.trim(),
+          url: url.trim(),
+          description: description.trim(),
+          category_id: categoryId ? categoryId : null,
+          action_ids: selectedActionIds,
+          comments,
+        });
+      } else {
+        await adminCreateItem({
+          date,
+          title: title.trim(),
+          url: url.trim(),
+          description: description.trim(),
+          category_id: categoryId ? categoryId : null,
+          action_ids: selectedActionIds,
+          comments,
+        });
+      }
 
-      setTitle("");
-      setUrl("");
-      setDescription("");
-      setCategoryId("");
-      setSelectedActionIds([]);
-      setComments([]);
-
+      resetForm();
       await load();
     } catch (e: any) {
-      setError(e?.message ?? "ایجاد آیتم ناموفق بود.");
+      setError(e?.message ?? (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -196,42 +209,7 @@ export default function Admin() {
     }
   }
 
-  async function onSaveEdit() {
-    if (!editing) return;
-
-    setError(null);
-
-    if (!editing.title.trim() || !editing.url.trim() || !editing.description.trim()) return;
-
-    if (whitelist.size > 0) {
-      const issues = validateHashtags(editing.comments.join("\n"), whitelist);
-      if (issues.length > 0) {
-        setError("قبل از ذخیره تغییرات، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.");
-        return;
-      }
-    }
-
-    setSavingEdit(true);
-    try {
-      await adminUpdateItem(editing.id, {
-        title: editing.title.trim(),
-        url: editing.url.trim(),
-        description: editing.description.trim(),
-        category_id: editing.categoryId ? editing.categoryId : null,
-        action_ids: editing.selectedActionIds,
-        comments: editing.comments,
-      });
-
-      closeEditModal();
-      await load();
-    } catch (e: any) {
-      setError(e?.message ?? "ذخیره تغییرات ناموفق بود.");
-    } finally {
-      setSavingEdit(false);
-    }
-  }
-
-  const createDisabled = !title.trim() || !url.trim() || !description.trim();
+  const submitDisabled = !title.trim() || !url.trim() || !description.trim() || saving;
 
   return (
     <PageShell
@@ -268,6 +246,24 @@ export default function Admin() {
       ) : null}
 
       <Card>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm text-zinc-600">
+            {editing ? (
+              <span>
+                در حال ویرایش آیتم <span className="font-mono" dir="ltr">{editing.id}</span>
+              </span>
+            ) : (
+              <span>ایجاد آیتم جدید برای تاریخ {date}</span>
+            )}
+          </div>
+
+          {editing ? (
+            <Button variant="ghost" onClick={resetForm} disabled={saving}>
+              انصراف از ویرایش
+            </Button>
+          ) : null}
+        </div>
+
         <div className="grid gap-3">
           <Input value={title} onChange={setTitle} placeholder="عنوان" />
           <Input dir="ltr" value={url} onChange={setUrl} placeholder="لینک (URL)" />
@@ -281,7 +277,13 @@ export default function Admin() {
             ))}
           </Select>
 
-          <Textarea dir="auto" value={description} onChange={setDescription} placeholder="توضیح کوتاه" />
+          <Textarea
+            dir="rtl"
+            textDir="auto"
+            value={description}
+            onChange={setDescription}
+            placeholder="توضیح کوتاه"
+          />
 
           <ActionCheckboxes
             label="اکشن‌ها"
@@ -301,12 +303,16 @@ export default function Admin() {
             maxLen={280}
           />
 
-          <Button onClick={onCreate} disabled={createDisabled}>
-            افزودن آیتم
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={onSubmit} disabled={submitDisabled}>
+              {editing ? (saving ? "در حال ذخیره…" : "ذخیره تغییرات") : saving ? "در حال افزودن…" : "افزودن آیتم"}
+            </Button>
 
-          <div className="text-xs text-zinc-500">
-            نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.
+            {!editing ? (
+              <div className="text-xs text-zinc-500">
+                نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.
+              </div>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -328,12 +334,12 @@ export default function Admin() {
               return (
                 <Card key={i.id}>
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col justify-center items-center gap-2">
                       <Button variant="secondary" onClick={() => onDelete(i.id)}>
                         حذف
                       </Button>
 
-                      <Button variant="ghost" onClick={() => openEditModal(i)}>
+                      <Button variant="ghost" onClick={() => startEdit(i)}>
                         ویرایش
                       </Button>
 
@@ -402,83 +408,6 @@ export default function Admin() {
           </div>
         )}
       </section>
-
-      {editing ? (
-        <Modal title="ویرایش آیتم" onClose={closeEditModal}>
-          <div className="grid gap-3">
-            <Input value={editing.title} onChange={(v) => setEditing({ ...editing, title: v })} placeholder="عنوان" />
-            <Input
-              dir="ltr"
-              value={editing.url}
-              onChange={(v) => setEditing({ ...editing, url: v })}
-              placeholder="لینک (URL)"
-            />
-
-            <Select value={editing.categoryId} onChange={(v) => setEditing({ ...editing, categoryId: v })} dir="rtl">
-              <option value="">دسته‌بندی (اختیاری)</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-
-            <Textarea
-              dir="auto"
-              value={editing.description}
-              onChange={(v) => setEditing({ ...editing, description: v })}
-              placeholder="توضیح کوتاه"
-            />
-
-            <ActionCheckboxes
-              label="اکشن‌ها"
-              actions={availableActions}
-              value={editing.selectedActionIds}
-              onChange={(next) => setEditing({ ...editing, selectedActionIds: next })}
-              maxSelect={10}
-              emptyHint="اکشنی برای انتخاب وجود ندارد."
-            />
-
-            <CommentsEditor
-              label="کامنت‌های پیشنهادی (حداکثر ۵۰ مورد)"
-              value={editing.comments}
-              onChange={(next) => setEditing({ ...editing, comments: next })}
-              whitelist={whitelist}
-              maxItems={50}
-              maxLen={280}
-            />
-
-            <div className="flex items-center gap-2 justify-start">
-              <Button variant="secondary" onClick={onSaveEdit} disabled={savingEdit}>
-                {savingEdit ? "در حال ذخیره…" : "ذخیره تغییرات"}
-              </Button>
-              <Button variant="ghost" onClick={closeEditModal} disabled={savingEdit}>
-                بستن
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      ) : null}
     </PageShell>
-  );
-}
-
-function Modal(props: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={props.onClose}>
-      <div
-        dir="rtl"
-        className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <Button variant="ghost" onClick={props.onClose}>
-            بستن
-          </Button>
-          <div className="text-lg font-semibold">{props.title}</div>
-        </div>
-        {props.children}
-      </div>
-    </div>
   );
 }
