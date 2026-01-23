@@ -17,11 +17,56 @@ export default function ActionCheckboxes(props: {
 }) {
   const disabled = props.disabled ?? false;
 
+  const allIds = props.actions.map((a) => a.id);
+  const selectedSet = new Set(props.value);
+
+  const selectedCount = props.value.length;
+  const totalCount = allIds.length;
+
+  const isAllSelected = totalCount > 0 && selectedCount >= totalCount;
+  const isNoneSelected = selectedCount === 0;
+
+  function selectAll() {
+    if (disabled) return;
+
+    if (typeof props.maxSelect === "number") {
+      props.onChange(allIds.slice(0, props.maxSelect));
+      return;
+    }
+
+    props.onChange(allIds);
+  }
+
+  function unselectAll() {
+    if (disabled) return;
+    props.onChange([]);
+  }
+
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="text-sm font-medium text-zinc-900">{props.label ?? "Actions"}</div>
-        <div className="text-xs text-zinc-500">{props.value.length} selected</div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-zinc-500">
+            {selectedCount} selected
+          </div>
+
+          {props.actions.length > 0 ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={isAllSelected ? unselectAll : selectAll}
+              className={[
+                "text-xs underline transition",
+                disabled ? "text-zinc-400 cursor-not-allowed" : "text-zinc-700 hover:text-zinc-900",
+              ].join(" ")}
+              title={isAllSelected ? "Unselect all" : "Select all"}
+            >
+              {isAllSelected ? "Unselect all" : "Select all"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {props.actions.length === 0 ? (
@@ -29,7 +74,8 @@ export default function ActionCheckboxes(props: {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {props.actions.map((a) => {
-            const checked = props.value.includes(a.id);
+            const checked = selectedSet.has(a.id);
+
             return (
               <label
                 key={a.id}
@@ -56,6 +102,12 @@ export default function ActionCheckboxes(props: {
 
       {typeof props.maxSelect === "number" && props.value.length >= props.maxSelect ? (
         <div className="mt-2 text-xs text-zinc-500">Maximum selected actions reached.</div>
+      ) : null}
+
+      {!disabled && !isNoneSelected && !isAllSelected ? (
+        <div className="mt-2 text-xs text-zinc-500">
+          Tip: You can quickly select everything using <span className="font-medium">Select all</span>.
+        </div>
       ) : null}
     </div>
   );
