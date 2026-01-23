@@ -311,7 +311,6 @@ export async function adminFetchCategories(): Promise<Category[]> {
     undefined,
     { auth: true }
   );
-  console.log("adminFetchCategories data:", data); // debug
   return data.categories ?? [];
 }
 

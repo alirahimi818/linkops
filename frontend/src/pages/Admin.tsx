@@ -70,8 +70,8 @@ export default function Admin() {
         .filter((t) => t.is_active === 1)
         .map((t) => t.tag.toLowerCase());
       setWhitelist(new Set(active));
-    } catch {
-      // Non-fatal: admin can still create items; hashtag validation will be limited
+    } catch (e: any) {
+          console.error("categories bootstrap failed:", e);
     }
   }
 
