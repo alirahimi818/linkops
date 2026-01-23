@@ -28,6 +28,7 @@ export default function Button(props: {
       type={props.type ?? "button"}
       onClick={props.onClick}
       disabled={props.disabled}
+      aria-disabled={props.disabled ? true : undefined}
       className={[base, styles[variant], props.className ?? ""].join(" ")}
       title={props.title}
     >

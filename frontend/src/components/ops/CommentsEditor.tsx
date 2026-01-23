@@ -64,18 +64,19 @@ export default function CommentsEditor({
   }
 
   return (
-    <div className="grid gap-2">
+    <div dir="rtl" className="grid gap-2 text-right">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-zinc-800">{label ?? "Example comments"}</div>
+        <div className="text-sm font-medium text-zinc-800">{label ?? "کامنت‌های پیشنهادی"}</div>
         <div className="text-xs text-zinc-500">
           {value.length} / {maxItems}
         </div>
       </div>
 
       <Textarea
+        dir="auto"
         value={draft}
         onChange={setDraft}
-        placeholder="Write a comment (Enter to add, Shift+Enter for newline). Hashtags will be validated."
+        placeholder="کامنت را بنویسید (Enter برای افزودن، Shift+Enter برای خط جدید). هشتگ‌ها بررسی می‌شوند."
         onKeyDown={(e: any) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -85,21 +86,21 @@ export default function CommentsEditor({
       />
 
       {draftIssues.length > 0 ? (
-        <IssueBox title="Hashtag issues in draft" issues={draftIssues} onReplace={replaceDraft} />
+        <IssueBox title="مشکلات هشتگ در متن پیش‌نویس" issues={draftIssues} onReplace={replaceDraft} />
       ) : null}
 
       <div className="flex items-center gap-2">
         <Button variant="secondary" onClick={addDraft} disabled={!draft.trim() || value.length >= maxItems}>
-          Add comment
+          افزودن کامنت
         </Button>
 
         <Button
           variant="ghost"
           onClick={replaceAll}
           disabled={value.length === 0 || whitelist.size === 0}
-          title="Replace fixable hashtag typos in all comments"
+          title="اصلاح خودکار غلط‌های قابل‌تبدیل در همه کامنت‌ها"
         >
-          Auto-fix all
+          اصلاح خودکار همه
         </Button>
       </div>
 
@@ -108,16 +109,23 @@ export default function CommentsEditor({
           {value.map((c, idx) => (
             <Card key={idx}>
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-sm text-zinc-800 whitespace-pre-wrap">{c}</div>
+                <Button variant="ghost" onClick={() => removeAt(idx)}>
+                  حذف
+                </Button>
+
+                <div className="min-w-0 flex-1">
+                  <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                    {c}
+                  </div>
+
                   {whitelist.size ? (
                     (() => {
                       const issues = validateHashtags(c, whitelist);
                       return issues.length > 0 ? (
                         <div className="mt-2 text-xs text-red-700">
-                          Invalid hashtags:{" "}
+                          هشتگ‌های نامعتبر:
                           {issues.map((i) => (
-                            <span key={i.raw} className="mr-2 font-mono">
+                            <span key={i.raw} className="me-2 font-mono" dir="ltr">
                               {i.raw}
                             </span>
                           ))}
@@ -126,10 +134,6 @@ export default function CommentsEditor({
                     })()
                   ) : null}
                 </div>
-
-                <Button variant="ghost" onClick={() => removeAt(idx)}>
-                  Remove
-                </Button>
               </div>
             </Card>
           ))}
@@ -138,8 +142,8 @@ export default function CommentsEditor({
 
       {allIssues.length > 0 ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <div className="mb-1 text-sm font-medium text-red-800">Hashtag issues in comments</div>
-          <div className="text-sm text-red-700">Fix these before creating the item.</div>
+          <div className="mb-1 text-sm font-medium text-red-800">مشکلات هشتگ در کامنت‌ها</div>
+          <div className="text-sm text-red-700">قبل از ساخت آیتم، این موارد را اصلاح کنید.</div>
         </div>
       ) : null}
     </div>
@@ -150,16 +154,22 @@ function IssueBox(props: { title: string; issues: HashtagIssue[]; onReplace: () 
   const hasSuggestion = props.issues.some((i) => !!i.suggestion);
 
   return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+    <div dir="rtl" className="rounded-xl border border-red-200 bg-red-50 p-3 text-right">
       <div className="mb-2 text-sm font-medium text-red-800">{props.title}</div>
 
-      <ul className="list-disc pl-5 text-sm text-red-700">
+      <ul className="list-disc ps-5 text-sm text-red-700">
         {props.issues.map((i, idx) => (
           <li key={idx}>
-            <span className="font-mono">{i.raw}</span> {i.reason}
+            <span className="font-mono" dir="ltr">
+              {i.raw}
+            </span>{" "}
+            {i.reason}
             {i.suggestion ? (
-              <span className="ml-2">
-                → <span className="font-mono text-red-900">#{i.suggestion}</span>
+              <span className="ms-2">
+                ←{" "}
+                <span className="font-mono text-red-900" dir="ltr">
+                  #{i.suggestion}
+                </span>
               </span>
             ) : null}
           </li>
@@ -169,7 +179,7 @@ function IssueBox(props: { title: string; issues: HashtagIssue[]; onReplace: () 
       {hasSuggestion ? (
         <div className="mt-3">
           <Button variant="secondary" onClick={props.onReplace}>
-            Replace
+            جایگزینی
           </Button>
         </div>
       ) : null}

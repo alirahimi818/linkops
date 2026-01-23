@@ -5,9 +5,11 @@ export default function Select(props: {
   onChange: (v: string) => void;
   className?: string;
   children: React.ReactNode;
+  dir?: "rtl" | "ltr" | "auto"; // default: auto
 }) {
   return (
     <select
+      dir={props.dir ?? "auto"}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       className={[

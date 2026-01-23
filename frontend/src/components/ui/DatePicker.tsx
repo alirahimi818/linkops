@@ -6,6 +6,7 @@ export default function DatePicker(props: {
 }) {
   return (
     <input
+      dir="ltr"
       type="date"
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}

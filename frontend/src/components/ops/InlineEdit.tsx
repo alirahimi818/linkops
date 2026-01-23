@@ -12,7 +12,6 @@ type Props<T> = {
 
   /**
    * Render editor UI. You get draft + setter.
-   * If not provided, InlineEdit becomes a "wrapper" but you should provide it for real reuse.
    */
   renderEditor: (draft: T, setDraft: (v: T) => void) => JSX.Element;
 
@@ -37,9 +36,16 @@ type Props<T> = {
    * Optional external className
    */
   className?: string;
+
+  /**
+   * Layout direction
+   */
+  dir?: "rtl" | "ltr"; // default: rtl
 };
 
 export default function InlineEdit<T>(props: Props<T>) {
+  const dir = props.dir ?? "rtl";
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<T>(props.value);
   const [saving, setSaving] = useState(false);
@@ -64,7 +70,7 @@ export default function InlineEdit<T>(props: Props<T>) {
       await props.onSave(draft);
       setEditing(false);
     } catch (e: any) {
-      setError(e?.message ?? "Save failed.");
+      setError(e?.message ?? "ذخیره ناموفق بود.");
     } finally {
       setSaving(false);
     }
@@ -76,32 +82,44 @@ export default function InlineEdit<T>(props: Props<T>) {
     setEditing(false);
   }
 
+  function startEdit() {
+    if (props.disabled) return;
+    setEditing(true);
+  }
+
   if (!editing) {
     return (
-      <div className={`flex items-center gap-2 ${props.className ?? ""}`}>
+      <div dir={dir} className={`flex items-center gap-2 ${dir === "rtl" ? "text-right" : "text-left"} ${props.className ?? ""}`}>
+        <Button variant="ghost" onClick={startEdit} disabled={props.disabled}>
+          {props.editLabel ?? "ویرایش"}
+        </Button>
+
         <div className="min-w-0 truncate">
           {props.renderDisplay ? props.renderDisplay(props.value) : <span>{String(props.value)}</span>}
         </div>
-        <Button variant="ghost" onClick={() => setEditing(true)} disabled={props.disabled}>
-          {props.editLabel ?? "Edit"}
-        </Button>
       </div>
     );
   }
 
   return (
-    <div className={`grid gap-2 ${props.className ?? ""}`}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div dir={dir} className={`grid gap-2 ${dir === "rtl" ? "text-right" : "text-left"} ${props.className ?? ""}`}>
+      <div className={`flex flex-wrap items-center gap-2 ${dir === "rtl" ? "flex-row-reverse" : ""}`}>
         {props.renderEditor(draft, setDraft)}
+
         <Button variant="secondary" onClick={save} disabled={saving || props.disabled}>
-          {props.saveLabel ?? "Save"}
+          {props.saveLabel ?? (saving ? "در حال ذخیره…" : "ذخیره")}
         </Button>
+
         <Button variant="ghost" onClick={cancel} disabled={saving}>
-          {props.cancelLabel ?? "Cancel"}
+          {props.cancelLabel ?? "انصراف"}
         </Button>
       </div>
 
-      {error ? <div className="text-xs text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="text-xs text-red-700" role="alert" aria-live="polite">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

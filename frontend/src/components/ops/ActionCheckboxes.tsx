@@ -42,15 +42,16 @@ export default function ActionCheckboxes(props: {
     props.onChange([]);
   }
 
+  const label = props.label ?? "اکشن‌ها";
+  const emptyHint = props.emptyHint ?? "هیچ اکشنی برای انتخاب وجود ندارد.";
+
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-3">
+    <div dir="rtl" className="rounded-xl border border-zinc-200 bg-white p-3 text-right">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-zinc-900">{props.label ?? "Actions"}</div>
+        <div className="text-sm font-medium text-zinc-900">{label}</div>
 
         <div className="flex items-center gap-3">
-          <div className="text-xs text-zinc-500">
-            {selectedCount} selected
-          </div>
+          <div className="text-xs text-zinc-500">{selectedCount} انتخاب شده</div>
 
           {props.actions.length > 0 ? (
             <button
@@ -61,16 +62,16 @@ export default function ActionCheckboxes(props: {
                 "text-xs underline transition",
                 disabled ? "text-zinc-400 cursor-not-allowed" : "text-zinc-700 hover:text-zinc-900",
               ].join(" ")}
-              title={isAllSelected ? "Unselect all" : "Select all"}
+              title={isAllSelected ? "لغو انتخاب همه" : "انتخاب همه"}
             >
-              {isAllSelected ? "Unselect all" : "Select all"}
+              {isAllSelected ? "لغو انتخاب همه" : "انتخاب همه"}
             </button>
           ) : null}
         </div>
       </div>
 
       {props.actions.length === 0 ? (
-        <div className="text-sm text-zinc-500">{props.emptyHint ?? "No actions available."}</div>
+        <div className="text-sm text-zinc-500">{emptyHint}</div>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {props.actions.map((a) => {
@@ -92,8 +93,11 @@ export default function ActionCheckboxes(props: {
                   disabled={disabled}
                   onChange={() => props.onChange(toggleId(props.value, a.id, props.maxSelect))}
                 />
+
                 <span className="font-medium text-zinc-900">{a.label}</span>
-                <span className="ml-auto text-xs text-zinc-500">{a.name}</span>
+
+                {/* In RTL, "ms-auto" is better than "ml-auto" for pushing to the end */}
+                <span className="ms-auto text-xs text-zinc-500">{a.name}</span>
               </label>
             );
           })}
@@ -101,12 +105,13 @@ export default function ActionCheckboxes(props: {
       )}
 
       {typeof props.maxSelect === "number" && props.value.length >= props.maxSelect ? (
-        <div className="mt-2 text-xs text-zinc-500">Maximum selected actions reached.</div>
+        <div className="mt-2 text-xs text-zinc-500">حداکثر تعداد انتخاب مجاز پر شده است.</div>
       ) : null}
 
       {!disabled && !isNoneSelected && !isAllSelected ? (
         <div className="mt-2 text-xs text-zinc-500">
-          Tip: You can quickly select everything using <span className="font-medium">Select all</span>.
+          نکته: برای انتخاب سریع همه موارد می‌توانید از{" "}
+          <span className="font-medium">انتخاب همه</span> استفاده کنید.
         </div>
       ) : null}
     </div>

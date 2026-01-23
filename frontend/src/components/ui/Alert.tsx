@@ -18,5 +18,15 @@ export default function Alert(props: {
     error: "border-rose-200 bg-rose-50 text-rose-700",
   };
 
-  return <div className={[base, styles[variant], props.className ?? ""].join(" ")}>{props.children}</div>;
+  const isError = variant === "error";
+
+  return (
+    <div
+      className={[base, styles[variant], props.className ?? ""].join(" ")}
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+    >
+      {props.children}
+    </div>
+  );
 }
