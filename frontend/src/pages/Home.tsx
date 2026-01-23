@@ -105,7 +105,10 @@ export default function Home() {
 
           <div className="mt-5">
             <div className="h-2 w-full rounded bg-zinc-200">
-              <div className="h-2 rounded bg-zinc-900" style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }} />
+              <div
+                className="h-2 rounded bg-zinc-900"
+                style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }}
+              />
             </div>
             <div className="mt-2 text-xs text-zinc-500">
               {doneCount} / {total} done
@@ -125,11 +128,7 @@ export default function Home() {
           </Tabs>
         </div>
       }
-      footer={
-        <>
-          
-        </>
-      }
+      footer={<></>}
     >
       {loading ? (
         <div className="text-zinc-500">Loading…</div>
@@ -141,15 +140,22 @@ export default function Home() {
             <Card key={item.id}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <a href={item.url} target="_blank" rel="noreferrer" className="text-lg font-semibold hover:underline">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-lg font-semibold hover:underline"
+                  >
                     {item.title}
                   </a>
 
                   <div className="mt-1 text-sm text-zinc-600">{item.description}</div>
 
-                  {item.action_type ? (
-                    <div className="mt-2">
-                      <Badge>{item.action_type}</Badge>
+                  {Array.isArray(item.actions) && item.actions.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {item.actions.map((a: any) => (
+                        <Badge key={a.id}>{a.label ?? a.name}</Badge>
+                      ))}
                     </div>
                   ) : null}
                 </div>
