@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminCreateItem, adminDeleteItem, adminFetchItems, fetchCategories, fetchHashtagWhitelist } from "../lib/api";
-import type { Category, HashtagWhitelistRow, Item } from "../lib/api";
+import {
+  adminCreateItem,
+  adminDeleteItem,
+  adminFetchItems,
+  fetchActions,
+  fetchCategories,
+  fetchHashtagWhitelist,
+} from "../lib/api";
+import type { Action, Category, HashtagWhitelistRow, Item } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
@@ -15,7 +22,7 @@ import Badge from "../components/ui/Badge";
 import Select from "../components/ui/Select";
 import Alert from "../components/ui/Alert";
 
-import TokenInput from "../components/ops/TokenInput";
+import ActionCheckboxes from "../components/ops/ActionCheckboxes";
 import CommentsEditor from "../components/ops/CommentsEditor";
 import { validateHashtags } from "../lib/hashtags";
 
@@ -31,13 +38,15 @@ export default function Admin() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
 
+  const [availableActions, setAvailableActions] = useState<Action[]>([]);
+  const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
+
   const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
 
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
 
-  const [actions, setActions] = useState<string[]>([]);
   const [comments, setComments] = useState<string[]>([]);
 
   const [error, setError] = useState<string | null>(null);
@@ -62,15 +71,21 @@ export default function Admin() {
 
   async function bootstrap() {
     try {
-      const [cats, tags] = await Promise.all([fetchCategories(), fetchHashtagWhitelist()]);
+      const [cats, tags, acts] = await Promise.all([
+        fetchCategories(),
+        fetchHashtagWhitelist(),
+        fetchActions(),
+      ]);
+
       setCategories(cats);
+      setAvailableActions(acts);
 
       const active = (tags as HashtagWhitelistRow[])
         .filter((t) => t.is_active === 1)
         .map((t) => t.tag.toLowerCase());
       setWhitelist(new Set(active));
     } catch (e: any) {
-        console.error("categories bootstrap failed:", e);
+      console.error("bootstrap failed:", e);
     }
   }
 
@@ -89,7 +104,6 @@ export default function Admin() {
 
     if (!title.trim() || !url.trim() || !description.trim()) return;
 
-    // block create if hashtag issues exist (only if whitelist loaded)
     if (whitelist.size > 0) {
       const issues = validateHashtags(comments.join("\n"), whitelist);
       if (issues.length > 0) {
@@ -105,7 +119,7 @@ export default function Admin() {
         url: url.trim(),
         description: description.trim(),
         category_id: categoryId ? categoryId : null,
-        actions,
+        action_ids: selectedActionIds,
         comments,
       });
 
@@ -113,7 +127,7 @@ export default function Admin() {
       setUrl("");
       setDescription("");
       setCategoryId("");
-      setActions([]);
+      setSelectedActionIds([]);
       setComments([]);
 
       await load();
@@ -182,29 +196,31 @@ export default function Admin() {
 
           <Textarea value={description} onChange={setDescription} placeholder="Short description" />
 
-          <TokenInput
+          <ActionCheckboxes
             label="Actions"
-            placeholder='Type actions and press Enter or "," (e.g. like, comment, rate)'
-            value={actions}
-            onChange={setActions}
-            maxItems={10}
-            maxLen={60}
+            actions={availableActions}
+            value={selectedActionIds}
+            onChange={setSelectedActionIds}
+            maxSelect={10}
+            emptyHint="No actions available."
           />
 
           <CommentsEditor
-            label="Example comments (max 20)"
+            label="Example comments (max 50)"
             value={comments}
             onChange={setComments}
             whitelist={whitelist}
-            maxItems={20}
-            maxLen={400}
+            maxItems={50}
+            maxLen={280}
           />
 
           <Button onClick={onCreate} disabled={createDisabled}>
             Add item
           </Button>
 
-          <div className="text-xs text-zinc-500">Tip: Keep descriptions short so users can move fast.</div>
+          <div className="text-xs text-zinc-500">
+            Tip: Keep descriptions short so users can move fast.
+          </div>
         </div>
       </Card>
 
@@ -223,7 +239,12 @@ export default function Admin() {
                   <div className="min-w-0">
                     <div className="text-lg font-semibold">{i.title}</div>
 
-                    <a className="mt-1 block truncate text-sm text-zinc-600 underline" href={i.url} target="_blank" rel="noreferrer">
+                    <a
+                      className="mt-1 block truncate text-sm text-zinc-600 underline"
+                      href={i.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       {i.url}
                     </a>
 
@@ -231,10 +252,16 @@ export default function Admin() {
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {i.category_name ? <Badge>{i.category_name}</Badge> : null}
-                      {Array.isArray(i.actions) ? i.actions.map((a: string) => <Badge key={a}>{a}</Badge>) : null}
+
+                      {Array.isArray(i.actions)
+                        ? i.actions.map((a: any) => (
+                            <Badge key={a.id}>{a.label ?? a.name}</Badge>
+                          ))
+                        : null}
 
                       <span className="text-xs text-zinc-500">
-                        by {i.created_by_username ?? "unknown"} • {new Date(i.created_at).toLocaleString()}
+                        by {i.created_by_username ?? "unknown"} •{" "}
+                        {new Date(i.created_at).toLocaleString()}
                       </span>
                     </div>
                   </div>

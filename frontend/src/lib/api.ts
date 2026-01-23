@@ -7,6 +7,13 @@
  * - This file is a client wrapper only; it does not implement server logic.
  */
 
+export type Action = {
+  id: string;
+  name: string;   // machine name
+  label: string;  // UI label
+  created_at: string;
+};
+
 export type Item = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -14,14 +21,12 @@ export type Item = {
   url: string;
   description: string;
 
-  // Legacy (keep optional for backward compatibility)
-  action_type?: string | null;
-
-  // New fields (v2)
   category_id?: string | null;
   category_name?: string | null;
   category_image?: string | null;
-  actions?: string[]; // e.g. ["like","comment"]
+
+  actions?: Action[];
+
   comments_count?: number;
 
   created_at: string;
@@ -84,14 +89,12 @@ export type AdminCreateItemPayload = {
   url: string;
   description: string;
 
-  // New fields
   category_id: string | null;
-  actions: string[];
-  comments: string[]; // up to 20
+  action_ids: string[];
+  comments: string[];
 };
 
 export type AdminUpdateItemPayload = Partial<Omit<AdminCreateItemPayload, "date">> & {
-  // Optionally allow moving items between dates if you want; keep disabled by default
   date?: string;
 };
 
@@ -122,12 +125,20 @@ async function requestJSON<T>(
 
   // Try to read JSON, even on errors (to get server error message)
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as any) : null;
+
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
 
   if (!res.ok) {
     const msg =
       (data && (data.error || data.message)) ||
-      `Request failed (${res.status})`;
+      (text ? `Request failed (${res.status}): ${text.slice(0, 200)}` : `Request failed (${res.status})`);
     throw new Error(msg);
   }
 
@@ -186,6 +197,19 @@ export async function fetchCategories(): Promise<Category[]> {
   return data.categories ?? [];
 }
 
+/**
+ * Public: list actions (read-only)
+ * Expected endpoint: GET /api/actions
+ */
+export async function fetchActions(): Promise<Action[]> {
+  const data = await requestJSON<{ actions: Action[] }>(
+    `/api/actions`,
+    undefined,
+    { auth: false }
+  );
+  return data.actions ?? [];
+}
+
 /* =========================
    Admin auth
    ========================= */
@@ -220,7 +244,6 @@ export async function adminFetchItems(date: string): Promise<Item[]> {
 }
 
 export async function adminCreateItem(payload: AdminCreateItemPayload) {
-  // v2 payload (category_id, actions[], comments[])
   return requestJSON<{ ok: boolean; id: string }>(
     `/api/admin/items`,
     {
@@ -441,6 +464,61 @@ export async function superadminUpdateHashtag(id: string, payload: {
 export async function superadminDeleteHashtag(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/hashtags?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    { auth: true }
+  );
+}
+
+/**
+ * SuperAdmin: list actions
+ * Expected endpoint: GET /api/admin/actions
+ */
+export async function superadminListActions(): Promise<Action[]> {
+  const data = await requestJSON<{ actions: Action[] }>(
+    `/api/admin/actions`,
+    undefined,
+    { auth: true }
+  );
+  return data.actions ?? [];
+}
+
+/**
+ * SuperAdmin: create action
+ * Expected endpoint: POST /api/admin/actions
+ */
+export async function superadminCreateAction(payload: { name: string; label: string }) {
+  return requestJSON<{ ok: boolean; id: string }>(
+    `/api/admin/actions`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  );
+}
+
+/**
+ * SuperAdmin: update action
+ * Expected endpoint: PUT /api/admin/actions?id=...
+ */
+export async function superadminUpdateAction(id: string, payload: { name?: string; label?: string }) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/actions?id=${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  );
+}
+
+/**
+ * SuperAdmin: delete action
+ * Expected endpoint: DELETE /api/admin/actions?id=...
+ */
+export async function superadminDeleteAction(id: string) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/actions?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
     { auth: true }
   );

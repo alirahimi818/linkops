@@ -18,7 +18,7 @@ export default function CommentsEditor({
   value,
   onChange,
   whitelist,
-  maxItems = 20,
+  maxItems = 50,
   maxLen = 400,
 }: Props) {
   const [draft, setDraft] = useState("");

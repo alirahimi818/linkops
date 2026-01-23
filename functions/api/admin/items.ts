@@ -22,8 +22,24 @@ function normalizeList(input: unknown, maxLen: number): string[] {
   return out;
 }
 
+function normalizeIdList(input: unknown, maxItems: number): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  for (const v of input) {
+    if (typeof v !== "string") continue;
+    const s = v.trim();
+    if (!s) continue;
+    out.push(s);
+    if (out.length >= maxItems) break;
+  }
+  return Array.from(new Set(out));
+}
+
 export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   try {
+    // Ensure FK cascades work in D1/SQLite
+    await env.DB.exec("PRAGMA foreign_keys = ON;");
+
     const user = await requireAuth(env, request);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -61,11 +77,16 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
       const placeholders = itemIds.map(() => "?").join(",");
 
-      const { results: actionsRows } = await env.DB.prepare(
-        `SELECT item_id, action
-         FROM item_actions
-         WHERE item_id IN (${placeholders})
-         ORDER BY item_id ASC`
+      // NEW: load actions via join (action_id -> actions table)
+      const { results: actionRows } = await env.DB.prepare(
+        `SELECT ia.item_id,
+                a.id    AS id,
+                a.name  AS name,
+                a.label AS label
+         FROM item_actions ia
+         JOIN actions a ON a.id = ia.action_id
+         WHERE ia.item_id IN (${placeholders})
+         ORDER BY ia.item_id ASC, a.label ASC`
       ).bind(...itemIds).all();
 
       const { results: commentsRows } = await env.DB.prepare(
@@ -75,10 +96,10 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
          ORDER BY item_id, created_at ASC`
       ).bind(...itemIds).all();
 
-      const actionsMap = new Map<string, string[]>();
-      for (const r of (actionsRows as any[]) ?? []) {
+      const actionsMap = new Map<string, Array<{ id: string; name: string; label: string }>>();
+      for (const r of (actionRows as any[]) ?? []) {
         const arr = actionsMap.get(r.item_id) ?? [];
-        arr.push(r.action);
+        arr.push({ id: r.id, name: r.name, label: r.label });
         actionsMap.set(r.item_id, arr);
       }
 
@@ -92,7 +113,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const enriched = items.map((it: any) => ({
         ...it,
         actions: actionsMap.get(it.id) ?? [],
-        action_type: (actionsMap.get(it.id) ?? [])[0] ?? null,
         comments: commentsMap.get(it.id) ?? [],
       }));
 
@@ -106,7 +126,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         url: string;
         description: string;
         category_id?: string | null;
-        actions?: string[];
+        action_ids?: string[];
         comments?: string[];
       };
 
@@ -115,12 +135,14 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       const id = crypto.randomUUID();
+      const createdAt = nowIso();
+
       const title = body.title.trim();
       const url = body.url.trim();
       const description = body.description.trim();
       const categoryId = body.category_id ? String(body.category_id) : null;
 
-      const actions = normalizeList(body.actions, 60).slice(0, 10);
+      const uniqActionIds = normalizeIdList(body.action_ids, 20);
       const comments = normalizeList(body.comments, 400).slice(0, 50);
 
       if (!title || !url || !description) {
@@ -130,6 +152,17 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       if (categoryId) {
         const cat = await env.DB.prepare(`SELECT id FROM categories WHERE id = ?`).bind(categoryId).first();
         if (!cat) return Response.json({ error: "Invalid category_id" }, { status: 400 });
+      }
+
+      // Validate action ids exist (prevents broken relations)
+      let validActionIds: string[] = [];
+      if (uniqActionIds.length > 0) {
+        const placeholders = uniqActionIds.map(() => "?").join(",");
+        const { results: rows } = await env.DB.prepare(
+          `SELECT id FROM actions WHERE id IN (${placeholders})`
+        ).bind(...uniqActionIds).all();
+
+        validActionIds = ((rows as any[]) ?? []).map((r) => r.id);
       }
 
       await env.DB.prepare(
@@ -142,23 +175,24 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         url,
         description,
         categoryId,
-        nowIso(),
+        createdAt,
         user.id
       ).run();
 
-      let sortOrder = 1;
-      for (const a of actions) {
-        await env.DB.prepare(
-          `INSERT INTO item_actions (id, item_id, action)
-           VALUES (?, ?, ?)`
-        ).bind(crypto.randomUUID(), id, a).run();
+      if (validActionIds.length > 0) {
+        const stmt = env.DB.prepare(
+          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`
+        );
+        const batch = validActionIds.map((aid) => stmt.bind(id, aid, createdAt));
+        await env.DB.batch(batch);
       }
 
-      for (const c of comments) {
-        await env.DB.prepare(
-          `INSERT INTO item_comments (id, item_id, text, created_at)
-           VALUES (?, ?, ?, ?)`
-        ).bind(crypto.randomUUID(), id, c, nowIso()).run();
+      if (comments.length > 0) {
+        const stmt = env.DB.prepare(
+          `INSERT INTO item_comments (id, item_id, text, created_at) VALUES (?, ?, ?, ?)`
+        );
+        const batch = comments.map((c) => stmt.bind(crypto.randomUUID(), id, c, createdAt));
+        await env.DB.batch(batch);
       }
 
       return Response.json({ ok: true, id });
@@ -173,7 +207,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const id = url.searchParams.get("id");
       if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
-      await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
+      // If your item_actions has FK with ON DELETE CASCADE, no need to delete manually
+      // Same for item_comments if you add FK cascade there later.
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
       await env.DB.prepare(`DELETE FROM items WHERE id = ?`).bind(id).run();
 
