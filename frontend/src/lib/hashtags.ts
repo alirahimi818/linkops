@@ -65,7 +65,7 @@ export function validateHashtags(text: string, whitelistSet: Set<string>): Hasht
         raw,
         normalized,
         suggestion: s,
-        reason: s ? "Unknown hashtag (did you mean this?)" : "Unknown hashtag",
+        reason: s ? "هشگ ناشناخته (منظورتان این بود؟)" : "هشتگ ناشناخته",
       });
     }
   }
