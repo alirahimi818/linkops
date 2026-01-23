@@ -63,6 +63,7 @@ export default function Admin() {
   async function bootstrap() {
     try {
       const [cats, tags] = await Promise.all([adminFetchCategories(), fetchHashtagWhitelist()]);
+      console.log("cats from adminFetchCategories:", cats); // <-- add this
       setCategories(cats);
 
       const active = (tags as HashtagWhitelistRow[])
@@ -179,14 +180,6 @@ export default function Admin() {
               </option>
             ))}
           </Select>
-          <div className="text-xs text-zinc-500">
-            categories: {categories.length}
-            {" | "}
-            first: {categories[0]?.name ?? "—"}
-          </div>
-          <pre className="text-xs bg-white border border-zinc-200 rounded-lg p-2 overflow-auto">
-            {JSON.stringify(categories.slice(0, 3), null, 2)}
-          </pre>
 
           <Textarea value={description} onChange={setDescription} placeholder="Short description" />
 
