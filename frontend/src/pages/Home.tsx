@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import { fetchItems } from "../lib/api";
 import type { Item } from "../lib/api";
 
@@ -16,27 +18,48 @@ import Button from "../components/ui/Button";
 import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
 
-const STORAGE_SELECTED_DATE = "ui:selectedDate";
-
 type View =
   | { kind: "categories" }
   | { kind: "list"; categoryId: string | null; categoryName: string };
 
+function safeTab(v: string | null): ListTab {
+  if (v === "todo" || v === "later" || v === "done" || v === "hidden") return v;
+  return "todo";
+}
+
 export default function Home() {
   const today = useMemo(() => todayYYYYMMDD(), []);
+  const [sp, setSp] = useSearchParams();
 
-  const [date, setDate] = useState<string>(() => localStorage.getItem(STORAGE_SELECTED_DATE) ?? today);
+  // URL state (source of truth)
+  const date = sp.get("date") ?? today;
+  const tab = safeTab(sp.get("tab"));
+  const cat = sp.get("cat"); // category id or "all"
+  const view: View = useMemo(() => {
+    if (!cat) return { kind: "categories" };
+    if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
+    return { kind: "list", categoryId: cat, categoryName: sp.get("catName") ?? "دسته" };
+  }, [cat, sp]);
 
+  // Data
   const [items, setItems] = useState<Item[]>([]);
   const [status, setStatus] = useState<StatusMap>({});
-  const [tab, setTab] = useState<ListTab>("todo");
   const [loading, setLoading] = useState(true);
 
-  const [view, setView] = useState<View>({ kind: "categories" });
-
+  // Keep date valid format (optional strictness)
   useEffect(() => {
-    localStorage.setItem(STORAGE_SELECTED_DATE, date);
-  }, [date]);
+    // if date is invalid, reset to today
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setSp((p) => {
+        p.set("date", today);
+        p.delete("cat");
+        p.delete("catName");
+        p.set("tab", "todo");
+        return p;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -56,9 +79,6 @@ export default function Home() {
     };
   }, [date]);
 
-  const total = items.length;
-  const doneCount = Object.values(status).filter((s) => s === "done").length;
-
   const categories = useMemo<CategoryCard[]>(() => {
     const map = new Map<string, CategoryCard>();
 
@@ -67,20 +87,13 @@ export default function Home() {
       const cname = i.category_name ?? "بدون دسته‌بندی";
       const cimg = i.category_image ?? null;
 
-      if (!cid) continue; // items without category won't appear as a category card
+      if (!cid) continue;
       if (!map.has(cid)) {
-        map.set(cid, {
-          id: cid,
-          name: cname,
-          image: cimg,
-          count: 0,
-        });
+        map.set(cid, { id: cid, name: cname, image: cimg, count: 0 });
       }
-      const cur = map.get(cid)!;
-      cur.count += 1;
+      map.get(cid)!.count += 1;
     }
 
-    // Add "All"
     const all: CategoryCard = {
       id: "__all__",
       name: "نمایش همه",
@@ -94,7 +107,7 @@ export default function Home() {
 
   const listItems = useMemo(() => {
     if (view.kind !== "list") return [];
-    if (view.categoryId === null) return items; // all
+    if (view.categoryId === null) return items;
     return (items as any[]).filter((i) => i.category_id === view.categoryId);
   }, [items, view]);
 
@@ -102,12 +115,16 @@ export default function Home() {
     if (view.kind !== "list") return [];
     return listItems.filter((i: any) => {
       const s = status[i.id];
-      if (tab === "todo") return !s;
+      if (tab === "todo") return !s; // undefined only
       if (tab === "later") return s === "later";
       if (tab === "done") return s === "done";
+      if (tab === "hidden") return s === "hidden";
       return true;
     });
   }, [listItems, status, tab, view]);
+
+  const total = items.length;
+  const doneCount = Object.values(status).filter((s) => s === "done").length;
 
   async function mark(id: string, s: ItemStatus) {
     await setItemStatus(date, id, s);
@@ -115,29 +132,52 @@ export default function Home() {
     setStatus(st);
   }
 
+  function setDate(next: string) {
+    setSp((p) => {
+      p.set("date", next);
+      p.delete("cat");
+      p.delete("catName");
+      p.set("tab", "todo");
+      return p;
+    });
+  }
+
+  function setTab(next: ListTab) {
+    setSp((p) => {
+      p.set("tab", next);
+      return p;
+    });
+  }
+
   function goPrev() {
     setDate(addDaysYYYYMMDD(date, -1));
-    setView({ kind: "categories" });
-    setTab("todo");
   }
 
   function goNext() {
     setDate(addDaysYYYYMMDD(date, +1));
-    setView({ kind: "categories" });
-    setTab("todo");
   }
 
   function openCategory(c: CategoryCard) {
-    if (c.isAll) {
-      setView({ kind: "list", categoryId: null, categoryName: "نمایش همه" });
-      return;
-    }
-    setView({ kind: "list", categoryId: c.id, categoryName: c.name });
+    setSp((p) => {
+      p.set("tab", "todo");
+      if (c.isAll) {
+        p.set("cat", "all");
+        p.set("catName", "نمایش همه");
+      } else {
+        p.set("cat", c.id);
+        p.set("catName", c.name);
+      }
+      return p;
+    });
   }
 
   function backToCategories() {
-    setView({ kind: "categories" });
-    setTab("todo");
+    setSp((p) => {
+      p.delete("cat");
+      p.delete("catName");
+      p.set("tab", "todo");
+      return p;
+    });
   }
 
   const headerRight = (
@@ -146,7 +186,7 @@ export default function Home() {
         →
       </Button>
 
-      <DatePicker value={date} onChange={(d) => { setDate(d); setView({ kind: "categories" }); setTab("todo"); }} />
+      <DatePicker value={date} onChange={setDate} />
 
       <Button variant="secondary" onClick={goNext} title="روز بعد">
         ←
@@ -178,12 +218,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Small header nav for future pages */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Button
-              variant={view.kind === "categories" ? "secondary" : "ghost"}
-              onClick={() => setView({ kind: "categories" })}
-            >
+            <Button variant={view.kind === "categories" ? "secondary" : "ghost"} onClick={backToCategories}>
               دسته‌بندی‌ها
             </Button>
 
@@ -194,12 +230,6 @@ export default function Home() {
             >
               بررسی هشتگ‌ها
             </Button>
-
-            {view.kind === "list" ? (
-              <Button variant="ghost" onClick={backToCategories}>
-                بازگشت
-              </Button>
-            ) : null}
           </div>
         </div>
       }
@@ -213,8 +243,6 @@ export default function Home() {
         ) : (
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )
-      ) : filtered.length === 0 ? (
-        <Card className="p-6 text-zinc-600">چیزی برای نمایش در این تب وجود ندارد.</Card>
       ) : (
         <ItemList
           title={view.categoryName}
@@ -223,6 +251,7 @@ export default function Home() {
           onTabChange={setTab}
           onMark={mark}
           statusMap={status}
+          onBack={backToCategories}
         />
       )}
     </PageShell>
