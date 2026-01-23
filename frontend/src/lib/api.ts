@@ -174,21 +174,6 @@ export async function fetchHashtagWhitelist(): Promise<HashtagWhitelistRow[]> {
 }
 
 /**
- * Public: get active hashtags sorted by priority (lightweight endpoint)
- * Expected endpoint: GET /api/hashtags/active
- */
-export async function fetchActiveHashtags(): Promise<
-  Array<Pick<HashtagWhitelistRow, "tag" | "priority">>
-> {
-  const data = await requestJSON<{ hashtags: Array<{ tag: string; priority: number }> }>(
-    `/api/hashtags/active`,
-    undefined,
-    { auth: false }
-  );
-  return data.hashtags ?? [];
-}
-
-/**
  * Public: list categories (read-only)
  * Expected endpoint: GET /api/categories
  */
@@ -323,7 +308,7 @@ export async function adminCreateCategory(name: string, image?: string | null) {
     `/api/admin/categories`,
     {
       method: "POST",
-      body: JSON.stringify({ name, image: image?.trim() ? image.trim() : null }),
+      body: JSON.stringify({ name, image }),
     },
     { auth: true }
   );

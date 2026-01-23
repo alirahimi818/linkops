@@ -63,7 +63,6 @@ export default function Admin() {
   async function bootstrap() {
     try {
       const [cats, tags] = await Promise.all([adminFetchCategories(), fetchHashtagWhitelist()]);
-      console.log("cats from adminFetchCategories:", cats); // <-- add this
       setCategories(cats);
 
       const active = (tags as HashtagWhitelistRow[])
@@ -71,7 +70,7 @@ export default function Admin() {
         .map((t) => t.tag.toLowerCase());
       setWhitelist(new Set(active));
     } catch (e: any) {
-          console.error("categories bootstrap failed:", e);
+        console.error("categories bootstrap failed:", e);
     }
   }
 
