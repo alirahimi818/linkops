@@ -8,7 +8,7 @@ import {
   fetchCategories,
   fetchHashtagWhitelist,
 } from "../lib/api";
-import type { Action, Category, HashtagWhitelistRow, Item } from "../lib/api";
+import type { Action, Category, HashtagWhitelistRow } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
@@ -424,8 +424,7 @@ export default function Admin() {
             </Select>
 
             <Textarea
-              dir="rtl"
-              textDir="auto"
+              dir="auto"
               value={editing.description}
               onChange={(v) => setEditing({ ...editing, description: v })}
               placeholder="توضیح کوتاه"
