@@ -278,8 +278,7 @@ export default function Admin() {
           </Select>
 
           <Textarea
-            dir="rtl"
-            textDir="auto"
+            dir="auto"
             value={description}
             onChange={setDescription}
             placeholder="توضیح کوتاه"
@@ -335,16 +334,16 @@ export default function Admin() {
                 <Card key={i.id}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col justify-center items-center gap-2">
-                      <Button variant="secondary" onClick={() => onDelete(i.id)}>
+                      <Button variant="danger" onClick={() => onDelete(i.id)}>
                         حذف
                       </Button>
 
-                      <Button variant="ghost" onClick={() => startEdit(i)}>
+                      <Button variant="info" onClick={() => startEdit(i)}>
                         ویرایش
                       </Button>
 
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         onClick={() => toggleComments(i.id)}
                         disabled={!hasComments}
                         title={!hasComments ? "کامنتی ثبت نشده است" : undefined}
