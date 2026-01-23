@@ -9,28 +9,30 @@ import { addDaysYYYYMMDD, todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
-
 import DatePicker from "../components/ui/DatePicker";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import Badge from "../components/ui/Badge";
-import Tabs, { TabButton } from "../components/ui/Tabs";
 
-type Tab = "todo" | "later" | "done";
+import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
+import ItemList, { type ListTab } from "../components/home/ItemList";
 
 const STORAGE_SELECTED_DATE = "ui:selectedDate";
+
+type View =
+  | { kind: "categories" }
+  | { kind: "list"; categoryId: string | null; categoryName: string };
 
 export default function Home() {
   const today = useMemo(() => todayYYYYMMDD(), []);
 
-  const [date, setDate] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_SELECTED_DATE) ?? today;
-  });
+  const [date, setDate] = useState<string>(() => localStorage.getItem(STORAGE_SELECTED_DATE) ?? today);
 
   const [items, setItems] = useState<Item[]>([]);
   const [status, setStatus] = useState<StatusMap>({});
-  const [tab, setTab] = useState<Tab>("todo");
+  const [tab, setTab] = useState<ListTab>("todo");
   const [loading, setLoading] = useState(true);
+
+  const [view, setView] = useState<View>({ kind: "categories" });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SELECTED_DATE, date);
@@ -54,18 +56,58 @@ export default function Home() {
     };
   }, [date]);
 
+  const total = items.length;
+  const doneCount = Object.values(status).filter((s) => s === "done").length;
+
+  const categories = useMemo<CategoryCard[]>(() => {
+    const map = new Map<string, CategoryCard>();
+
+    for (const i of items as any[]) {
+      const cid = i.category_id ?? "";
+      const cname = i.category_name ?? "بدون دسته‌بندی";
+      const cimg = i.category_image ?? null;
+
+      if (!cid) continue; // items without category won't appear as a category card
+      if (!map.has(cid)) {
+        map.set(cid, {
+          id: cid,
+          name: cname,
+          image: cimg,
+          count: 0,
+        });
+      }
+      const cur = map.get(cid)!;
+      cur.count += 1;
+    }
+
+    // Add "All"
+    const all: CategoryCard = {
+      id: "__all__",
+      name: "نمایش همه",
+      image: null,
+      count: items.length,
+      isAll: true,
+    };
+
+    return [all, ...Array.from(map.values()).sort((a, b) => b.count - a.count)];
+  }, [items]);
+
+  const listItems = useMemo(() => {
+    if (view.kind !== "list") return [];
+    if (view.categoryId === null) return items; // all
+    return (items as any[]).filter((i) => i.category_id === view.categoryId);
+  }, [items, view]);
+
   const filtered = useMemo(() => {
-    return items.filter((i) => {
+    if (view.kind !== "list") return [];
+    return listItems.filter((i: any) => {
       const s = status[i.id];
       if (tab === "todo") return !s;
       if (tab === "later") return s === "later";
       if (tab === "done") return s === "done";
       return true;
     });
-  }, [items, status, tab]);
-
-  const total = items.length;
-  const doneCount = Object.values(status).filter((s) => s === "done").length;
+  }, [listItems, status, tab, view]);
 
   async function mark(id: string, s: ItemStatus) {
     await setItemStatus(date, id, s);
@@ -75,35 +117,56 @@ export default function Home() {
 
   function goPrev() {
     setDate(addDaysYYYYMMDD(date, -1));
+    setView({ kind: "categories" });
+    setTab("todo");
   }
 
   function goNext() {
     setDate(addDaysYYYYMMDD(date, +1));
+    setView({ kind: "categories" });
+    setTab("todo");
   }
+
+  function openCategory(c: CategoryCard) {
+    if (c.isAll) {
+      setView({ kind: "list", categoryId: null, categoryName: "نمایش همه" });
+      return;
+    }
+    setView({ kind: "list", categoryId: c.id, categoryName: c.name });
+  }
+
+  function backToCategories() {
+    setView({ kind: "categories" });
+    setTab("todo");
+  }
+
+  const headerRight = (
+    <div className="flex items-center gap-2">
+      <Button variant="secondary" onClick={goPrev} title="روز قبل">
+        →
+      </Button>
+
+      <DatePicker value={date} onChange={(d) => { setDate(d); setView({ kind: "categories" }); setTab("todo"); }} />
+
+      <Button variant="secondary" onClick={goNext} title="روز بعد">
+        ←
+      </Button>
+    </div>
+  );
 
   return (
     <PageShell
+      dir="rtl"
       header={
         <div>
           <TopBar
-            title="Tasks"
-            subtitle="Pick a date and work through the list."
-            right={
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" onClick={goPrev} title="Previous day">
-                  ←
-                </Button>
-
-                <DatePicker value={date} onChange={setDate} />
-
-                <Button variant="secondary" onClick={goNext} title="Next day">
-                  →
-                </Button>
-              </div>
-            }
+            dir="rtl"
+            title="کارهای امروز"
+            subtitle="یک دسته را انتخاب کنید و آیتم‌ها را انجام دهید."
+            right={headerRight}
           />
 
-          <div className="mt-5">
+          <div className="mt-4">
             <div className="h-2 w-full rounded bg-zinc-200">
               <div
                 className="h-2 rounded bg-zinc-900"
@@ -111,68 +174,56 @@ export default function Home() {
               />
             </div>
             <div className="mt-2 text-xs text-zinc-500">
-              {doneCount} / {total} done
+              انجام‌شده: {doneCount} از {total}
             </div>
           </div>
 
-          <Tabs>
-            <TabButton active={tab === "todo"} onClick={() => setTab("todo")}>
-              To do
-            </TabButton>
-            <TabButton active={tab === "later"} onClick={() => setTab("later")}>
-              Later
-            </TabButton>
-            <TabButton active={tab === "done"} onClick={() => setTab("done")}>
-              Done
-            </TabButton>
-          </Tabs>
+          {/* Small header nav for future pages */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              variant={view.kind === "categories" ? "secondary" : "ghost"}
+              onClick={() => setView({ kind: "categories" })}
+            >
+              دسته‌بندی‌ها
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => alert("صفحه بررسی هشتگ‌ها بعداً اضافه می‌شود.")}
+              title="به‌زودی"
+            >
+              بررسی هشتگ‌ها
+            </Button>
+
+            {view.kind === "list" ? (
+              <Button variant="ghost" onClick={backToCategories}>
+                بازگشت
+              </Button>
+            ) : null}
+          </div>
         </div>
       }
       footer={<></>}
     >
       {loading ? (
-        <div className="text-zinc-500">Loading…</div>
+        <div className="text-zinc-500">در حال بارگذاری…</div>
+      ) : view.kind === "categories" ? (
+        categories.length <= 1 ? (
+          <Card className="p-6 text-zinc-600">برای این تاریخ آیتمی وجود ندارد.</Card>
+        ) : (
+          <CategoryGrid categories={categories} onSelect={openCategory} />
+        )
       ) : filtered.length === 0 ? (
-        <Card className="p-6 text-zinc-600">Nothing here.</Card>
+        <Card className="p-6 text-zinc-600">چیزی برای نمایش در این تب وجود ندارد.</Card>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((item) => (
-            <Card key={item.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-lg font-semibold hover:underline"
-                  >
-                    {item.title}
-                  </a>
-
-                  <div className="mt-1 text-sm text-zinc-600">{item.description}</div>
-
-                  {Array.isArray(item.actions) && item.actions.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {item.actions.map((a: any) => (
-                        <Badge key={a.id}>{a.label ?? a.name}</Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button onClick={() => mark(item.id, "done")}>Done</Button>
-                <Button variant="secondary" onClick={() => mark(item.id, "later")}>
-                  Later
-                </Button>
-                <Button variant="ghost" onClick={() => mark(item.id, "hidden")}>
-                  Hide
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <ItemList
+          title={view.categoryName}
+          items={filtered as any[]}
+          tab={tab}
+          onTabChange={setTab}
+          onMark={mark}
+          statusMap={status}
+        />
       )}
     </PageShell>
   );

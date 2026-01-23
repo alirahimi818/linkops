@@ -232,7 +232,7 @@ function IssueBox(props: {
         ) : null}
 
         {props.whitelist.size > 0 ? (
-          <Button variant="ghost" onClick={() => setShowWhitelist((s) => !s)}>
+          <Button variant="secondary" onClick={() => setShowWhitelist((s) => !s)}>
             {showWhitelist ? "بستن هشتگ‌های مجاز" : "نمایش هشتگ‌های مجاز"}
           </Button>
         ) : null}
