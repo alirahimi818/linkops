@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminCreateItem, adminDeleteItem, adminFetchCategories, adminFetchItems, fetchHashtagWhitelist } from "../lib/api";
+import { adminCreateItem, adminDeleteItem, adminFetchItems, fetchCategories, fetchHashtagWhitelist } from "../lib/api";
 import type { Category, HashtagWhitelistRow, Item } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
 
@@ -62,7 +62,7 @@ export default function Admin() {
 
   async function bootstrap() {
     try {
-      const [cats, tags] = await Promise.all([adminFetchCategories(), fetchHashtagWhitelist()]);
+      const [cats, tags] = await Promise.all([fetchCategories(), fetchHashtagWhitelist()]);
       setCategories(cats);
 
       const active = (tags as HashtagWhitelistRow[])
