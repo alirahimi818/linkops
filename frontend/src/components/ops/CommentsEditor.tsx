@@ -33,7 +33,9 @@ export default function CommentsEditor({
 
   const allIssues = useMemo(() => {
     if (value.length === 0 || whitelist.size === 0) return [];
-    return validateHashtags(value.join("\n"), whitelist);
+    const all: HashtagIssue[] = [];
+    for (const c of value) all.push(...validateHashtags(c, whitelist));
+    return all;
   }, [value, whitelist]);
 
   const whitelistList = useMemo(() => {
@@ -62,14 +64,17 @@ export default function CommentsEditor({
   }
 
   function replaceAll() {
-    const joined = value.join("\n");
-    const issues = validateHashtags(joined, whitelist);
-    const replaced = applySuggestedReplacements(joined, issues);
-    const next = replaced
-      .split("\n")
+    if (whitelist.size === 0) return;
+
+    const next = value
+      .slice(0, maxItems)
+      .map((comment) => {
+        const issues = validateHashtags(comment, whitelist);
+        return applySuggestedReplacements(comment, issues);
+      })
       .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, maxItems);
+      .filter(Boolean);
+
     onChange(next);
   }
 
