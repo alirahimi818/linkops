@@ -11,7 +11,7 @@ import { IconPaste } from "../components/ui/icons";
 import { fetchHashtagWhitelist } from "../lib/api";
 import type { HashtagWhitelistRow } from "../lib/api";
 
-import { applySuggestedReplacements, validateHashtags } from "../lib/hashtags";
+import { validateHashtags } from "../lib/hashtags";
 import HashtagInspector from "../components/ops/HashtagInspector";
 import { copyText } from "../lib/clipboard";
 
@@ -195,7 +195,6 @@ export default function HashtagsPage() {
             text={text}
             whitelist={whitelist}
             onReplaceText={setText}
-            applySuggestedReplacements={applySuggestedReplacements}
           />
 
           {whitelist.size === 0 ? (
