@@ -58,10 +58,6 @@ export default function ItemList(props: {
     return String(c?.text ?? "");
   }
 
-  function hasComments(item: any) {
-    return getComments(item).length > 0;
-  }
-
   async function doCopy(key: string, text: string) {
     await copyText(text);
     setCopiedKey(key);
@@ -83,8 +79,8 @@ export default function ItemList(props: {
   // So you SHOULD implement clearItemStatus(date,id) later. Here we call onMark with "hidden" etc only.
   // We'll emulate "back to todo" by setting status to "hidden"? not correct.
   // If your onMark supports a special value, change it.
-  // We'll keep it explicit: use "hidden" tab button "بازگردانی" calls onMark(id, "hidden")? no.
-  // ✅ Best: allow onMark(id, "todo") to clear in statusStore.
+  // We'll keep it explicit: use "hidden" tab button "draft" calls onMark(id, "hidden")? no.
+  // Best: allow onMark(id, "todo") to clear in statusStore.
   // We'll use "todo" as ItemStatus here; update ItemStatus union to include "todo" and clear in store.
   async function backToTodo(id: string) {
     await props.onMark(id, "todo" as any);
