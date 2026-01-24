@@ -4,6 +4,7 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
 import { applySuggestedReplacements, type HashtagIssue, validateHashtags } from "../../lib/hashtags";
+import { copyText } from "../../lib/clipboard";
 
 type Props = {
   label?: string;
@@ -13,6 +14,23 @@ type Props = {
   maxItems?: number;
   maxLen?: number;
 };
+
+function normalizeComment(s: string, maxLen: number) {
+  return s.trim().slice(0, maxLen);
+}
+
+function collectIssuesForComments(comments: string[], whitelist: Set<string>): HashtagIssue[] {
+  if (comments.length === 0 || whitelist.size === 0) return [];
+  const out: HashtagIssue[] = [];
+  for (const c of comments) out.push(...validateHashtags(c, whitelist));
+  return out;
+}
+
+function autoFixComment(comment: string, whitelist: Set<string>): string {
+  if (whitelist.size === 0) return comment;
+  const issues = validateHashtags(comment, whitelist);
+  return applySuggestedReplacements(comment, issues);
+}
 
 export default function CommentsEditor({
   label,
@@ -30,16 +48,15 @@ export default function CommentsEditor({
   }, [draft, whitelist]);
 
   const allIssues = useMemo(() => {
-    if (value.length === 0 || whitelist.size === 0) return [];
-    const all: HashtagIssue[] = [];
-    for (const c of value) all.push(...validateHashtags(c, whitelist));
-    return all;
+    return collectIssuesForComments(value, whitelist);
   }, [value, whitelist]);
 
+  const canAdd = draft.trim().length > 0 && value.length < maxItems;
+
   function addDraft() {
-    const t = draft.trim().slice(0, maxLen);
+    if (!canAdd) return;
+    const t = normalizeComment(draft, maxLen);
     if (!t) return;
-    if (value.length >= maxItems) return;
 
     onChange([...value, t]);
     setDraft("");
@@ -50,19 +67,15 @@ export default function CommentsEditor({
   }
 
   function replaceDraft() {
-    const replaced = applySuggestedReplacements(draft, draftIssues);
-    setDraft(replaced);
+    setDraft(applySuggestedReplacements(draft, draftIssues));
   }
 
   function replaceAll() {
-    if (whitelist.size === 0) return;
+    if (whitelist.size === 0 || value.length === 0) return;
 
     const next = value
       .slice(0, maxItems)
-      .map((comment) => {
-        const issues = validateHashtags(comment, whitelist);
-        return applySuggestedReplacements(comment, issues);
-      })
+      .map((c) => autoFixComment(c, whitelist))
       .map((s) => s.trim())
       .filter(Boolean);
 
@@ -92,16 +105,11 @@ export default function CommentsEditor({
       />
 
       {draftIssues.length > 0 ? (
-        <IssueBox
-          title="مشکلات هشتگ در متن پیش‌نویس"
-          issues={draftIssues}
-          onReplace={replaceDraft}
-          whitelist={whitelist}
-        />
+        <IssueBox title="مشکلات هشتگ در متن پیش‌نویس" issues={draftIssues} onReplace={replaceDraft} whitelist={whitelist} />
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button variant="info" onClick={addDraft} disabled={!draft.trim() || value.length >= maxItems}>
+        <Button variant="info" onClick={addDraft} disabled={!canAdd}>
           افزودن کامنت
         </Button>
 
@@ -117,37 +125,37 @@ export default function CommentsEditor({
 
       {value.length > 0 ? (
         <div className="space-y-2">
-          {value.map((c, idx) => (
-            <Card key={idx}>
-              <div className="flex items-start justify-between gap-4">
-                <Button variant="ghost" onClick={() => removeAt(idx)}>
-                  حذف
-                </Button>
+          {value.map((c, idx) => {
+            const issues = whitelist.size ? validateHashtags(c, whitelist) : [];
+            const hasIssues = issues.length > 0;
 
-                <div className="min-w-0 flex-1">
-                  <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
-                    {c}
+            return (
+              <Card key={idx}>
+                <div className="flex items-start justify-between gap-4">
+                  <Button variant="ghost" onClick={() => removeAt(idx)}>
+                    حذف
+                  </Button>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                      {c}
+                    </div>
+
+                    {hasIssues ? (
+                      <div className="mt-2 text-xs text-red-700">
+                        هشتگ‌های نامعتبر:
+                        {issues.map((i) => (
+                          <span key={i.raw} className="me-2 font-mono" dir="ltr">
+                            {i.raw}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-
-                  {whitelist.size ? (
-                    (() => {
-                      const issues = validateHashtags(c, whitelist);
-                      return issues.length > 0 ? (
-                        <div className="mt-2 text-xs text-red-700">
-                          هشتگ‌های نامعتبر:
-                          {issues.map((i) => (
-                            <span key={i.raw} className="me-2 font-mono" dir="ltr">
-                              {i.raw}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null;
-                    })()
-                  ) : null}
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       ) : null}
 
@@ -180,22 +188,9 @@ function IssueBox(props: {
     return all.filter((t) => t.includes(q));
   }, [props.whitelist, whitelistQuery]);
 
-  async function copyTag(tag: string) {
-    const text = `#${tag}`;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Fallback for older browsers / non-secure context
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    }
+  async function onCopyTag(tag: string) {
+    const ok = await copyText(`#${tag}`);
+    if (!ok) return;
 
     setCopiedTag(tag);
     window.setTimeout(() => setCopiedTag(null), 900);
@@ -249,7 +244,7 @@ function IssueBox(props: {
               <button
                 key={t}
                 type="button"
-                onClick={() => copyTag(t)}
+                onClick={() => onCopyTag(t)}
                 className={[
                   "rounded-full border px-3 py-1 text-xs font-mono transition",
                   copiedTag === t
