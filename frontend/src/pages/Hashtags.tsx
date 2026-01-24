@@ -76,9 +76,26 @@ export default function HashtagsPage() {
   function autoFixAll() {
     if (!hasText || whitelist.size === 0) return;
     const issues = validateHashtags(text, whitelist);
-    const next = applySuggestedReplacements(text, issues);
-    setText(next);
-  }
+
+    // Use the same safe replacer logic by delegating to Inspector through setText,
+    // but we don't have access to its internal helper. So re-implement here:
+    let out = text;
+
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const i of issues) {
+        const sugg = String((i as any).suggestion ?? "").trim();
+        const raw = String((i as any).raw ?? "").trim();
+        if (!sugg || !raw) continue;
+
+        const from = raw.startsWith("#") ? raw : `#${raw}`;
+        const to = `#${sugg}`;
+        const re = new RegExp(`${escapeRegExp(from)}(?![\\p{L}\\p{N}_])`, "gu");
+        out = out.replace(re, to);
+    }
+
+    setText(out);
+    }
+
 
   return (
     <PageShell
