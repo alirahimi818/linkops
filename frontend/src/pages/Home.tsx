@@ -126,11 +126,12 @@ export default function Home() {
   const total = items.length;
   const doneCount = Object.values(status).filter((s) => s === "done").length;
 
-  async function mark(id: string, s: ItemStatus) {
+  async function mark(id: string, s: ItemStatus | null) {
     await setItemStatus(date, id, s);
     const st = await getStatusMap(date);
     setStatus(st);
   }
+
 
   function setDate(next: string) {
     setSp((p) => {

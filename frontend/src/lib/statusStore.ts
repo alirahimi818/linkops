@@ -1,22 +1,37 @@
-import { get, set } from "idb-keyval";
-
 export type ItemStatus = "done" | "later" | "hidden";
 export type StatusMap = Record<string, ItemStatus>;
 
-const keyForDate = (date: string) => `status:${date}`;
+function keyFor(date: string) {
+  return `status:${date}`;
+}
 
 export async function getStatusMap(date: string): Promise<StatusMap> {
-  return (await get(keyForDate(date))) ?? {};
+  try {
+    const raw = localStorage.getItem(keyFor(date));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as StatusMap;
+  } catch {
+    return {};
+  }
 }
 
-export async function setItemStatus(date: string, itemId: string, status: ItemStatus) {
-  const m = await getStatusMap(date);
-  m[itemId] = status;
-  await set(keyForDate(date), m);
+function setStatusMap(date: string, map: StatusMap) {
+  localStorage.setItem(keyFor(date), JSON.stringify(map));
 }
 
-export async function clearItemStatus(date: string, itemId: string) {
-  const m = await getStatusMap(date);
-  delete m[itemId];
-  await set(keyForDate(date), m);
+/**
+ * Set status for item. Use `null` to clear status (back to todo).
+ */
+export async function setItemStatus(date: string, itemId: string, status: ItemStatus | null) {
+  const map = await getStatusMap(date);
+
+  if (status === null) {
+    delete map[itemId];
+  } else {
+    map[itemId] = status;
+  }
+
+  setStatusMap(date, map);
 }

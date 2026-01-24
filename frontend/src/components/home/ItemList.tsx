@@ -28,7 +28,7 @@ export default function ItemList(props: {
   items: any[];
   tab: ListTab;
   onTabChange: (t: ListTab) => void;
-  onMark: (id: string, s: ItemStatus) => Promise<void>;
+  onMark: (id: string, s: ItemStatus | null) => Promise<void>;
   statusMap: StatusMap;
   onBack: () => void;
 }) {
@@ -83,9 +83,8 @@ export default function ItemList(props: {
   // Best: allow onMark(id, "todo") to clear in statusStore.
   // We'll use "todo" as ItemStatus here; update ItemStatus union to include "todo" and clear in store.
   async function backToTodo(id: string) {
-    await props.onMark(id, "todo" as any);
+    await props.onMark(id, null as any);
   }
-
   return (
     <div dir="rtl" className="text-right">
       <div className="mb-3 flex items-center justify-between gap-3">
