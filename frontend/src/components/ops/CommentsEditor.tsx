@@ -105,7 +105,6 @@ export default function CommentsEditor({
           text={draft}
           whitelist={whitelist}
           onReplaceText={setDraft}
-          applySuggestedReplacements={applySuggestedReplacements}
         />
       ) : null}
 
