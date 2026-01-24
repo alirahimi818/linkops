@@ -32,10 +32,12 @@ export default function CategoryGrid(props: {
                 <img
                   src={c.image}
                   alt={c.name}
-                  className="h-10 w-10 rounded-xl border border-zinc-200 bg-white object-contain p-2"
+                  className="h-20 w-20 rounded-xl border border-zinc-200 bg-white object-contain p-2"
                 />
               ) : (
-                <div className="h-10 w-10 rounded-xl border border-zinc-200 bg-zinc-50" />
+                <div className="h-20 w-20 rounded-xl border border-zinc-200 bg-zinc-50 flex items-center justify-center">
+                    <svg className="w-16 h-16" viewBox="0 0 52 52" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg"><path d="M50,15.52H2a2,2,0,0,1-2-2V2A2,2,0,0,1,2,0H50a2,2,0,0,1,2,2V13.52A2,2,0,0,1,50,15.52Zm-46-4H48V4H4Z"/><path d="M50,33.76H2a2,2,0,0,1-2-2V20.24a2,2,0,0,1,2-2H50a2,2,0,0,1,2,2V31.76A2,2,0,0,1,50,33.76Zm-46-4H48V22.24H4Z"/><path d="M50,52H2a2,2,0,0,1-2-2V38.48a2,2,0,0,1,2-2H50a2,2,0,0,1,2,2V50A2,2,0,0,1,50,52ZM4,48H48V40.48H4Z"/></svg>
+                </div>
               )}
             </div>
           </Card>
