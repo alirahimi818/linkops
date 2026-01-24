@@ -5,22 +5,24 @@ import Card from "../ui/Card";
 import Tabs, { TabButton } from "../ui/Tabs";
 import type { StatusMap, ItemStatus } from "../../lib/statusStore";
 
+import { useCopyFeedback } from "../../lib/useCopyFeedback";
+import { buildXIntentReplyUrl, buildXIntentTweetUrl, isXUrl } from "../../lib/socialIntents";
+
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  }
+function pickRandom<T>(arr: T[]) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getComments(item: any): Array<{ id?: string; text?: string } | string> {
+  if (!item?.comments) return [];
+  if (Array.isArray(item.comments)) return item.comments;
+  return [];
+}
+
+function commentText(c: any) {
+  if (typeof c === "string") return c;
+  return String(c?.text ?? "");
 }
 
 export default function ItemList(props: {
@@ -33,7 +35,7 @@ export default function ItemList(props: {
   onBack: () => void;
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copy, isCopied } = useCopyFeedback(2000);
 
   const emptyText = useMemo(() => {
     if (props.tab === "todo") return "چیزی برای انجام‌دادن نیست.";
@@ -47,44 +49,47 @@ export default function ItemList(props: {
     setOpenComments((p) => ({ ...p, [id]: !p[id] }));
   }
 
-  function getComments(item: any): Array<{ id?: string; text?: string; created_at?: string } | string> {
-    if (!item?.comments) return [];
-    if (Array.isArray(item.comments)) return item.comments;
-    return [];
-  }
-
-  function getCommentText(c: any) {
-    if (typeof c === "string") return c;
-    return String(c?.text ?? "");
-  }
-
-  async function doCopy(key: string, text: string) {
-    await copyText(text);
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey(null), 900);
-  }
-
-  async function copyRandomComment(item: any) {
-    const list = getComments(item);
-    if (list.length === 0) return;
-    const idx = Math.floor(Math.random() * list.length);
-    const txt = getCommentText(list[idx]);
-    if (!txt) return;
-    await doCopy(`rand:${item.id}`, txt);
-  }
-
-  // When user wants to "go back to todo", we must clear status.
-  // If your statusStore doesn't support it yet, you can treat "hidden" as reversible by setting to "hidden"? no.
-  // For now we use "hidden" | "later" | "done" and "todo" means "no status".
-  // So you SHOULD implement clearItemStatus(date,id) later. Here we call onMark with "hidden" etc only.
-  // We'll emulate "back to todo" by setting status to "hidden"? not correct.
-  // If your onMark supports a special value, change it.
-  // We'll keep it explicit: use "hidden" tab button "draft" calls onMark(id, "hidden")? no.
-  // Best: allow onMark(id, "todo") to clear in statusStore.
-  // We'll use "todo" as ItemStatus here; update ItemStatus union to include "todo" and clear in store.
   async function backToTodo(id: string) {
-    await props.onMark(id, null as any);
+    await props.onMark(id, null);
   }
+
+  function btnGreen(key: string) {
+    return isCopied(key) ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-600" : "";
+  }
+
+  async function openTweet(text: string) {
+    const url = buildXIntentTweetUrl(text);
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function openReply(itemUrl: string, text: string) {
+    const url = buildXIntentReplyUrl(itemUrl, text);
+    if (!url) {
+      // if not a status URL, fallback to tweet
+      await openTweet(text);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function copyRandomAndTweet(item: any) {
+    const list = getComments(item);
+    if (!list.length) return;
+    const t = commentText(pickRandom(list));
+    if (!t.trim()) return;
+    await copy(`rand:${item.id}`, t);
+    await openTweet(t);
+  }
+
+  async function copyRandomAndReply(item: any) {
+    const list = getComments(item);
+    if (!list.length) return;
+    const t = commentText(pickRandom(list));
+    if (!t.trim()) return;
+    await copy(`rand:${item.id}`, t);
+    await openReply(String(item.url ?? ""), t);
+  }
+
   return (
     <div dir="rtl" className="text-right">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -116,16 +121,16 @@ export default function ItemList(props: {
           <Card className="p-6 text-zinc-600">{emptyText}</Card>
         ) : (
           props.items.map((item: any) => {
-            const isOpen = !!openComments[item.id];
-            const comments = getComments(item);
-            const commentCount = comments.length;
-
             const catImg: string | null = item.category_image ?? null;
             const url: string = String(item.url ?? "");
+            const isOpen = !!openComments[item.id];
+            const comments = getComments(item);
+            const hasComments = comments.length > 0;
+
+            const xEnabled = isXUrl(url);
 
             return (
               <Card key={item.id}>
-                {/* Header row: category icon + title (NOT a link) */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-3">
@@ -140,11 +145,12 @@ export default function ItemList(props: {
                       )}
 
                       <div className="min-w-0 flex-1">
+                        {/* Title NOT a link */}
                         <div className="text-lg font-semibold text-zinc-900" dir="auto">
                           {item.title}
                         </div>
 
-                        {/* URL row + copy button */}
+                        {/* URL row + copy */}
                         <div className="mt-1 flex items-center gap-2">
                           <a
                             href={url}
@@ -158,10 +164,11 @@ export default function ItemList(props: {
 
                           <Button
                             variant="ghost"
-                            onClick={() => doCopy(`url:${item.id}`, url)}
+                            className={btnGreen(`url:${item.id}`)}
+                            onClick={() => copy(`url:${item.id}`, url)}
                             title="کپی لینک"
                           >
-                            {copiedKey === `url:${item.id}` ? "کپی شد ✓" : "کپی"}
+                            {isCopied(`url:${item.id}`) ? "کپی شد ✓" : "کپی لینک"}
                           </Button>
                         </div>
 
@@ -177,52 +184,86 @@ export default function ItemList(props: {
                           </div>
                         ) : null}
 
-                        {/* Comments controls */}
-                        {commentCount > 0 ? (
+                        {/* Comment controls */}
+                        {hasComments ? (
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              onClick={() => toggleComments(item.id)}
-                              title="نمایش / مخفی کردن کامنت‌ها"
-                            >
-                              {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${commentCount})`}
+                            <Button variant="ghost" onClick={() => toggleComments(item.id)}>
+                              {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${comments.length})`}
                             </Button>
 
                             <Button
                               variant="secondary"
-                              onClick={() => copyRandomComment(item)}
-                              title="بدون باز کردن لیست، یکی از کامنت‌ها کپی می‌شود"
+                              className={btnGreen(`rand:${item.id}`)}
+                              onClick={() => {
+                                const t = commentText(pickRandom(comments));
+                                copy(`rand:${item.id}`, t);
+                              }}
+                              title="یک کامنت رندوم کپی می‌شود"
                             >
-                              {copiedKey === `rand:${item.id}` ? "کپی شد ✓" : "کپی رندوم کامنت"}
+                              {isCopied(`rand:${item.id}`) ? "کپی شد ✓" : "کپی رندوم"}
+                            </Button>
+
+                            <Button
+                              variant="secondary"
+                              className={btnGreen(`randTweet:${item.id}`)}
+                              onClick={() => copyRandomAndTweet(item)}
+                              title="کپی رندوم + باز کردن صفحه توییت"
+                            >
+                              {isCopied(`randTweet:${item.id}`) ? "✓" : "کپی رندوم و توییت"}
+                            </Button>
+
+                            <Button
+                              variant="secondary"
+                              className={btnGreen(`randReply:${item.id}`)}
+                              onClick={() => copyRandomAndReply(item)}
+                              title={xEnabled ? "کپی رندوم + باز کردن ریپلای" : "این لینک استتوس نیست، به توییت معمولی می‌رود"}
+                            >
+                              {isCopied(`randReply:${item.id}`) ? "✓" : "کپی رندوم و ریپلای"}
                             </Button>
                           </div>
                         ) : null}
 
-                        {isOpen && commentCount > 0 ? (
+                        {/* Expanded comments list */}
+                        {isOpen && hasComments ? (
                           <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                             <div className="mb-2 text-sm font-medium text-zinc-800">کامنت‌های پیشنهادی</div>
+
                             <div className="space-y-2">
                               {comments.map((c: any, idx: number) => {
-                                const txt = getCommentText(c);
+                                const t = commentText(c);
                                 const cid = typeof c === "string" ? `s-${idx}` : (c.id ?? `c-${idx}`);
 
                                 return (
-                                  <div
-                                    key={cid}
-                                    className="rounded-lg border border-zinc-200 bg-white p-3"
-                                  >
+                                  <div key={cid} className="rounded-lg border border-zinc-200 bg-white p-3">
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
-                                        {txt}
+                                        {t}
                                       </div>
 
-                                      <div className="shrink-0">
+                                      <div className="shrink-0 flex items-center gap-2">
                                         <Button
                                           variant="ghost"
-                                          onClick={() => doCopy(`c:${item.id}:${cid}`, txt)}
+                                          className={btnGreen(`c:${item.id}:${cid}`)}
+                                          onClick={() => copy(`c:${item.id}:${cid}`, t)}
                                           title="کپی کامنت"
                                         >
-                                          {copiedKey === `c:${item.id}:${cid}` ? "✓" : "کپی"}
+                                          {isCopied(`c:${item.id}:${cid}`) ? "✓" : "کپی"}
+                                        </Button>
+
+                                        <Button
+                                          variant="ghost"
+                                          onClick={() => openTweet(t)}
+                                          title="ساخت توییت با این متن"
+                                        >
+                                          توییت
+                                        </Button>
+
+                                        <Button
+                                          variant="ghost"
+                                          onClick={() => openReply(url, t)}
+                                          title={xEnabled ? "ریپلای به همان توییت" : "این لینک استتوس نیست، به توییت معمولی می‌رود"}
+                                        >
+                                          ریپلای
                                         </Button>
                                       </div>
                                     </div>
@@ -237,7 +278,7 @@ export default function ItemList(props: {
                   </div>
                 </div>
 
-                {/* Actions row depending on current tab */}
+                {/* Status buttons */}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {props.tab === "todo" ? (
                     <>
@@ -272,7 +313,6 @@ export default function ItemList(props: {
                       </Button>
                     </>
                   ) : (
-                    // hidden tab
                     <>
                       <Button variant="secondary" onClick={() => backToTodo(item.id)}>
                         نمایش دوباره
