@@ -1,0 +1,193 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import PageShell from "../components/layout/PageShell";
+import TopBar from "../components/layout/TopBar";
+import Card from "../components/ui/Card";
+import Textarea from "../components/ui/Textarea";
+import ActionPill from "../components/ui/ActionPill";
+import { IconPaste } from "../components/ui/icons";
+
+import { fetchHashtagWhitelist } from "../lib/api";
+import type { HashtagWhitelistRow } from "../lib/api";
+
+import { applySuggestedReplacements, validateHashtags } from "../lib/hashtags";
+import HashtagInspector from "../components/ops/HashtagInspector";
+import { copyText } from "../lib/clipboard";
+
+export default function HashtagsPage() {
+  const nav = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
+
+  const [text, setText] = useState("");
+
+  const hasText = text.trim().length > 0;
+
+  const issuesCount = useMemo(() => {
+    if (!hasText || whitelist.size === 0) return 0;
+    return validateHashtags(text, whitelist).length;
+  }, [hasText, text, whitelist]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+        const rows = (await fetchHashtagWhitelist()) as HashtagWhitelistRow[];
+
+        const active = (rows ?? [])
+          .filter((t) => t.is_active === 1)
+          .map((t) => String(t.tag ?? "").toLowerCase())
+          .filter(Boolean);
+
+        if (!alive) return;
+        setWhitelist(new Set(active));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function pasteFromClipboard() {
+    try {
+      const v = await navigator.clipboard.readText();
+      if (v) setText(v);
+    } catch {
+      // ignore permission issues
+    }
+  }
+
+  async function copyCurrentText() {
+    if (!hasText) return;
+    await copyText(text);
+  }
+
+  function clearText() {
+    setText("");
+  }
+
+  function autoFixAll() {
+    if (!hasText || whitelist.size === 0) return;
+    const issues = validateHashtags(text, whitelist);
+    const next = applySuggestedReplacements(text, issues);
+    setText(next);
+  }
+
+  return (
+    <PageShell
+      dir="rtl"
+      header={
+        <div className="space-y-3">
+          <TopBar
+            dir="rtl"
+            title="بررسی هشتگ‌ها"
+            subtitle="متن را وارد کنید تا هشتگ‌های ناشناخته/اشتباه مشخص شوند."
+            right={
+              <div className="flex items-center gap-2">
+                <ActionPill title="بازگشت به صفحه اصلی" onClick={() => nav("/")}>
+                  صفحه اصلی
+                </ActionPill>
+              </div>
+            }
+          />
+
+          {/* Action row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionPill
+              title="Paste از کلیپ‌بورد"
+              onClick={pasteFromClipboard}
+              icon={<IconPaste className="h-4 w-4" />}
+              successKey="paste"
+            >
+              Paste
+            </ActionPill>
+
+            <ActionPill
+              title="کپی کل متن"
+              onClick={copyCurrentText}
+              successKey="copyText"
+              className={!hasText ? "opacity-50 pointer-events-none" : ""}
+            >
+              کپی متن
+            </ActionPill>
+
+            <ActionPill
+              title="جایگزینی خودکار پیشنهادها"
+              onClick={autoFixAll}
+              successKey="fix"
+              className={(!hasText || whitelist.size === 0) ? "opacity-50 pointer-events-none" : ""}
+            >
+              جایگزینی خودکار
+            </ActionPill>
+
+            <ActionPill
+              title="پاک کردن متن"
+              onClick={clearText}
+              successKey="clear"
+              className={!hasText ? "opacity-50 pointer-events-none" : ""}
+            >
+              پاک کردن
+            </ActionPill>
+
+            {/* small status */}
+            <div className="ms-auto text-xs text-zinc-500">
+              {loading ? "در حال بارگذاری وایت‌لیست…" : whitelist.size ? `وایت‌لیست: ${whitelist.size}` : "وایت‌لیست خالی است"}
+              {hasText ? (
+                <span className="ms-2">
+                  • ایرادها: <span className={issuesCount ? "text-red-700 font-medium" : "text-emerald-700 font-medium"}>{issuesCount}</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      }
+      footer={<></>}
+    >
+      {loading ? (
+        <div className="text-zinc-500">در حال بارگذاری…</div>
+      ) : (
+        <div className="space-y-3">
+          <Card>
+            <div className="grid gap-3">
+              <Textarea
+                dir="auto"
+                value={text}
+                onChange={setText}
+                placeholder="متن را اینجا وارد کنید…"
+                rows={10}
+              />
+
+              {!hasText ? (
+                <div className="text-sm text-zinc-500">
+                  نکته: می‌توانید از <span className="font-medium">Paste</span> استفاده کنید و بعد ایرادها را ببینید.
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
+          {/* Inspector shows issues + whitelist toggle + copy tags */}
+          <HashtagInspector
+            title="نتیجه بررسی"
+            text={text}
+            whitelist={whitelist}
+            onReplaceText={setText}
+            applySuggestedReplacements={applySuggestedReplacements}
+          />
+
+          {whitelist.size === 0 ? (
+            <Card className="p-4 text-sm text-zinc-600">
+              وایت‌لیست خالی است یا هنوز تنظیم نشده.
+            </Card>
+          ) : null}
+        </div>
+      )}
+    </PageShell>
+  );
+}

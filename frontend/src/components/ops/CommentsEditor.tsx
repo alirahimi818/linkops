@@ -4,6 +4,7 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
 import { applySuggestedReplacements, type HashtagIssue, validateHashtags } from "../../lib/hashtags";
+import HashtagInspector from "../ops/HashtagInspector";
 import { copyText } from "../../lib/clipboard";
 
 type Props = {
@@ -105,7 +106,13 @@ export default function CommentsEditor({
       />
 
       {draftIssues.length > 0 ? (
-        <IssueBox title="مشکلات هشتگ در متن پیش‌نویس" issues={draftIssues} onReplace={replaceDraft} whitelist={whitelist} />
+        <HashtagInspector
+          title="مشکلات هشتگ در متن پیش‌نویس"
+          text={draft}
+          whitelist={whitelist}
+          onReplaceText={setDraft}
+          applySuggestedReplacements={applySuggestedReplacements}
+        />
       ) : null}
 
       <div className="flex items-center gap-2">

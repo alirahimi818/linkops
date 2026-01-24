@@ -224,13 +224,8 @@ export default function Home() {
               دسته‌بندی‌ها
             </Button>
 
-            <Button
-              variant="ghost"
-              onClick={() => alert("صفحه بررسی هشتگ‌ها بعداً اضافه می‌شود.")}
-              title="به‌زودی"
-            >
-              بررسی هشتگ‌ها
-            </Button>
+            <a href="/hashtags-checker">بررسی هشتگ‌ها</a>
+
           </div>
         </div>
       }

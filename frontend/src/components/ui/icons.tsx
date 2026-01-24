@@ -79,3 +79,28 @@ export function IconLink({ className, title }: IconProps) {
     </svg>
   );
 }
+
+export function IconPaste(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={props.className ?? "h-4 w-4"}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M9 4.5h6m-5 2h4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8.5 6.5h-1A2.5 2.5 0 0 0 5 9v10a2.5 2.5 0 0 0 2.5 2.5h9A2.5 2.5 0 0 0 19 19V9a2.5 2.5 0 0 0-2.5-2.5h-1"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
