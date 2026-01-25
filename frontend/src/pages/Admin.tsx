@@ -193,6 +193,7 @@ export default function Admin() {
             (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."),
         );
       }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSaving(false);
     }
