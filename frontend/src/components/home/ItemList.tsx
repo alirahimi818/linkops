@@ -198,6 +198,7 @@ export default function ItemList(props: {
                                   label="کپی رندوم"
                                   dir="auto"
                                   title="یک پیام پیشنهادی رندوم کپی می‌شود"
+                                  className="rounded-e-none py-2"
                                   getValue={() => {
                                     const list = getComments(item);
                                     if (!list.length) return null;

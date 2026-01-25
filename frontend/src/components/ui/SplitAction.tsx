@@ -97,7 +97,7 @@ export default function SplitAction(props: {
         onClick={toggle}
         disabled={props.disabled || !hasActions}
         title={props.arrowTitle ?? (hasActions ? "More actions" : undefined)}
-        className="rounded-s-none px-3"
+        className="rounded-s-none px-3 text-xs"
       >
         <span className="inline-block translate-y-[1px]">▾</span>
       </Button>
