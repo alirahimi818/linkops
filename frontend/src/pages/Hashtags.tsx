@@ -13,6 +13,7 @@ import type { HashtagWhitelistRow } from "../lib/api";
 
 import { validateHashtags } from "../lib/hashtags";
 import HashtagInspector from "../components/ops/HashtagInspector";
+import MyHashtags from "../components/ops/MyHashtags";
 import { copyText } from "../lib/clipboard";
 
 export default function HashtagsPage() {
@@ -94,7 +95,15 @@ export default function HashtagsPage() {
     }
 
     setText(out);
-    }
+  }
+
+  function appendToText(tagsText: string) {
+    setText((prev) => {
+        const base = String(prev ?? "");
+        if (!base.trim()) return tagsText;
+        return `${base}\n${tagsText}`;
+    });
+  }
 
 
   return (
@@ -123,7 +132,7 @@ export default function HashtagsPage() {
               icon={<IconPaste className="h-4 w-4" />}
               successKey="paste"
             >
-              Paste
+              چسباندن
             </ActionPill>
 
             <ActionPill
@@ -196,6 +205,8 @@ export default function HashtagsPage() {
             whitelist={whitelist}
             onReplaceText={setText}
           />
+
+          <MyHashtags onAppendToText={appendToText} />
 
           {whitelist.size === 0 ? (
             <Card className="p-4 text-sm text-zinc-600">
