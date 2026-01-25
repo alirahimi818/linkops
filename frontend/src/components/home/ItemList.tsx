@@ -183,8 +183,8 @@ export default function ItemList(props: {
                       {hasComments ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
                           <Button
-                            variant="info"
-                            className="px-3"
+                            variant="info"  
+                            className="px-3!"
                             onClick={() => toggleComments(item.id)}
                           >
                             {isOpen
