@@ -277,6 +277,7 @@ export default function ItemList(props: {
                                         value={t}
                                         label="کپی"
                                         dir="auto"
+                                        className="rounded-xl py-2 text-sm"
                                       />
 
                                       <Button
