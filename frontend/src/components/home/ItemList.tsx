@@ -81,7 +81,7 @@ export default function ItemList(props: {
         <div className="text-sm text-zinc-600">
           دسته: <span className="font-medium text-zinc-900">{props.title}</span>
         </div>
-        <Button variant="ghost" onClick={props.onBack}>
+        <Button variant="secondary" onClick={props.onBack}>
           بازگشت
         </Button>
       </div>

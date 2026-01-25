@@ -23,7 +23,10 @@ function readStored(): string[] {
     if (!v) return [];
     const arr = JSON.parse(v);
     if (!Array.isArray(arr)) return [];
-    return arr.map((x) => String(x)).map(normalizeTag).filter(Boolean);
+    return arr
+      .map((x) => String(x))
+      .map(normalizeTag)
+      .filter(Boolean);
   } catch {
     return [];
   }
@@ -68,6 +71,11 @@ export default function MyHashtags(props: {
   function startEdit(tag: string) {
     setEditing(tag);
     setEditDraft(`#${tag}`);
+    setTimeout(() => {
+        const inputTag = document.querySelector(".editing-input") as HTMLInputElement;
+        inputTag?.focus();
+    }, 200);
+    
   }
 
   function saveEdit() {
@@ -122,20 +130,36 @@ export default function MyHashtags(props: {
             <ActionPill
               title="افزودن همه هشتگ‌های ذخیره شده به انتهای متن"
               onClick={appendAll}
-              className={tags.length === 0 ? "opacity-50 pointer-events-none" : "my-hashtags-add-all"}
+              className={
+                tags.length === 0 ? "opacity-50 pointer-events-none" : ""
+              }
             >
               افزودن به متن
             </ActionPill>
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Input value={draft} onChange={setDraft} placeholder="مثلاً: #Iran یا Iran" dir="ltr" />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Input
+            className="w-1/2"
+            value={draft}
+            onChange={setDraft}
+            placeholder="مثلاً: #Iran یا Iran"
+            dir="ltr"
+            onKeyDown={(e: any) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
 
           <ActionPill
             title="افزودن"
             onClick={add}
-            className={!normalizeTag(draft) ? "opacity-50 pointer-events-none" : ""}
+            className={
+              !normalizeTag(draft) ? "opacity-50 pointer-events-none" : ""
+            }
           >
             <span className="inline-flex items-center gap-1">
               <IconPlus className="h-4 w-4 opacity-70" />
@@ -144,13 +168,19 @@ export default function MyHashtags(props: {
           </ActionPill>
         </div>
 
-        <div className="mt-3">
-          <Input value={query} onChange={setQuery} placeholder="جستجو در هشتگ‌های من…" />
+        <div className="mt-3 border-t pt-3 border-zinc-200">
+          <Input
+            value={query}
+            onChange={setQuery}
+            placeholder="جستجو در هشتگ‌های من…"
+          />
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {filtered.length === 0 ? (
-            <div className="text-sm text-zinc-500">هنوز هشتگی ذخیره نشده است.</div>
+            <div className="text-sm text-zinc-500">
+              هنوز هشتگی ذخیره نشده است.
+            </div>
           ) : (
             filtered.map((t) => {
               const key = `my:${t}`;
@@ -161,7 +191,9 @@ export default function MyHashtags(props: {
                   key={t}
                   className={[
                     "inline-flex items-center gap-1 rounded-full border bg-white px-3 py-1 text-xs transition",
-                    active ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-zinc-200 text-zinc-800",
+                    active
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 text-zinc-800",
                   ].join(" ")}
                 >
                   {editing === t ? (
@@ -169,7 +201,16 @@ export default function MyHashtags(props: {
                       <input
                         value={editDraft}
                         onChange={(e) => setEditDraft(e.target.value)}
-                        className="w-44 rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-xs outline-none focus:border-zinc-400"
+                        onKeyDown={(e: any) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            saveEdit();
+                          }else if (e.key === "Escape") {
+                            e.preventDefault();
+                            cancelEdit();
+                          }
+                        }}
+                        className="w-44 rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-xs outline-none focus:border-zinc-400 editing-input"
                         dir="ltr"
                       />
 
@@ -203,8 +244,8 @@ export default function MyHashtags(props: {
                         dir="ltr"
                         title="کلیک کنید تا کپی شود"
                       >
-                        <IconCopy className="h-3.5 w-3.5 opacity-70" />
-                        #{t} {active ? "✓" : ""}
+                        <IconCopy className="h-3.5 w-3.5 opacity-70" />#{t}{" "}
+                        {active ? "✓" : ""}
                       </span>
 
                       <span className="mx-1 h-4 w-px bg-zinc-200" />

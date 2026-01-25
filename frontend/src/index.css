@@ -4,3 +4,7 @@
 @source "../src/**/*.{js,ts,jsx,tsx}";
 
 :root { color-scheme: light; }
+
+body {
+    font-family: "Vazirmatn", sans-serif;
+}

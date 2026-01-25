@@ -14,10 +14,11 @@ import type { HashtagWhitelistRow } from "../lib/api";
 import { validateHashtags } from "../lib/hashtags";
 import HashtagInspector from "../components/ops/HashtagInspector";
 import MyHashtags from "../components/ops/MyHashtags";
+import PriorityTags from "../components/ops/PriorityTags";
 import { copyText } from "../lib/clipboard";
 
 export default function HashtagsPage() {
-  const nav = useNavigate();
+  const [rows, setRows] = useState<HashtagWhitelistRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
@@ -46,6 +47,7 @@ export default function HashtagsPage() {
 
         if (!alive) return;
         setWhitelist(new Set(active));
+        setRows(rows ?? []);
       } finally {
         if (alive) setLoading(false);
       }
@@ -115,17 +117,10 @@ export default function HashtagsPage() {
             dir="rtl"
             title="بررسی هشتگ‌ها"
             subtitle="متن را وارد کنید تا هشتگ‌های ناشناخته/اشتباه مشخص شوند."
-            right={
-              <div className="flex items-center gap-2">
-                <ActionPill title="بازگشت به صفحه اصلی" onClick={() => nav("/")}>
-                  صفحه اصلی
-                </ActionPill>
-              </div>
-            }
           />
 
           {/* Action row */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
             <ActionPill
               title="Paste از کلیپ‌بورد"
               onClick={pasteFromClipboard}
@@ -174,7 +169,6 @@ export default function HashtagsPage() {
           </div>
         </div>
       }
-      footer={<></>}
     >
       {loading ? (
         <div className="text-zinc-500">در حال بارگذاری…</div>
@@ -208,11 +202,8 @@ export default function HashtagsPage() {
 
           <MyHashtags onAppendToText={appendToText} />
 
-          {whitelist.size === 0 ? (
-            <Card className="p-4 text-sm text-zinc-600">
-              وایت‌لیست خالی است یا هنوز تنظیم نشده.
-            </Card>
-          ) : null}
+          <PriorityTags title="اولویت هشتگ‌ها" rows={(rows as any) ?? []} maxItems={30} />
+
         </div>
       )}
     </PageShell>

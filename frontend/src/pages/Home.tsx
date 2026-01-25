@@ -218,18 +218,15 @@ export default function Home() {
               انجام‌شده: {doneCount} از {total}
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Button variant={view.kind === "categories" ? "secondary" : "ghost"} onClick={backToCategories}>
-              دسته‌بندی‌ها
-            </Button>
-
-            <a href="/hashtags-checker">بررسی هشتگ‌ها</a>
-
-          </div>
         </div>
       }
-      footer={<></>}
+      footer={
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4 border-zinc-200 justify-center">
+        <a href="/" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">صفحه اصلی</a>
+        <a href="/hashtags-checker" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">ابزار بررسی هشتگ‌ها</a>
+
+      </div>
+      }
     >
       {loading ? (
         <div className="text-zinc-500">در حال بارگذاری…</div>

@@ -25,7 +25,15 @@ export default function PageShell(props: {
         <main>{props.children}</main>
         {props.footer ? (
           <footer className="mt-10 text-xs text-zinc-500">{props.footer}</footer>
-        ) : null}
+        ) : (
+          <footer className="mt-10 text-xs text-zinc-500">
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4 border-zinc-200 justify-center">
+              <a href="/" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">صفحه اصلی</a>
+              <a href="/hashtags-checker" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">ابزار بررسی هشتگ‌ها</a>
+
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   );
