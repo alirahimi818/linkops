@@ -85,10 +85,10 @@ export default function PriorityTags(props: {
               key={r.id}
               onClick={() => onCopy(r)}
               className={[
-                    "w-full cursor-pointer text-left flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 transition",
+                    "w-full cursor-pointer text-left flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition",
                     isCopied
                       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 text-zinc-800",
+                      : "border-zinc-200 bg-white text-zinc-800",
                   ].join(" ")}
               title="کلیک کنید تا کپی شود"
             >

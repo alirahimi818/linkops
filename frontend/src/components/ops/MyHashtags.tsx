@@ -190,10 +190,10 @@ export default function MyHashtags(props: {
                 <div
                   key={t}
                   className={[
-                    "inline-flex items-center gap-1 rounded-full border bg-white px-3 py-1 text-xs transition",
+                    "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition",
                     active
                       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 text-zinc-800",
+                      : "border-zinc-200 bg-white text-zinc-800",
                   ].join(" ")}
                 >
                   {editing === t ? (
