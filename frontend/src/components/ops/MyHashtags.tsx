@@ -113,35 +113,35 @@ export default function MyHashtags(props: {
     if (tags.length === 0) return;
     const text = tags.map((t) => `#${t}`).join(" ");
     props.onAppendToText(text);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <div dir="rtl" className="space-y-3 text-right">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-medium text-zinc-900">هشتگ‌های من</div>
-            <div className="mt-1 text-xs text-zinc-500">
+          <div className="w-full">
+            <div className="w-full flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium text-zinc-900">هشتگ‌های من</div>
+                <ActionPill
+                    title="افزودن همه هشتگ‌های ذخیره شده به انتهای متن"
+                    onClick={appendAll}
+                    className={
+                        tags.length === 0 ? "opacity-50 pointer-events-none" : ""
+                    }
+                >
+                    افزودن به متن
+                </ActionPill>
+            </div>
+            <div className="mt-1 text-xs text-zinc-500 truncate">
               هشتگ‌های پرکاربرد خودتان را ذخیره کنید و سریع به متن اضافه کنید.
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <ActionPill
-              title="افزودن همه هشتگ‌های ذخیره شده به انتهای متن"
-              onClick={appendAll}
-              className={
-                tags.length === 0 ? "opacity-50 pointer-events-none" : ""
-              }
-            >
-              افزودن به متن
-            </ActionPill>
-          </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex gap-2">
           <Input
-            className="w-1/2"
+            className="w-full md:w-1/2"
             value={draft}
             onChange={setDraft}
             placeholder="مثلاً: #Iran یا Iran"

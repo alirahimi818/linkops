@@ -17,8 +17,7 @@ import type { HashtagWhitelistRow } from "../../lib/api";
 
 function normalize(tag: string) {
   const t = tag.trim();
-  const noHash = t.startsWith("#") ? t.slice(1) : t;
-  return noHash.toLowerCase();
+  return t.startsWith("#") ? t.slice(1) : t;
 }
 
 export default function SuperAdminHashtags() {

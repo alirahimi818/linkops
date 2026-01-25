@@ -12,12 +12,12 @@ export default function TopBar(props: {
     <div
       className={[
         "flex items-start justify-between gap-4",
-        dir === "rtl" ? "flex-row" : "flex-row-reverse",
+        dir === "rtl" ? "flex-wrap" : "flex-wrap-reverse",
       ].join(" ")}
     >
       <div className={dir === "rtl" ? "text-right" : "text-left"}>
         <h1 className="text-2xl font-semibold">{props.title}</h1>
-        {props.subtitle ? <div className="mt-1 text-sm text-zinc-500">{props.subtitle}</div> : null}
+        {props.subtitle ? <div className="mt-1 text-sm text-zinc-500 truncate">{props.subtitle}</div> : null}
       </div>
 
       {props.right ? (

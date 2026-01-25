@@ -465,7 +465,7 @@ export default function Admin() {
             maxLen={280}
           />
 
-          <div className="flex items-center gap-2 border-t pt-3 border-zinc-200">
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
             <Button variant="success" onClick={onSubmit} disabled={submitDisabled}>
               {editing ? (saving ? "در حال ذخیره…" : "ذخیره تغییرات") : saving ? "در حال افزودن…" : "افزودن آیتم"}
             </Button>

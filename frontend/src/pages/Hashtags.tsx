@@ -83,16 +83,17 @@ export default function HashtagsPage() {
     // but we don't have access to its internal helper. So re-implement here:
     let out = text;
 
-    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapeRegExp = (s: string) =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     for (const i of issues) {
-        const sugg = String((i as any).suggestion ?? "").trim();
-        const raw = String((i as any).raw ?? "").trim();
-        if (!sugg || !raw) continue;
+      const sugg = String((i as any).suggestion ?? "").trim();
+      const raw = String((i as any).raw ?? "").trim();
+      if (!sugg || !raw) continue;
 
-        const from = raw.startsWith("#") ? raw : `#${raw}`;
-        const to = `#${sugg}`;
-        const re = new RegExp(`${escapeRegExp(from)}(?![\\p{L}\\p{N}_])`, "gu");
-        out = out.replace(re, to);
+      const from = raw.startsWith("#") ? raw : `#${raw}`;
+      const to = `#${sugg}`;
+      const re = new RegExp(`${escapeRegExp(from)}(?![\\p{L}\\p{N}_])`, "gu");
+      out = out.replace(re, to);
     }
 
     setText(out);
@@ -100,81 +101,93 @@ export default function HashtagsPage() {
 
   function appendToText(tagsText: string) {
     setText((prev) => {
-        const base = String(prev ?? "");
-        if (!base.trim()) return tagsText;
-        return `${base}\n${tagsText}`;
+      const base = String(prev ?? "");
+      if (!base.trim()) return tagsText;
+      return `${base}\n${tagsText}`;
     });
   }
 
-
   return (
-    <PageShell
-      dir="rtl"
-      header={
-        <div className="space-y-3">
-          <TopBar
-            dir="rtl"
-            title="بررسی هشتگ‌ها"
-            subtitle="متن را وارد کنید تا هشتگ‌های ناشناخته/اشتباه مشخص شوند."
-          />
-
-          {/* Action row */}
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
-            <ActionPill
-              title="Paste از کلیپ‌بورد"
-              onClick={pasteFromClipboard}
-              icon={<IconPaste className="h-4 w-4" />}
-              successKey="paste"
-            >
-              چسباندن
-            </ActionPill>
-
-            <ActionPill
-              title="کپی کل متن"
-              onClick={copyCurrentText}
-              successKey="copyText"
-              className={!hasText ? "opacity-50 pointer-events-none" : ""}
-            >
-              کپی متن
-            </ActionPill>
-
-            <ActionPill
-              title="جایگزینی خودکار پیشنهادها"
-              onClick={autoFixAll}
-              successKey="fix"
-              className={(!hasText || whitelist.size === 0) ? "opacity-50 pointer-events-none" : ""}
-            >
-              جایگزینی خودکار
-            </ActionPill>
-
-            <ActionPill
-              title="پاک کردن متن"
-              onClick={clearText}
-              successKey="clear"
-              className={!hasText ? "opacity-50 pointer-events-none" : ""}
-            >
-              پاک کردن
-            </ActionPill>
-
-            {/* small status */}
-            <div className="ms-auto text-xs text-zinc-500">
-              {loading ? "در حال بارگذاری وایت‌لیست…" : whitelist.size ? `وایت‌لیست: ${whitelist.size}` : "وایت‌لیست خالی است"}
-              {hasText ? (
-                <span className="ms-2">
-                  • ایرادها: <span className={issuesCount ? "text-red-700 font-medium" : "text-emerald-700 font-medium"}>{issuesCount}</span>
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      }
-    >
+    <PageShell dir="rtl">
       {loading ? (
         <div className="text-zinc-500">در حال بارگذاری…</div>
       ) : (
         <div className="space-y-3">
+          <div className="space-y-3">
+            <TopBar
+              dir="rtl"
+              title="بررسی هشتگ‌ها"
+              subtitle="متن را وارد کنید تا هشتگ‌های ناشناخته/اشتباه مشخص شوند."
+            />
+
+            {/* Action row */}
+            <div className="flex flex-wrap items-center gap-1 border-t pt-3 border-zinc-200">
+              <ActionPill
+                title="Paste از کلیپ‌بورد"
+                onClick={pasteFromClipboard}
+                icon={<IconPaste className="h-4 w-4" />}
+                successKey="paste"
+              >
+                چسباندن
+              </ActionPill>
+
+              <ActionPill
+                title="کپی کل متن"
+                onClick={copyCurrentText}
+                successKey="copyText"
+                className={!hasText ? "opacity-50 pointer-events-none" : ""}
+              >
+                کپی متن
+              </ActionPill>
+
+              <ActionPill
+                title="جایگزینی خودکار پیشنهادها"
+                onClick={autoFixAll}
+                successKey="fix"
+                className={
+                  !hasText || whitelist.size === 0
+                    ? "opacity-50 pointer-events-none"
+                    : ""
+                }
+              >
+                جایگزینی خودکار
+              </ActionPill>
+
+              <ActionPill
+                title="پاک کردن متن"
+                onClick={clearText}
+                successKey="clear"
+                className={!hasText ? "opacity-50 pointer-events-none" : ""}
+              >
+                پاک کردن
+              </ActionPill>
+            </div>
+          </div>
           <Card>
-            <div className="grid gap-3">
+            {/* small status */}
+            <div className="ms-auto text-left mb-1 text-xs text-zinc-500">
+              {loading
+                ? "در حال بارگذاری وایت‌لیست…"
+                : whitelist.size
+                  ? `وایت‌لیست: ${whitelist.size}`
+                  : "وایت‌لیست خالی است"}
+              {hasText ? (
+                <span className="ms-2">
+                  • ایرادها:{" "}
+                  <span
+                    className={
+                      issuesCount
+                        ? "text-red-700 font-medium"
+                        : "text-emerald-700 font-medium"
+                    }
+                  >
+                    {issuesCount}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+
+            <div className="grid gap-2">
               <Textarea
                 dir="auto"
                 value={text}
@@ -182,10 +195,22 @@ export default function HashtagsPage() {
                 placeholder="متن را اینجا وارد کنید…"
                 rows={10}
               />
+              {text.length > 0 ? (
+                <div className={[
+                    "text-xs text-left",
+                    (text.length > 280 ? "text-red-600" : "text-green-600")
+                    ].join(" ")}>
+                  تعداد کاراکترها: {text.length}
+                </div>
+              ) : (
+                ""
+              )}
 
               {!hasText ? (
                 <div className="text-sm text-zinc-500">
-                  نکته: می‌توانید از <span className="font-medium">Paste</span> استفاده کنید و بعد ایرادها را ببینید.
+                  نکته: می‌توانید از دکمه{" "}
+                  <span className="font-medium">چسباندن</span> استفاده کنید و
+                  بعد ایرادها را ببینید.
                 </div>
               ) : null}
             </div>
@@ -201,8 +226,11 @@ export default function HashtagsPage() {
 
           <MyHashtags onAppendToText={appendToText} />
 
-          <PriorityTags title="اولویت هشتگ‌ها" rows={(rows as any) ?? []} maxItems={30} />
-
+          <PriorityTags
+            title="اولویت هشتگ‌ها"
+            rows={(rows as any) ?? []}
+            maxItems={30}
+          />
         </div>
       )}
     </PageShell>

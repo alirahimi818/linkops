@@ -92,7 +92,7 @@ export default function PriorityTags(props: {
                   ].join(" ")}
               title="کلیک کنید تا کپی شود"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 max-w-full overflow-x-auto">
                 <div
                   dir="ltr"
                   className="font-semibold leading-snug text-zinc-900"
