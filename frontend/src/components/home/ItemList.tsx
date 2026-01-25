@@ -48,7 +48,7 @@ export default function ItemList(props: {
 
   const emptyText = useMemo(() => {
     if (props.tab === "todo") return "چیزی برای انجام‌دادن نیست.";
-    if (props.tab === "later") return "فعلاً چیزی برای «بعداً» ندارید.";
+    if (props.tab === "later") return "فعلاً چیزی برای «بعدا» ندارید.";
     if (props.tab === "done") return "هنوز چیزی را انجام‌شده علامت نزده‌اید.";
     if (props.tab === "hidden") return "هیچ آیتمی مخفی نشده است.";
     return "موردی وجود ندارد.";
@@ -98,7 +98,7 @@ export default function ItemList(props: {
           active={props.tab === "later"}
           onClick={() => props.onTabChange("later")}
         >
-          بعداً
+          بعدا
         </TabButton>
         <TabButton
           active={props.tab === "done"}
@@ -315,17 +315,20 @@ export default function ItemList(props: {
                 <div className="mt-4 flex flex-wrap gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
-                      <Button onClick={() => props.onMark(item.id, "done")}>
+                      <Button
+                        variant="success"
+                        onClick={() => props.onMark(item.id, "done")}
+                      >
                         انجام شد
                       </Button>
                       <Button
-                        variant="secondary"
+                        variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
-                        بعداً انجام می‌دم
+                        بعدا انجام می‌دم
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
                         مخفی
@@ -333,17 +336,20 @@ export default function ItemList(props: {
                     </>
                   ) : props.tab === "later" ? (
                     <>
-                      <Button onClick={() => props.onMark(item.id, "done")}>
+                      <Button
+                        variant="success"
+                        onClick={() => props.onMark(item.id, "done")}
+                      >
                         انجام شد
                       </Button>
                       <Button
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
-                        برگرد به انجام‌نشده
+                        انجام‌نشده
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
                         مخفی
@@ -355,16 +361,16 @@ export default function ItemList(props: {
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
-                        برگرد به انجام‌نشده
+                        انجام‌نشده
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
-                        بزن برای بعداً
+                        بعدا انجام می‌دم
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
                         مخفی
@@ -376,16 +382,19 @@ export default function ItemList(props: {
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
-                        نمایش دوباره
+                        انجام‌نشده
                       </Button>
-                      <Button onClick={() => props.onMark(item.id, "done")}>
+                      <Button
+                        variant="success"
+                        onClick={() => props.onMark(item.id, "done")}
+                      >
                         انجام شد
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
-                        بزن برای بعداً
+                        بعدا انجام می‌دم
                       </Button>
                     </>
                   )}
