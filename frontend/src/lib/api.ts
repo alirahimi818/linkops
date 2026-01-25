@@ -54,6 +54,9 @@ export type AdminUser = {
   username: string;
   email?: string | null;
   role: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
 };
 
 export type AdminLoginResponse = {
@@ -67,6 +70,9 @@ export type UserRow = {
   email: string | null;
   role: string;
   created_at: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
 };
 
 export type Me = {
@@ -74,6 +80,9 @@ export type Me = {
   username: string;
   role: string;
   email: string | null;
+  name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
 };
 
 export type ItemComment = {
