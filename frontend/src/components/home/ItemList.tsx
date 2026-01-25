@@ -54,6 +54,10 @@ export default function ItemList(props: {
     return "موردی وجود ندارد.";
   }, [props.tab]);
 
+  function toggleComments(id: string) {
+    setOpenComments((p) => ({ ...p, [id]: !p[id] }));
+  }
+
   async function backToTodo(id: string) {
     await props.onMark(id, null);
   }
@@ -178,6 +182,14 @@ export default function ItemList(props: {
                         {/* Comment controls */}
                         {hasComments ? (
                           <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              onClick={() => toggleComments(item.id)}
+                            >
+                              {isOpen
+                                ? "بستن پیام‌های پیشنهادی"
+                                : `پیام‌های پیشنهادی (${comments.length})`}
+                            </Button>
                             <SplitAction
                               dir="rtl"
                               disabled={!hasComments}
