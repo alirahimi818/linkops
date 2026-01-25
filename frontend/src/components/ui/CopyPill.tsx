@@ -50,7 +50,7 @@ export default function CopyPill({
   }
 
   return (
-    <span className={className ?? ""} dir={dir}>
+    <span dir={dir ?? "auto"}>
       <span
         role="button"
         tabIndex={0}
@@ -60,7 +60,7 @@ export default function CopyPill({
         title={title ?? "کلیک کنید تا کپی شود"}
         className={[
           "inline-flex select-none items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition",
-          "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-300",
+          className ?? "",
           compact ? "px-2 py-1" : "",
           copied
             ? "border-emerald-200 bg-emerald-50 text-emerald-800"

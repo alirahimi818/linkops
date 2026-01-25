@@ -30,9 +30,8 @@ export default function CopyPillDynamic(props: {
   }
 
   return (
-    <span>
+    <span dir={props.dir ?? "auto"}>
       <span
-        dir={props.dir ?? "auto"}
         role="button"
         tabIndex={0}
         onClick={act}
