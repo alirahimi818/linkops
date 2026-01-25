@@ -368,7 +368,7 @@ export async function adminDeleteCategory(id: string) {
 }
 
 /* =========================
-   SuperAdmin Users (existing)
+   SuperAdmin Users
    ========================= */
 
 export async function superadminListUsers(): Promise<UserRow[]> {
@@ -381,11 +381,36 @@ export async function superadminCreateUser(payload: {
   password: string;
   email?: string | null;
   role: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
 }) {
   return requestJSON<{ ok: boolean; id: string }>(
     `/api/admin/users`,
     {
       method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  );
+}
+
+export async function superadminUpdateUser(
+  id: string,
+  payload: {
+    username?: string;
+    password?: string;
+    email?: string | null;
+    role?: string;
+    name?: string | null;
+    avatar_url?: string | null;
+    bio?: string | null;
+  }
+) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/users?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     { auth: true }
