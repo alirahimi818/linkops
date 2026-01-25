@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Card from "../ui/Card";
 import { copyText } from "../../lib/clipboard";
+import { IconCopy } from "../ui/icons";
 
 export type TagRow = {
   id: string;
@@ -80,11 +81,15 @@ export default function PriorityTags(props: {
           const isCopied = copiedId === r.id;
 
           return (
-            <button
+            <div
               key={r.id}
-              type="button"
               onClick={() => onCopy(r)}
-              className="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 hover:bg-zinc-50 transition"
+              className={[
+                    "w-full cursor-copy text-left flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 hover:bg-zinc-50 transition",
+                    isCopied
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 text-zinc-800",
+                  ].join(" ")}
               title="Click to copy"
             >
               <div className="min-w-0">
@@ -99,15 +104,13 @@ export default function PriorityTags(props: {
 
               <div className="shrink-0 flex items-center gap-2">
                 <span
-                  className={[
-                    "text-xs",
-                    isCopied ? "text-emerald-700 font-medium" : "text-zinc-400",
-                  ].join(" ")}
+                  className="text-xs"
                 >
-                  {isCopied ? "کپی شد" : "کپی"}
+                    <IconCopy className="h-3.5 w-3.5 opacity-70" />
+                    {isCopied ? "✓" : ""}
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
