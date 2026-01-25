@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
