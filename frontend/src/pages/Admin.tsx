@@ -404,7 +404,7 @@ export default function Admin() {
           </div>
 
           {editing ? (
-            <Button variant="ghost" onClick={resetForm} disabled={saving}>
+            <Button variant="secondary" onClick={resetForm} disabled={saving}>
               انصراف از ویرایش
             </Button>
           ) : null}
@@ -465,8 +465,8 @@ export default function Admin() {
             maxLen={280}
           />
 
-          <div className="flex items-center gap-2">
-            <Button onClick={onSubmit} disabled={submitDisabled}>
+          <div className="flex items-center gap-2 border-t pt-3 border-zinc-200">
+            <Button variant="success" onClick={onSubmit} disabled={submitDisabled}>
               {editing ? (saving ? "در حال ذخیره…" : "ذخیره تغییرات") : saving ? "در حال افزودن…" : "افزودن آیتم"}
             </Button>
 
@@ -495,15 +495,16 @@ export default function Admin() {
                 <Card key={i.id}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col justify-center items-center gap-2">
-                      <Button variant="danger" onClick={() => onDelete(i.id)}>
+                      <Button className="w-full" variant="danger" onClick={() => onDelete(i.id)}>
                         حذف
                       </Button>
 
-                      <Button variant="info" onClick={() => startEdit(i)}>
+                      <Button className="w-full" variant="info" onClick={() => startEdit(i)}>
                         ویرایش
                       </Button>
 
                       <Button
+                        className="w-full"
                         variant="secondary"
                         onClick={() => toggleComments(i.id)}
                         disabled={!hasComments}
