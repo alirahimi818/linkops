@@ -54,10 +54,6 @@ export default function ItemList(props: {
     return "موردی وجود ندارد.";
   }, [props.tab]);
 
-  function toggleComments(id: string) {
-    setOpenComments((p) => ({ ...p, [id]: !p[id] }));
-  }
-
   async function backToTodo(id: string) {
     await props.onMark(id, null);
   }
