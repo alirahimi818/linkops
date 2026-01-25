@@ -108,7 +108,7 @@ export default function SplitAction(props: {
           id={menuId}
           role="menu"
           className={[
-            "absolute z-50 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm",
+            "absolute z-50 min-w-[200px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm",
             menuAlignClass,
           ].join(" ")}
         >

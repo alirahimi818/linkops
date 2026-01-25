@@ -132,15 +132,15 @@ export default function ItemList(props: {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0 flex-1">
-                      <div className="flex gap-1 items-center">
+                      <div className="flex gap-2 items-center">
                         {catImg ? (
                           <img
                             src={catImg}
                             alt={item.category_name ?? "category"}
-                            className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-white object-contain p-1"
+                            className="mt-0.5 h-8 w-8 rounded-md border border-zinc-200 bg-white object-contain p-1"
                           />
                         ) : (
-                          <div className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-zinc-50" />
+                          <div className="mt-0.5 h-8 w-8 rounded-md border border-zinc-200 bg-zinc-50" />
                         )}
 
                         <div
@@ -181,13 +181,14 @@ export default function ItemList(props: {
 
                       {/* Comment controls */}
                       {hasComments ? (
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
                           <Button
-                            variant="ghost"
+                            variant="info"
+                            className="px-3"
                             onClick={() => toggleComments(item.id)}
                           >
                             {isOpen
-                              ? "بستن پیام‌های پیشنهادی"
+                              ? "بستن پیام‌ها"
                               : `پیام‌های پیشنهادی (${comments.length})`}
                           </Button>
                           <SplitAction
@@ -263,7 +264,7 @@ export default function ItemList(props: {
                                   key={cid}
                                   className="rounded-lg border border-zinc-200 bg-white p-3"
                                 >
-                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                  <div className="flex flex-col gap-3">
                                     <div
                                       className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
                                       dir="auto"
@@ -271,7 +272,7 @@ export default function ItemList(props: {
                                       {t}
                                     </div>
 
-                                    <div className="shrink-0 flex flex-wrap items-center gap-2 md:justify-end">
+                                    <div className="flex flex-wrap items-center gap-2 justify-around md:justify-start border-t pt-3 border-zinc-200">
                                       <CopyPill
                                         value={t}
                                         label="کپی"
@@ -279,7 +280,7 @@ export default function ItemList(props: {
                                       />
 
                                       <Button
-                                        variant="ghost"
+                                        variant="secondary"
                                         onClick={() => openTweet(t)}
                                         title="ساخت توییت با این متن"
                                       >
@@ -287,7 +288,7 @@ export default function ItemList(props: {
                                       </Button>
 
                                       <Button
-                                        variant="ghost"
+                                        variant="secondary"
                                         onClick={() => openReply(url, t)}
                                         title={
                                           xEnabled
@@ -310,7 +311,7 @@ export default function ItemList(props: {
                 </div>
 
                 {/* Status buttons */}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
                       <Button onClick={() => props.onMark(item.id, "done")}>
