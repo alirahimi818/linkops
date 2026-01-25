@@ -66,7 +66,7 @@ export default function PriorityTags(props: {
     <Card>
       <div className="mb-2 text-sm font-medium text-zinc-800">{title}</div>
       <div className="text-xs text-zinc-500">
-        روی هر تگ کلیک کنید تا کپی شود.
+       برای کپی تگ، روی آن کلیک کنید.
       </div>
 
       <div className="mt-4 space-y-2">
@@ -98,10 +98,6 @@ export default function PriorityTags(props: {
               </div>
 
               <div className="shrink-0 flex items-center gap-2">
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700">
-                  اولویت {r.priority ?? 0}
-                </span>
-
                 <span
                   className={[
                     "text-xs",
