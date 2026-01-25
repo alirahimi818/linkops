@@ -8,6 +8,7 @@ import type { StatusMap, ItemStatus } from "../../lib/statusStore";
 import { copyText } from "../../lib/clipboard";
 import CopyPill from "../ui/CopyPill";
 import CopyPillDynamic from "../ui/CopyPillDynamic";
+import SplitAction from "../ui/SplitAction";
 
 import {
   buildXIntentReplyUrl,
@@ -181,68 +182,55 @@ export default function ItemList(props: {
                         {/* Comment controls */}
                         {hasComments ? (
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              onClick={() => toggleComments(item.id)}
-                            >
-                              {isOpen
-                                ? "بستن کامنت‌ها"
-                                : `کامنت‌ها (${comments.length})`}
-                            </Button>
-
-                            {/* Random copy pill (no list open needed) */}
-                            <CopyPillDynamic
-                              label="کپی رندوم"
-                              dir="auto"
-                              title="یک کامنت رندوم کپی می‌شود"
-                              getValue={() => {
-                                const list = getComments(item);
-                                if (!list.length) return null;
-                                const t = commentText(pickRandom(list));
-                                return t.trim() ? t : null;
-                              }}
-                            />
-
-                            {/* Random + Tweet / Reply (actions stay buttons) */}
-                            <Button
-                              variant="secondary"
-                              onClick={() => {
-                                const list = getComments(item);
-                                if (!list.length) return;
-                                const t = commentText(pickRandom(list));
-                                if (!t.trim()) return;
-
-                                void (async () => {
-                                  await copyText(t);
-                                  openTweet(t);
-                                })();
-                              }}
-                              title="کپی رندوم + باز کردن صفحه توییت"
-                            >
-                              کپی رندوم و توییت
-                            </Button>
-
-                            <Button
-                              variant="secondary"
-                              onClick={() => {
-                                const list = getComments(item);
-                                if (!list.length) return;
-                                const t = commentText(pickRandom(list));
-                                if (!t.trim()) return;
-
-                                void (async () => {
-                                  await copyText(t);
-                                  openReply(url, t);
-                                })();
-                              }}
-                              title={
-                                xEnabled
-                                  ? "کپی رندوم + باز کردن ریپلای"
-                                  : "این لینک استتوس نیست، به توییت معمولی می‌رود"
+                            <SplitAction
+                              dir="rtl"
+                              disabled={!hasComments}
+                              primary={
+                                <CopyPillDynamic
+                                  label="کپی رندوم"
+                                  dir="auto"
+                                  title="یک پیام پیشنهادی رندوم کپی می‌شود"
+                                  getValue={() => {
+                                    const list = getComments(item);
+                                    if (!list.length) return null;
+                                    const t = commentText(pickRandom(list));
+                                    return t.trim() ? t : null;
+                                  }}
+                                />
                               }
-                            >
-                              کپی رندوم و ریپلای
-                            </Button>
+                              actions={[
+                                {
+                                  key: "copyAndTweet",
+                                  label: "کپی رندوم و توییت",
+                                  onClick: async () => {
+                                    const list = getComments(item);
+                                    if (!list.length) return;
+                                    const t = commentText(pickRandom(list));
+                                    if (!t.trim()) return;
+
+                                    await copyText(t);
+                                    openTweet(t);
+                                  },
+                                  title: "کپی رندوم + باز کردن صفحه توییت",
+                                },
+                                {
+                                  key: "copyAndReply",
+                                  label: "کپی رندوم و ریپلای",
+                                  onClick: async () => {
+                                    const list = getComments(item);
+                                    if (!list.length) return;
+                                    const t = commentText(pickRandom(list));
+                                    if (!t.trim()) return;
+
+                                    await copyText(t);
+                                    openReply(url, t);
+                                  },
+                                  title: xEnabled
+                                    ? "کپی رندوم + باز کردن ریپلای"
+                                    : "این لینک استتوس نیست، به توییت معمولی می‌رود",
+                                },
+                              ]}
+                            />
                           </div>
                         ) : null}
 
@@ -250,7 +238,7 @@ export default function ItemList(props: {
                         {isOpen && hasComments ? (
                           <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                             <div className="mb-2 text-sm font-medium text-zinc-800">
-                              کامنت‌های پیشنهادی
+                              پیام‌های پیشنهادی
                             </div>
 
                             <div className="space-y-2">
