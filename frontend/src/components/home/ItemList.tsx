@@ -131,181 +131,180 @@ export default function ItemList(props: {
               <Card key={item.id}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start gap-3">
-                      {catImg ? (
-                        <img
-                          src={catImg}
-                          alt={item.category_name ?? "category"}
-                          className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-white object-contain p-1"
-                        />
-                      ) : (
-                        <div className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-zinc-50" />
-                      )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex gap-1 items-center">
+                        {catImg ? (
+                          <img
+                            src={catImg}
+                            alt={item.category_name ?? "category"}
+                            className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-white object-contain p-1"
+                          />
+                        ) : (
+                          <div className="mt-0.5 h-6 w-6 rounded-md border border-zinc-200 bg-zinc-50" />
+                        )}
 
-                      <div className="min-w-0 flex-1">
-                        {/* Title NOT a link */}
                         <div
                           className="text-lg font-semibold text-zinc-900"
                           dir="auto"
                         >
                           {item.title}
                         </div>
+                      </div>
 
-                        {/* URL row + copy */}
-                        <div className="mt-1 flex items-center gap-2">
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="min-w-0 truncate text-sm text-zinc-600 underline"
-                            dir="ltr"
+                      {/* URL row + copy */}
+                      <div className="mt-1 flex items-center gap-2">
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="min-w-0 truncate text-sm text-zinc-600 underline"
+                          dir="ltr"
+                        >
+                          {url}
+                        </a>
+
+                        <CopyPill value={url} label="کپی لینک" dir="ltr" />
+                      </div>
+
+                      <div className="mt-2 text-sm text-zinc-600" dir="auto">
+                        {item.description}
+                      </div>
+
+                      {Array.isArray(item.actions) &&
+                      item.actions.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.actions.map((a: any) => (
+                            <Badge key={a.id}>{a.label ?? a.name}</Badge>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {/* Comment controls */}
+                      {hasComments ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            onClick={() => toggleComments(item.id)}
                           >
-                            {url}
-                          </a>
+                            {isOpen
+                              ? "بستن پیام‌های پیشنهادی"
+                              : `پیام‌های پیشنهادی (${comments.length})`}
+                          </Button>
+                          <SplitAction
+                            dir="rtl"
+                            disabled={!hasComments}
+                            primary={
+                              <CopyPillDynamic
+                                label="کپی رندوم"
+                                dir="auto"
+                                title="یک پیام پیشنهادی رندوم کپی می‌شود"
+                                className="rounded-e-none py-2"
+                                getValue={() => {
+                                  const list = getComments(item);
+                                  if (!list.length) return null;
+                                  const t = commentText(pickRandom(list));
+                                  return t.trim() ? t : null;
+                                }}
+                              />
+                            }
+                            actions={[
+                              {
+                                key: "copyAndTweet",
+                                label: "کپی رندوم و توییت",
+                                onClick: async () => {
+                                  const list = getComments(item);
+                                  if (!list.length) return;
+                                  const t = commentText(pickRandom(list));
+                                  if (!t.trim()) return;
 
-                          <CopyPill value={url} label="کپی لینک" dir="ltr" />
-                        </div>
-
-                        <div className="mt-2 text-sm text-zinc-600" dir="auto">
-                          {item.description}
-                        </div>
-
-                        {Array.isArray(item.actions) &&
-                        item.actions.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {item.actions.map((a: any) => (
-                              <Badge key={a.id}>{a.label ?? a.name}</Badge>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {/* Comment controls */}
-                        {hasComments ? (
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              onClick={() => toggleComments(item.id)}
-                            >
-                              {isOpen
-                                ? "بستن پیام‌های پیشنهادی"
-                                : `پیام‌های پیشنهادی (${comments.length})`}
-                            </Button>
-                            <SplitAction
-                              dir="rtl"
-                              disabled={!hasComments}
-                              primary={
-                                <CopyPillDynamic
-                                  label="کپی رندوم"
-                                  dir="auto"
-                                  title="یک پیام پیشنهادی رندوم کپی می‌شود"
-                                  className="rounded-e-none py-2"
-                                  getValue={() => {
-                                    const list = getComments(item);
-                                    if (!list.length) return null;
-                                    const t = commentText(pickRandom(list));
-                                    return t.trim() ? t : null;
-                                  }}
-                                />
-                              }
-                              actions={[
-                                {
-                                  key: "copyAndTweet",
-                                  label: "کپی رندوم و توییت",
-                                  onClick: async () => {
-                                    const list = getComments(item);
-                                    if (!list.length) return;
-                                    const t = commentText(pickRandom(list));
-                                    if (!t.trim()) return;
-
-                                    await copyText(t);
-                                    openTweet(t);
-                                  },
-                                  title: "کپی رندوم + باز کردن صفحه توییت",
+                                  await copyText(t);
+                                  openTweet(t);
                                 },
-                                {
-                                  key: "copyAndReply",
-                                  label: "کپی رندوم و ریپلای",
-                                  onClick: async () => {
-                                    const list = getComments(item);
-                                    if (!list.length) return;
-                                    const t = commentText(pickRandom(list));
-                                    if (!t.trim()) return;
+                                title: "کپی رندوم + باز کردن صفحه توییت",
+                              },
+                              {
+                                key: "copyAndReply",
+                                label: "کپی رندوم و ریپلای",
+                                onClick: async () => {
+                                  const list = getComments(item);
+                                  if (!list.length) return;
+                                  const t = commentText(pickRandom(list));
+                                  if (!t.trim()) return;
 
-                                    await copyText(t);
-                                    openReply(url, t);
-                                  },
-                                  title: xEnabled
-                                    ? "کپی رندوم + باز کردن ریپلای"
-                                    : "این لینک استتوس نیست، به توییت معمولی می‌رود",
+                                  await copyText(t);
+                                  openReply(url, t);
                                 },
-                              ]}
-                            />
+                                title: xEnabled
+                                  ? "کپی رندوم + باز کردن ریپلای"
+                                  : "این لینک استتوس نیست، به توییت معمولی می‌رود",
+                              },
+                            ]}
+                          />
+                        </div>
+                      ) : null}
+
+                      {/* Expanded comments list */}
+                      {isOpen && hasComments ? (
+                        <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                          <div className="mb-2 text-sm font-medium text-zinc-800">
+                            پیام‌های پیشنهادی
                           </div>
-                        ) : null}
 
-                        {/* Expanded comments list */}
-                        {isOpen && hasComments ? (
-                          <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                            <div className="mb-2 text-sm font-medium text-zinc-800">
-                              پیام‌های پیشنهادی
-                            </div>
+                          <div className="space-y-2">
+                            {comments.map((c: any, idx: number) => {
+                              const t = commentText(c);
+                              const cid =
+                                typeof c === "string"
+                                  ? `s-${idx}`
+                                  : (c.id ?? `c-${idx}`);
 
-                            <div className="space-y-2">
-                              {comments.map((c: any, idx: number) => {
-                                const t = commentText(c);
-                                const cid =
-                                  typeof c === "string"
-                                    ? `s-${idx}`
-                                    : (c.id ?? `c-${idx}`);
+                              return (
+                                <div
+                                  key={cid}
+                                  className="rounded-lg border border-zinc-200 bg-white p-3"
+                                >
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div
+                                      className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
+                                      dir="auto"
+                                    >
+                                      {t}
+                                    </div>
 
-                                return (
-                                  <div
-                                    key={cid}
-                                    className="rounded-lg border border-zinc-200 bg-white p-3"
-                                  >
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                      <div
-                                        className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
+                                    <div className="shrink-0 flex flex-wrap items-center gap-2 md:justify-end">
+                                      <CopyPill
+                                        value={t}
+                                        label="کپی"
                                         dir="auto"
+                                      />
+
+                                      <Button
+                                        variant="ghost"
+                                        onClick={() => openTweet(t)}
+                                        title="ساخت توییت با این متن"
                                       >
-                                        {t}
-                                      </div>
+                                        توییت
+                                      </Button>
 
-                                      <div className="shrink-0 flex flex-wrap items-center gap-2 md:justify-end">
-                                        <CopyPill
-                                          value={t}
-                                          label="کپی"
-                                          dir="auto"
-                                        />
-
-                                        <Button
-                                          variant="ghost"
-                                          onClick={() => openTweet(t)}
-                                          title="ساخت توییت با این متن"
-                                        >
-                                          توییت
-                                        </Button>
-
-                                        <Button
-                                          variant="ghost"
-                                          onClick={() => openReply(url, t)}
-                                          title={
-                                            xEnabled
-                                              ? "ریپلای به همان توییت"
-                                              : "این لینک استتوس نیست، به توییت معمولی می‌رود"
-                                          }
-                                        >
-                                          ریپلای
-                                        </Button>
-                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        onClick={() => openReply(url, t)}
+                                        title={
+                                          xEnabled
+                                            ? "ریپلای به همان توییت"
+                                            : "این لینک استتوس نیست، به توییت معمولی می‌رود"
+                                        }
+                                      >
+                                        ریپلای
+                                      </Button>
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
