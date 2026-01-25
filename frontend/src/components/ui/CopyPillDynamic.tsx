@@ -30,8 +30,9 @@ export default function CopyPillDynamic(props: {
   }
 
   return (
-    <span className={props.className ?? ""} dir={props.dir ?? "auto"}>
+    <span>
       <span
+        dir={props.dir ?? "auto"}
         role="button"
         tabIndex={0}
         onClick={act}
@@ -40,6 +41,7 @@ export default function CopyPillDynamic(props: {
         aria-describedby={liveId}
         className={[
           "inline-flex select-none items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition",
+          props.className ?? "",
           copied
             ? "border-emerald-200 bg-emerald-50 text-emerald-800"
             : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50",
