@@ -85,12 +85,12 @@ export default function PriorityTags(props: {
               key={r.id}
               onClick={() => onCopy(r)}
               className={[
-                    "w-full cursor-copy text-left flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 hover:bg-zinc-50 transition",
+                    "w-full cursor-pointer text-left flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 transition",
                     isCopied
                       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                       : "border-zinc-200 text-zinc-800",
                   ].join(" ")}
-              title="Click to copy"
+              title="کلیک کنید تا کپی شود"
             >
               <div className="min-w-0">
                 <div
@@ -106,8 +106,7 @@ export default function PriorityTags(props: {
                 <span
                   className="text-xs"
                 >
-                    <IconCopy className="h-3.5 w-3.5 opacity-70" />
-                    {isCopied ? "✓" : ""}
+                  {isCopied ? "✓" : <IconCopy className="h-3.5 w-3.5 opacity-70" />}
                 </span>
               </div>
             </div>
