@@ -183,13 +183,13 @@ export default function Home() {
 
   const headerRight = (
     <div className="flex items-center gap-2">
-      <Button variant="secondary" onClick={goPrev} title="روز قبل">
+      <Button variant="secondary" onClick={goNext} title="روز بعد">
         →
       </Button>
 
       <DatePicker value={date} onChange={setDate} />
 
-      <Button variant="secondary" onClick={goNext} title="روز بعد">
+      <Button variant="secondary" onClick={goPrev} title="روز قبل">
         ←
       </Button>
     </div>

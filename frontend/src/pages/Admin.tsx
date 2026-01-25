@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   adminCreateItem,
   adminDeleteItem,
@@ -36,6 +36,107 @@ type EditState = {
   originalDate: string;
 };
 
+function normalizeHost(inputUrl: string): string | null {
+  try {
+    const u = new URL(inputUrl.trim());
+    return u.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCategoryName(input: string): string {
+  return (input ?? "").trim().toLowerCase();
+}
+
+function autoFixUrl(inputUrl: string): string {
+  const raw = (inputUrl ?? "").trim();
+  if (!raw) return raw;
+
+  // If it already has a protocol, keep it
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw)) return raw;
+
+  // Support protocol-relative URLs
+  if (raw.startsWith("//")) return `https:${raw}`;
+
+  // If user pasted something like "x.com/..." or "www.instagram.com/..."
+  return `https://${raw}`;
+}
+
+function isValidAbsoluteHttpUrl(inputUrl: string): boolean {
+  try {
+    const u = new URL(inputUrl.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function matchPlatformByHost(host: string): "x" | "instagram" | null {
+  const h = host.replace(/^www\./, "");
+
+  // X / Twitter
+  if (
+    h === "x.com" ||
+    h.endsWith(".x.com") ||
+    h === "twitter.com" ||
+    h.endsWith(".twitter.com") ||
+    h === "t.co" ||
+    h.endsWith(".t.co")
+  ) {
+    return "x";
+  }
+
+  // Instagram
+  if (
+    h === "instagram.com" ||
+    h.endsWith(".instagram.com") ||
+    h === "instagr.am" ||
+    h.endsWith(".instagr.am")
+  ) {
+    return "instagram";
+  }
+
+  return null;
+}
+
+function findCategoryIdForPlatform(categories: Category[], platform: "x" | "instagram"): string | null {
+  const names = categories.map((c) => ({
+    id: (c as any).id as string,
+    name: normalizeCategoryName((c as any).name as string),
+    raw: ((c as any).name as string) ?? "",
+  }));
+
+  if (platform === "x") {
+    // Priority: exact -> contains -> fallback
+    const exact = names.find((c) => c.raw.trim() === "X (توییتر)");
+    if (exact) return exact.id;
+
+    const containsPersian = names.find((c) => c.name.includes("توییتر"));
+    if (containsPersian) return containsPersian.id;
+
+    const containsTwitter = names.find((c) => c.name.includes("twitter"));
+    if (containsTwitter) return containsTwitter.id;
+
+    const containsX = names.find((c) => c.name === "x" || c.name.includes(" x "));
+    if (containsX) return containsX.id;
+
+    return null;
+  }
+
+  // instagram
+  const exact = names.find((c) => c.raw.trim() === "اینستاگرام");
+  if (exact) return exact.id;
+
+  const containsPersian = names.find((c) => c.name.includes("اینستاگرام") || c.name.includes("اینستا"));
+  if (containsPersian) return containsPersian.id;
+
+  const containsInstagram = names.find((c) => c.name.includes("instagram"));
+  if (containsInstagram) return containsInstagram.id;
+
+  return null;
+}
+
 export default function Admin() {
   const dateDefault = useMemo(() => todayYYYYMMDD(), []);
   const [date, setDate] = useState(dateDefault);
@@ -54,6 +155,10 @@ export default function Admin() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
   const [comments, setComments] = useState<string[]>([]);
+
+  // Track whether user manually selected a category (do not override)
+  const [categoryTouched, setCategoryTouched] = useState(false);
+  const programmaticCategoryChange = useRef(false);
 
   // Edit mode
   const [editing, setEditing] = useState<EditState | null>(null);
@@ -87,21 +192,54 @@ export default function Admin() {
     setSelectedActionIds([]);
     setComments([]);
     setEditing(null);
+    setCategoryTouched(false);
+  }
+
+  function setCategoryIdProgrammatically(nextId: string) {
+    programmaticCategoryChange.current = true;
+    setCategoryId(nextId);
+    // Flip back after state update tick
+    setTimeout(() => {
+      programmaticCategoryChange.current = false;
+    }, 0);
+  }
+
+  function autoSelectCategoryByUrl(nextUrlRaw: string) {
+    if (categoryTouched) return; // user already chose manually, do not override
+
+    const fixed = autoFixUrl(nextUrlRaw);
+    const host = normalizeHost(fixed);
+    if (!host) return;
+
+    const platform = matchPlatformByHost(host);
+    if (!platform) return;
+
+    const id = findCategoryIdForPlatform(categories, platform);
+    if (id) setCategoryIdProgrammatically(id);
   }
 
   function startEdit(i: any) {
     setError(null);
 
     setTitle(i.title ?? "");
-    setUrl(i.url ?? "");
+
+    const fixedUrl = autoFixUrl(i.url ?? "");
+    setUrl(fixedUrl);
+
     setDescription(i.description ?? "");
-    setCategoryId(i.category_id ?? "");
+
+    const existingCategory = i.category_id ?? "";
+    setCategoryId(existingCategory);
+    setCategoryTouched(!!existingCategory); // if item already has category, treat as user-chosen
+
     setSelectedActionIds(Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : []);
     setComments(mapItemCommentsToStrings(i.comments));
 
     setEditing({ id: i.id, originalDate: i.date ?? date });
 
-    // Optional: scroll to form
+    // If there's no existing category, try auto-select based on URL
+    if (!existingCategory) autoSelectCategoryByUrl(fixedUrl);
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -120,11 +258,7 @@ export default function Admin() {
 
   async function bootstrap() {
     try {
-      const [cats, tags, acts] = await Promise.all([
-        fetchCategories(),
-        fetchHashtagWhitelist(),
-        fetchActions(),
-      ]);
+      const [cats, tags, acts] = await Promise.all([fetchCategories(), fetchHashtagWhitelist(), fetchActions()]);
 
       setCategories(cats);
       setAvailableActions(acts);
@@ -161,6 +295,14 @@ export default function Admin() {
 
     if (!title.trim() || !url.trim() || !description.trim()) return;
 
+    const fixedUrl = autoFixUrl(url);
+    if (fixedUrl !== url) setUrl(fixedUrl);
+
+    if (!isValidAbsoluteHttpUrl(fixedUrl)) {
+      setError("لطفاً لینک را کامل وارد کنید (با http:// یا https://).");
+      return;
+    }
+
     const msg = validateBeforeSave(comments);
     if (msg) {
       setError(msg);
@@ -172,7 +314,7 @@ export default function Admin() {
       if (editing) {
         await adminUpdateItem(editing.id, {
           title: title.trim(),
-          url: url.trim(),
+          url: fixedUrl.trim(),
           description: description.trim(),
           category_id: categoryId ? categoryId : null,
           action_ids: selectedActionIds,
@@ -182,7 +324,7 @@ export default function Admin() {
         await adminCreateItem({
           date,
           title: title.trim(),
-          url: url.trim(),
+          url: fixedUrl.trim(),
           description: description.trim(),
           category_id: categoryId ? categoryId : null,
           action_ids: selectedActionIds,
@@ -209,7 +351,8 @@ export default function Admin() {
     }
   }
 
-  const submitDisabled = !title.trim() || !url.trim() || !description.trim() || saving;
+  const submitDisabled =
+    !title.trim() || !url.trim() || !description.trim() || saving || !isValidAbsoluteHttpUrl(autoFixUrl(url));
 
   return (
     <PageShell
@@ -221,11 +364,11 @@ export default function Admin() {
           subtitle="آیتم‌های روزانه را اضافه و مدیریت کنید."
           right={
             <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-600">تاریخ</span>
+              <DatePicker value={date} onChange={setDate} />
               <Button variant="secondary" onClick={logout}>
                 خروج
               </Button>
-              <DatePicker value={date} onChange={setDate} />
-              <span className="text-sm text-zinc-600">تاریخ</span>
             </div>
           }
         />
@@ -250,7 +393,10 @@ export default function Admin() {
           <div className="text-sm text-zinc-600">
             {editing ? (
               <span>
-                در حال ویرایش آیتم <span className="font-mono" dir="ltr">{editing.id}</span>
+                در حال ویرایش آیتم{" "}
+                <span className="font-mono" dir="ltr">
+                  {editing.id}
+                </span>
               </span>
             ) : (
               <span>ایجاد آیتم جدید برای تاریخ {date}</span>
@@ -266,23 +412,40 @@ export default function Admin() {
 
         <div className="grid gap-3">
           <Input value={title} onChange={setTitle} placeholder="عنوان" />
-          <Input dir="ltr" value={url} onChange={setUrl} placeholder="لینک (URL)" />
 
-          <Select value={categoryId} onChange={setCategoryId} dir="rtl">
+          <Input
+            dir="ltr"
+            value={url}
+            onChange={(v) => {
+              setUrl(v);
+
+              // Auto-select category only if user hasn't manually selected one
+              autoSelectCategoryByUrl(v);
+            }}
+            placeholder="لینک (URL)"
+          />
+
+          <Select
+            value={categoryId}
+            onChange={(v) => {
+              setCategoryId(v);
+
+              // Mark as touched only if this was not triggered programmatically
+              if (!programmaticCategoryChange.current) {
+                setCategoryTouched(true);
+              }
+            }}
+            dir="rtl"
+          >
             <option value="">دسته‌بندی (اختیاری)</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+              <option key={(c as any).id} value={(c as any).id}>
+                {(c as any).name}
               </option>
             ))}
           </Select>
 
-          <Textarea
-            dir="auto"
-            value={description}
-            onChange={setDescription}
-            placeholder="توضیح کوتاه"
-          />
+          <Textarea dir="auto" value={description} onChange={setDescription} placeholder="توضیح کوتاه" />
 
           <ActionCheckboxes
             label="اکشن‌ها"
@@ -308,9 +471,7 @@ export default function Admin() {
             </Button>
 
             {!editing ? (
-              <div className="text-xs text-zinc-500">
-                نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.
-              </div>
+              <div className="text-xs text-zinc-500">نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.</div>
             ) : null}
           </div>
         </div>
@@ -377,8 +538,7 @@ export default function Admin() {
                           : null}
 
                         <span className="text-xs text-zinc-500">
-                          توسط {i.created_by_username ?? "نامشخص"} •{" "}
-                          {new Date(i.created_at).toLocaleString("fa-IR")}
+                          توسط {i.created_by_username ?? "نامشخص"} • {new Date(i.created_at).toLocaleString("fa-IR")}
                         </span>
                       </div>
 
