@@ -9,8 +9,8 @@
 
 export type Action = {
   id: string;
-  name: string;   // machine name
-  label: string;  // UI label
+  name: string; // machine name
+  label: string; // UI label
   created_at: string;
 };
 
@@ -103,7 +103,9 @@ export type AdminCreateItemPayload = {
   comments: string[];
 };
 
-export type AdminUpdateItemPayload = Partial<Omit<AdminCreateItemPayload, "date">> & {
+export type AdminUpdateItemPayload = Partial<
+  Omit<AdminCreateItemPayload, "date">
+> & {
   date?: string;
 };
 
@@ -114,7 +116,7 @@ function getToken(): string {
 async function requestJSON<T>(
   input: string,
   init?: RequestInit,
-  opts?: { auth?: boolean }
+  opts?: { auth?: boolean },
 ): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   headers.set("Accept", "application/json");
@@ -147,8 +149,14 @@ async function requestJSON<T>(
   if (!res.ok) {
     const msg =
       (data && (data.error || data.message)) ||
-      (text ? `Request failed (${res.status}): ${text.slice(0, 200)}` : `Request failed (${res.status})`);
-    throw new Error(msg);
+      (text
+        ? `Request failed (${res.status}): ${text.slice(0, 200)}`
+        : `Request failed (${res.status})`);
+
+    const err: any = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
 
   return data as T;
@@ -162,7 +170,7 @@ export async function fetchItems(date: string): Promise<Item[]> {
   const data = await requestJSON<{ items: Item[] }>(
     `/api/items?date=${encodeURIComponent(date)}`,
     undefined,
-    { auth: false }
+    { auth: false },
   );
   return data.items ?? [];
 }
@@ -171,11 +179,13 @@ export async function fetchItems(date: string): Promise<Item[]> {
  * Public: get comments for a given item (for the user-facing UI when needed)
  * Expected endpoint: GET /api/items/comments?item_id=...
  */
-export async function fetchItemComments(itemId: string): Promise<ItemComment[]> {
+export async function fetchItemComments(
+  itemId: string,
+): Promise<ItemComment[]> {
   const data = await requestJSON<{ comments: ItemComment[] }>(
     `/api/items/comments?item_id=${encodeURIComponent(itemId)}`,
     undefined,
-    { auth: false }
+    { auth: false },
   );
   return data.comments ?? [];
 }
@@ -188,7 +198,7 @@ export async function fetchHashtagWhitelist(): Promise<HashtagWhitelistRow[]> {
   const data = await requestJSON<{ hashtags: HashtagWhitelistRow[] }>(
     `/api/hashtags`,
     undefined,
-    { auth: false }
+    { auth: false },
   );
   return data.hashtags ?? [];
 }
@@ -201,7 +211,7 @@ export async function fetchCategories(): Promise<Category[]> {
   const data = await requestJSON<{ categories: Category[] }>(
     `/api/categories`,
     undefined,
-    { auth: false }
+    { auth: false },
   );
   return data.categories ?? [];
 }
@@ -214,7 +224,7 @@ export async function fetchActions(): Promise<Action[]> {
   const data = await requestJSON<{ actions: Action[] }>(
     `/api/actions`,
     undefined,
-    { auth: false }
+    { auth: false },
   );
   return data.actions ?? [];
 }
@@ -223,19 +233,24 @@ export async function fetchActions(): Promise<Action[]> {
    Admin auth
    ========================= */
 
-export async function adminLogin(username: string, password: string): Promise<AdminLoginResponse> {
+export async function adminLogin(
+  username: string,
+  password: string,
+): Promise<AdminLoginResponse> {
   return requestJSON<AdminLoginResponse>(
     `/api/admin/login`,
     {
       method: "POST",
       body: JSON.stringify({ username, password }),
     },
-    { auth: false }
+    { auth: false },
   );
 }
 
 export async function adminMe(): Promise<Me> {
-  const data = await requestJSON<{ user: Me }>(`/api/admin/me`, undefined, { auth: true });
+  const data = await requestJSON<{ user: Me }>(`/api/admin/me`, undefined, {
+    auth: true,
+  });
   return data.user;
 }
 
@@ -249,10 +264,9 @@ export async function adminUpdateMe(payload: {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/me`,
     { method: "PATCH", body: JSON.stringify(payload) },
-    { auth: true }
+    { auth: true },
   );
 }
-
 
 /* =========================
    Admin Items (v2)
@@ -262,7 +276,7 @@ export async function adminFetchItems(date: string): Promise<Item[]> {
   const data = await requestJSON<{ items: Item[] }>(
     `/api/admin/items?date=${encodeURIComponent(date)}`,
     undefined,
-    { auth: true }
+    { auth: true },
   );
   return data.items ?? [];
 }
@@ -274,7 +288,7 @@ export async function adminCreateItem(payload: AdminCreateItemPayload) {
       method: "POST",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -282,14 +296,17 @@ export async function adminCreateItem(payload: AdminCreateItemPayload) {
  * Optional (recommended): update item
  * Expected endpoint: PUT /api/admin/items?id=...
  */
-export async function adminUpdateItem(id: string, payload: AdminUpdateItemPayload) {
+export async function adminUpdateItem(
+  id: string,
+  payload: AdminUpdateItemPayload,
+) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/items?id=${encodeURIComponent(id)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -297,7 +314,7 @@ export async function adminDeleteItem(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/items?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -305,11 +322,13 @@ export async function adminDeleteItem(id: string) {
  * Admin: list comments for an item (manage/edit)
  * Expected endpoint: GET /api/admin/item-comments?item_id=...
  */
-export async function adminFetchItemComments(itemId: string): Promise<ItemComment[]> {
+export async function adminFetchItemComments(
+  itemId: string,
+): Promise<ItemComment[]> {
   const data = await requestJSON<{ comments: ItemComment[] }>(
     `/api/admin/item-comments?item_id=${encodeURIComponent(itemId)}`,
     undefined,
-    { auth: true }
+    { auth: true },
   );
   return data.comments ?? [];
 }
@@ -318,14 +337,17 @@ export async function adminFetchItemComments(itemId: string): Promise<ItemCommen
  * Admin: replace comments for an item (bulk up to 20)
  * Expected endpoint: PUT /api/admin/item-comments?item_id=...
  */
-export async function adminReplaceItemComments(itemId: string, comments: string[]) {
+export async function adminReplaceItemComments(
+  itemId: string,
+  comments: string[],
+) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/item-comments?item_id=${encodeURIComponent(itemId)}`,
     {
       method: "PUT",
       body: JSON.stringify({ comments }),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -341,7 +363,7 @@ export async function adminFetchCategories(): Promise<Category[]> {
   const data = await requestJSON<{ categories: Category[] }>(
     `/api/admin/categories`,
     undefined,
-    { auth: true }
+    { auth: true },
   );
   return data.categories ?? [];
 }
@@ -357,7 +379,7 @@ export async function adminCreateCategory(name: string, image?: string | null) {
       method: "POST",
       body: JSON.stringify({ name, image }),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -365,19 +387,24 @@ export async function adminCreateCategory(name: string, image?: string | null) {
  * Admin: update category
  * Expected endpoint: PUT /api/admin/categories?id=...
  */
-export async function adminUpdateCategory(id: string, payload: { name: string; image?: string | null }) {
-  const res = await fetch(`/api/admin/categories?id=${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
+export async function adminUpdateCategory(
+  id: string,
+  payload: { name: string; image?: string | null },
+) {
+  const res = await fetch(
+    `/api/admin/categories?id=${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
   if (!res.ok) throw new Error("Update category failed");
   return res.json();
 }
-
 
 /**
  * Admin: delete category
@@ -387,7 +414,7 @@ export async function adminDeleteCategory(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/categories?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -396,7 +423,11 @@ export async function adminDeleteCategory(id: string) {
    ========================= */
 
 export async function superadminListUsers(): Promise<UserRow[]> {
-  const data = await requestJSON<{ users: UserRow[] }>(`/api/admin/users`, undefined, { auth: true });
+  const data = await requestJSON<{ users: UserRow[] }>(
+    `/api/admin/users`,
+    undefined,
+    { auth: true },
+  );
   return data.users ?? [];
 }
 
@@ -415,7 +446,7 @@ export async function superadminCreateUser(payload: {
       method: "POST",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -429,7 +460,7 @@ export async function superadminUpdateUser(
     name?: string | null;
     avatar_url?: string | null;
     bio?: string | null;
-  }
+  },
 ) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/users?id=${encodeURIComponent(id)}`,
@@ -437,7 +468,7 @@ export async function superadminUpdateUser(
       method: "PATCH",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -445,7 +476,7 @@ export async function superadminDeleteUser(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/users?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -463,7 +494,7 @@ export async function superadminListHashtags(): Promise<HashtagWhitelistRow[]> {
   const data = await requestJSON<{ hashtags: HashtagWhitelistRow[] }>(
     `/api/admin/hashtags`,
     undefined,
-    { auth: true }
+    { auth: true },
   );
   return data.hashtags ?? [];
 }
@@ -483,7 +514,7 @@ export async function superadminCreateHashtag(payload: {
       method: "POST",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -491,18 +522,21 @@ export async function superadminCreateHashtag(payload: {
  * SuperAdmin: update hashtag (priority/active)
  * Expected endpoint: PUT /api/admin/hashtags?id=...
  */
-export async function superadminUpdateHashtag(id: string, payload: {
-  priority?: number;
-  is_active?: number;
-  tag?: string;
-}) {
+export async function superadminUpdateHashtag(
+  id: string,
+  payload: {
+    priority?: number;
+    is_active?: number;
+    tag?: string;
+  },
+) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/hashtags?id=${encodeURIComponent(id)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -514,7 +548,7 @@ export async function superadminDeleteHashtag(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/hashtags?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -526,7 +560,7 @@ export async function superadminListActions(): Promise<Action[]> {
   const data = await requestJSON<{ actions: Action[] }>(
     `/api/admin/actions`,
     undefined,
-    { auth: true }
+    { auth: true },
   );
   return data.actions ?? [];
 }
@@ -535,14 +569,17 @@ export async function superadminListActions(): Promise<Action[]> {
  * SuperAdmin: create action
  * Expected endpoint: POST /api/admin/actions
  */
-export async function superadminCreateAction(payload: { name: string; label: string }) {
+export async function superadminCreateAction(payload: {
+  name: string;
+  label: string;
+}) {
   return requestJSON<{ ok: boolean; id: string }>(
     `/api/admin/actions`,
     {
       method: "POST",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -550,14 +587,17 @@ export async function superadminCreateAction(payload: { name: string; label: str
  * SuperAdmin: update action
  * Expected endpoint: PUT /api/admin/actions?id=...
  */
-export async function superadminUpdateAction(id: string, payload: { name?: string; label?: string }) {
+export async function superadminUpdateAction(
+  id: string,
+  payload: { name?: string; label?: string },
+) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/actions?id=${encodeURIComponent(id)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
     },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -569,7 +609,7 @@ export async function superadminDeleteAction(id: string) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/actions?id=${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    { auth: true }
+    { auth: true },
   );
 }
 
@@ -600,6 +640,6 @@ export async function adminValidateHashtags(text: string) {
       method: "POST",
       body: JSON.stringify({ text }),
     },
-    { auth: true }
+    { auth: true },
   );
 }

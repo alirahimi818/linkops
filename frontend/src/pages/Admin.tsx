@@ -185,10 +185,14 @@ export default function Admin() {
       resetForm();
       await load();
     } catch (e: any) {
-      setError(
-        e?.message ??
-          (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."),
-      );
+      if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
+        setError("این لینک قبلاً برای همین تاریخ ثبت شده است.");
+      } else {
+        setError(
+          e?.message ??
+            (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."),
+        );
+      }
     } finally {
       setSaving(false);
     }

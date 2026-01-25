@@ -35,9 +35,47 @@ function normalizeIdList(input: unknown, maxItems: number): string[] {
   return Array.from(new Set(out));
 }
 
+function normalizeUrlForDedup(input: string): string {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return raw;
+  }
+
+  u.hash = "";
+  u.hostname = u.hostname.toLowerCase().replace(/^www\./, "");
+
+  // X / Twitter status canonical
+  const host = u.hostname;
+  if (host === "x.com" || host === "twitter.com" || host.endsWith(".x.com") || host.endsWith(".twitter.com")) {
+    const m = u.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
+    if (m) {
+      u.pathname = `/${m[1]}/status/${m[2]}`;
+      u.search = "";
+      return u.toString();
+    }
+  }
+
+  // Instagram: drop all query params
+  if (host === "instagram.com" || host.endsWith(".instagram.com") || host === "instagr.am" || host.endsWith(".instagr.am")) {
+    u.search = "";
+    return u.toString();
+  }
+
+  // Default: drop common tracking params
+  const tracking = new Set(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"]);
+  for (const k of [...u.searchParams.keys()]) {
+    if (tracking.has(k.toLowerCase())) u.searchParams.delete(k);
+  }
+  return u.toString();
+}
+
 export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   try {
-    // Ensure FK cascades work in D1/SQLite
     await env.DB.exec("PRAGMA foreign_keys = ON;");
 
     const user = await requireAuth(env, request);
@@ -77,7 +115,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
       const placeholders = itemIds.map(() => "?").join(",");
 
-      // NEW: load actions via join (action_id -> actions table)
       const { results: actionRows } = await env.DB.prepare(
         `SELECT ia.item_id,
                 a.id    AS id,
@@ -149,12 +186,23 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
       }
 
+      const urlNorm = normalizeUrlForDedup(url);
+      if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
+
+      // Duplicate check (same date)
+      const dup = await env.DB.prepare(
+        `SELECT id FROM items WHERE date = ? AND url_norm = ? LIMIT 1`
+      ).bind(body.date, urlNorm).first();
+
+      if (dup) {
+        return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
+      }
+
       if (categoryId) {
         const cat = await env.DB.prepare(`SELECT id FROM categories WHERE id = ?`).bind(categoryId).first();
         if (!cat) return Response.json({ error: "Invalid category_id" }, { status: 400 });
       }
 
-      // Validate action ids exist (prevents broken relations)
       let validActionIds: string[] = [];
       if (uniqActionIds.length > 0) {
         const placeholders = uniqActionIds.map(() => "?").join(",");
@@ -166,13 +214,14 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       await env.DB.prepare(
-        `INSERT INTO items (id, date, title, url, description, category_id, created_at, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO items (id, date, title, url, url_norm, description, category_id, created_at, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id,
         body.date,
         title,
         url,
+        urlNorm,
         description,
         categoryId,
         createdAt,
@@ -199,8 +248,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     }
 
     if (method === "PUT") {
-      const url = new URL(request.url);
-      const id = url.searchParams.get("id");
+      const urlObj = new URL(request.url);
+      const id = urlObj.searchParams.get("id");
       if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
       const body = (await request.json().catch(() => null)) as null | {
@@ -216,25 +265,47 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
       }
 
-      // Update base item
+      const title = body.title.trim();
+      const url = body.url.trim();
+      const description = body.description.trim();
+      const categoryId = body.category_id ?? null;
+
+      if (!title || !url || !description) {
+        return Response.json({ error: "Invalid payload" }, { status: 400 });
+      }
+
+      // Need date for dedup constraint (same-date)
+      const current = await env.DB.prepare(`SELECT id, date FROM items WHERE id = ?`).bind(id).first() as any;
+      if (!current) return Response.json({ error: "Not found" }, { status: 404 });
+
+      const urlNorm = normalizeUrlForDedup(url);
+      if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
+
+      // Conflict check: another item with same date + url_norm
+      const conflict = await env.DB.prepare(
+        `SELECT id FROM items WHERE date = ? AND url_norm = ? AND id != ? LIMIT 1`
+      ).bind(current.date, urlNorm, id).first();
+
+      if (conflict) {
+        return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
+      }
+
       await env.DB.prepare(
         `UPDATE items
-        SET title = ?, url = ?, description = ?, category_id = ?
-        WHERE id = ?`
-      )
-        .bind(body.title.trim(), body.url.trim(), body.description.trim(), body.category_id ?? null, id)
-        .run();
+         SET title = ?, url = ?, url_norm = ?, description = ?, category_id = ?
+         WHERE id = ?`
+      ).bind(title, url, urlNorm, description, categoryId, id).run();
 
-      const createdAt = new Date().toISOString();
+      const createdAt = nowIso();
 
-      // Rebuild actions
       await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
       const actionIds = Array.isArray(body.action_ids) ? body.action_ids : [];
       for (const aid of actionIds) {
-        await env.DB.prepare(`INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`).bind(id, aid, createdAt).run();
+        await env.DB.prepare(
+          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`
+        ).bind(id, aid, createdAt).run();
       }
 
-      // Rebuild comments
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
       const comments = Array.isArray(body.comments) ? body.comments : [];
       for (const text of comments) {
@@ -258,8 +329,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const id = url.searchParams.get("id");
       if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
-      // If your item_actions has FK with ON DELETE CASCADE, no need to delete manually
-      // Same for item_comments if you add FK cascade there later.
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
       await env.DB.prepare(`DELETE FROM items WHERE id = ?`).bind(id).run();
 
