@@ -239,6 +239,21 @@ export async function adminMe(): Promise<Me> {
   return data.user;
 }
 
+export async function adminUpdateMe(payload: {
+  email?: string | null;
+  name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  password?: string; // optional: if empty, do not send or backend ignores blank
+}) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/me`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+    { auth: true }
+  );
+}
+
+
 /* =========================
    Admin Items (v2)
    ========================= */

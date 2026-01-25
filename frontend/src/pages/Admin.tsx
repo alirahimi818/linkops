@@ -16,8 +16,13 @@ import PageShell from "../components/layout/PageShell";
 import AdminHeaderBar from "../components/ops/admin/AdminHeaderBar";
 import AdminItemForm from "../components/ops/admin/AdminItemForm";
 import AdminItemList from "../components/ops/admin/AdminItemList";
+import AdminProfilePanel from "../components/ops/admin/AdminProfilePanel";
 
-import { autoFixUrl, autoCategoryIdFromUrl, mapItemCommentsToStrings } from "../lib/adminItemUtils";
+import {
+  autoFixUrl,
+  autoCategoryIdFromUrl,
+  mapItemCommentsToStrings,
+} from "../lib/adminItemUtils";
 
 const TOKEN_KEY = "admin:jwt";
 
@@ -26,6 +31,8 @@ type EditState = { id: string; originalDate: string } | null;
 export default function Admin() {
   const dateDefault = useMemo(() => todayYYYYMMDD(), []);
   const [date, setDate] = useState(dateDefault);
+
+  const [showProfile, setShowProfile] = useState(false);
 
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +100,9 @@ export default function Admin() {
     setCategoryId(existingCategory);
     setCategoryTouched(!!existingCategory);
 
-    setSelectedActionIds(Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : []);
+    setSelectedActionIds(
+      Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : [],
+    );
     setComments(mapItemCommentsToStrings(i.comments));
 
     setEditing({ id: i.id, originalDate: i.date ?? date });
@@ -121,7 +130,11 @@ export default function Admin() {
 
   async function bootstrap() {
     try {
-      const [cats, tags, acts] = await Promise.all([fetchCategories(), fetchHashtagWhitelist(), fetchActions()]);
+      const [cats, tags, acts] = await Promise.all([
+        fetchCategories(),
+        fetchHashtagWhitelist(),
+        fetchActions(),
+      ]);
       setCategories(cats);
       setAvailableActions(acts);
 
@@ -172,7 +185,10 @@ export default function Admin() {
       resetForm();
       await load();
     } catch (e: any) {
-      setError(e?.message ?? (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."));
+      setError(
+        e?.message ??
+          (editing ? "ذخیره تغییرات ناموفق بود." : "ایجاد آیتم ناموفق بود."),
+      );
     } finally {
       setSaving(false);
     }
@@ -191,7 +207,14 @@ export default function Admin() {
   return (
     <PageShell
       dir="rtl"
-      header={<AdminHeaderBar date={date} onDateChange={setDate} onLogout={logout} />}
+      header={
+        <AdminHeaderBar
+          date={date}
+          onDateChange={setDate}
+          onLogout={logout}
+          onOpenProfile={() => setShowProfile((p) => !p)}
+        />
+      }
       footer={
         <>
           بازگشت به{" "}
@@ -201,6 +224,12 @@ export default function Admin() {
         </>
       }
     >
+      {showProfile ? (
+        <div className="mb-4">
+          <AdminProfilePanel onClose={() => setShowProfile(false)} />
+        </div>
+      ) : null}
+
       <AdminItemForm
         date={date}
         categories={categories}

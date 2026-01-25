@@ -6,6 +6,7 @@ export default function AdminHeaderBar(props: {
   date: string;
   onDateChange: (v: string) => void;
   onLogout: () => void;
+  onOpenProfile: () => void;
 }) {
   return (
     <TopBar
@@ -16,7 +17,12 @@ export default function AdminHeaderBar(props: {
         <div className="flex items-center gap-2">
           <span className="text-sm text-zinc-600">تاریخ</span>
           <DatePicker value={props.date} onChange={props.onDateChange} />
-          <Button variant="secondary" onClick={props.onLogout}>
+
+          <Button variant="secondary" onClick={props.onOpenProfile}>
+            پروفایل
+          </Button>
+
+          <Button variant="danger" onClick={props.onLogout}>
             خروج
           </Button>
         </div>
