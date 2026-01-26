@@ -8,6 +8,7 @@ import RequireAuth from "./components/RequireAuth";
 import Admin from "./pages/Admin";
 import SuperAdmin from "./pages/SuperAdmin";
 import HashtagsPage from "./pages/Hashtags";
+import Todos from "./pages/Todos";
 
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/todos" element={<Todos />} />
         <Route path="/hashtags-checker" element={<HashtagsPage />} />
 
         <Route path="/login" element={<Login />} />

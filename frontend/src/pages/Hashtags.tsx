@@ -15,6 +15,7 @@ import HashtagInspector from "../components/ops/HashtagInspector";
 import MyHashtags from "../components/ops/MyHashtags";
 import PriorityTags from "../components/ops/PriorityTags";
 import { copyText } from "../lib/clipboard";
+import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 
 export default function HashtagsPage() {
   const [rows, setRows] = useState<HashtagWhitelistRow[]>([]);
@@ -196,10 +197,12 @@ export default function HashtagsPage() {
                 rows={10}
               />
               {text.length > 0 ? (
-                <div className={[
+                <div
+                  className={[
                     "text-xs text-left",
-                    (text.length > 280 ? "text-red-600" : "text-green-600")
-                    ].join(" ")}>
+                    text.length > 280 ? "text-red-600" : "text-green-600",
+                  ].join(" ")}
+                >
                   تعداد کاراکترها: {text.length}
                 </div>
               ) : (
@@ -230,6 +233,14 @@ export default function HashtagsPage() {
             title="اولویت هشتگ‌ها"
             rows={(rows as any) ?? []}
             maxItems={30}
+          />
+
+          <DismissibleAnnouncementModal
+            scopeKey="/"
+            id="hashtags-2026-01"
+            title="راهنمای سریع"
+            description="توی این بخش می‌تونی هشتگ‌های متن خودت رو بررسی کنی و مطمئن شی که از هشتگ‌های درست و مرتبط استفاده می‌کنی. همچنین می‌تونی هشتگ‌های شخصی خودت رو ذخیره کنی، خیلی راحت به متن اضافه‌شون کنی و در نهایت اولویت و ترتیب پیشنهادی هشتگ‌ها رو هم ببینی."
+            imageUrl="/assets/hashtag-background.jpg"
           />
         </div>
       )}
