@@ -312,7 +312,7 @@ export default function ItemList(props: {
                 </div>
 
                 {/* Status buttons */}
-                <div className="mt-4 flex flex-wrap gap-2 border-t pt-3 border-zinc-200">
+                <div className="mt-4 flex flex-wrap justify-around gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
                       <Button
@@ -364,6 +364,7 @@ export default function ItemList(props: {
                         انجام‌نشده
                       </Button>
                       <Button
+                        className="px-2!"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
@@ -391,6 +392,7 @@ export default function ItemList(props: {
                         انجام شد
                       </Button>
                       <Button
+                        className="px-2!"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
