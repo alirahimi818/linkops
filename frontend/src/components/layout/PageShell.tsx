@@ -1,4 +1,5 @@
 import React from "react";
+import OfflineBanner from "../ui/OfflineBanner";
 
 export default function PageShell(props: {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export default function PageShell(props: {
           </footer>
         )}
       </div>
+      <OfflineBanner />
     </div>
   );
 }

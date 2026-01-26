@@ -1,5 +1,7 @@
+import InstallPwaCard from "../components/ops/InstallPwaCard";
 import Card from "../components/ui/Card";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
+import OfflineBanner from "../components/ui/OfflineBanner";
 
 type MenuItem = {
   title: string;
@@ -196,7 +198,7 @@ export default function Home() {
     {
       title: "نقشه و مکان‌های تجمع",
       description:
-        "بررسی مکان‌ها و مسیرهای تجمع و راهپیمایی شهر های مختلف دنبا.",
+        "بررسی مکان‌ها و مسیرهای تجمع و راهپیمایی شهرهای مختلف دنیا.",
       icon: <IconMap className="h-12 w-12" />,
       href: "https://www.iranmonitor.org/protests",
       external: true,
@@ -204,35 +206,41 @@ export default function Home() {
   ];
 
   return (
-    <div dir="rtl" className="mx-auto w-full max-w-5xl p-4 sm:p-6">
-      <div className="mb-5">
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <div className="text-xl font-semibold text-zinc-900">داشبورد</div>
-          <a href="/">
-            <img src="/assets/flags/flag-ir-640.png" className="h-6" alt="" />
-          </a>
+    <div dir="rtl" className="mx-auto w-full">
+      <div dir="rtl" className="mx-auto w-full max-w-5xl p-4 sm:p-6">
+        <div className="mb-5">
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <div className="text-xl font-semibold text-zinc-900">داشبورد</div>
+            <a href="/">
+              <img src="/assets/flags/flag-ir-640.png" className="h-6" alt="" />
+            </a>
+          </div>
+          <div className="mt-1 text-sm text-zinc-600">
+            برای شروع فعالیت، یک بخش رو انتخاب کن.
+          </div>
         </div>
-        <div className="mt-1 text-sm text-zinc-600">
-          برای شروع فعالیت، یک بخش رو انتخاب کن.
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((it) => (
+            <MenuCard key={it.title} item={it} />
+          ))}
+        </div>
+
+        <div className="mt-6 text-xs text-zinc-500">
+          نکته: لینک‌های خارجی در تب جدید باز میشن.
+        </div>
+        <DismissibleAnnouncementModal
+          scopeKey="/"
+          id="welcome-2026-01"
+          title="خوش آمدید!"
+          description="در نبرد روایت‌ها و جنگ رسانه‌ای که رژیم با صرف بودجه‌های کلان و ارتش سایبری‌اش راه انداخته، ما هم باید از ابزارهای پیشرفته و هوشمند استفاده کنیم تا بتوانیم مؤثرتر عمل کنیم، دروغ‌ها رو افشا کنیم و حقیقت رو به گوش جهان برسانیم."
+          imageUrl="/assets/flags/flag-ir-640.png"
+        />
+        <div className="my-4">
+          <InstallPwaCard scopeKey="/" id="pwa-install" />
         </div>
       </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((it) => (
-          <MenuCard key={it.title} item={it} />
-        ))}
-      </div>
-
-      <div className="mt-6 text-xs text-zinc-500">
-        نکته: لینک‌های خارجی در تب جدید باز میشن.
-      </div>
-      <DismissibleAnnouncementModal
-        scopeKey="/"
-        id="welcome-2026-01"
-        title="خوش آمدید!"
-        description="در نبرد روایت‌ها و جنگ رسانه‌ای که رژیم با صرف بودجه‌های کلان و ارتش سایبری‌اش راه انداخته، ما هم باید از ابزارهای پیشرفته و هوشمند استفاده کنیم تا بتوانیم مؤثرتر عمل کنیم، دروغ‌ها رو افشا کنیم و حقیقت رو به گوش جهان برسانیم."
-        imageUrl="/assets/flags/flag-ir-640.png"
-      />
+      <OfflineBanner />
     </div>
   );
 }
