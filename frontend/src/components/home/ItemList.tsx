@@ -312,7 +312,7 @@ export default function ItemList(props: {
                 </div>
 
                 {/* Status buttons */}
-                <div className="mt-4 flex flex-wrap justify-around gap-2 border-t pt-3 border-zinc-200">
+                <div className="mt-4 flex flex-wrap justify-around md:justify-start gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
                       <Button
@@ -380,6 +380,7 @@ export default function ItemList(props: {
                   ) : (
                     <>
                       <Button
+                        className="px-2!"
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
