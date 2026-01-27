@@ -39,7 +39,7 @@ export default function AdminItemList(props: {
               <Card key={i.id} className="relative">
                 {pinned ? (
                   <div
-                    className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-700 shadow-sm"
+                    className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 shadow-sm"
                     title="آیتم همیشگی (Global)"
                     aria-label="Pinned item"
                   >

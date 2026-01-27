@@ -481,7 +481,8 @@ export function IconExternal({ className, title }: IconProps) {
     </svg>
   );
 }
-export function PinIcon({ className, title }: IconProps) {
+
+export function IconPin({ className, title }: IconProps) {
   return (
     <svg
       className={className ?? "h-6 w-6"}
@@ -493,9 +494,13 @@ export function PinIcon({ className, title }: IconProps) {
     >
       {title ? <title>{title}</title> : null}
 
-      <path d="M12 17v5" />
-      <path d="M9 3h6" />
-      <path d="M10 3v5l-3 4v3h10v-3l-3-4V3" />
+      <path
+        d="M16 3l5 5-4.5 4.5v3.5l-2 2-3.5-3.5L6 19l-1-1 4.5-5.5L6 9l2-2h3.5L16 3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
