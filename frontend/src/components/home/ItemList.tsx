@@ -44,6 +44,7 @@ function isGlobalItem(item: any): boolean {
 export default function ItemList(props: {
   title: string;
   items: any[];
+  counts: { todo: number; later: number; done: number; hidden: number };
   tab: ListTab;
   onTabChange: (t: ListTab) => void;
   onMark: (id: string, s: ItemStatus | null) => Promise<void>;
@@ -51,20 +52,6 @@ export default function ItemList(props: {
   onBack: () => void;
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
-
-  const counts = useMemo(() => {
-    const c = { todo: 0, later: 0, done: 0, hidden: 0 };
-
-    for (const i of props.items) {
-      const s = props.statusMap[i.id];
-      if (!s) c.todo++;
-      else if (s === "later") c.later++;
-      else if (s === "done") c.done++;
-      else if (s === "hidden") c.hidden++;
-    }
-
-    return c;
-  }, [props.items, props.statusMap]);
 
   const emptyText = useMemo(() => {
     if (props.tab === "todo") return "چیزی برای انجام‌دادن نیست.";
@@ -111,28 +98,28 @@ export default function ItemList(props: {
         <TabButton
           active={props.tab === "todo"}
           onClick={() => props.onTabChange("todo")}
-          count={counts.todo}
+          count={props.counts.todo}
         >
           انجام‌نشده
         </TabButton>
         <TabButton
           active={props.tab === "later"}
           onClick={() => props.onTabChange("later")}
-          count={counts.later}
+          count={props.counts.later}
         >
           بعدا
         </TabButton>
         <TabButton
           active={props.tab === "done"}
           onClick={() => props.onTabChange("done")}
-          count={counts.done}
+          count={props.counts.done}
         >
           انجام‌شده
         </TabButton>
         <TabButton
           active={props.tab === "hidden"}
           onClick={() => props.onTabChange("hidden")}
-          count={counts.hidden}
+          count={props.counts.hidden}
         >
           مخفی‌ها
         </TabButton>
@@ -156,7 +143,7 @@ export default function ItemList(props: {
               <Card key={item.id} className="relative">
                 {pinned ? (
                   <div
-                    className="absolute -left-2 -top- inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 shadow-sm"
+                    className="absolute -left-2 -top-2 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 shadow-sm"
                     title="آیتم همیشگی"
                     aria-label="Pinned item"
                   >

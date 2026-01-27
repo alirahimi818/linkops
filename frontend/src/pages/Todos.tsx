@@ -158,6 +158,20 @@ export default function Todos() {
     return (items as any[]).filter((i) => i.category_id === view.categoryId);
   }, [items, view]);
 
+  const counts = useMemo(() => {
+    const c = { todo: 0, later: 0, done: 0, hidden: 0 };
+
+    for (const i of listItems as any[]) {
+      const s = status[i.id];
+      if (!s) c.todo++;
+      else if (s === "later") c.later++;
+      else if (s === "done") c.done++;
+      else if (s === "hidden") c.hidden++;
+    }
+
+    return c;
+  }, [listItems, status]);
+
   const filtered = useMemo(() => {
     if (view.kind !== "list") return [];
     return (listItems as any[]).filter((i: any) => {
@@ -299,6 +313,7 @@ export default function Todos() {
         <ItemList
           title={view.categoryName}
           items={filtered as any[]}
+          counts={counts}
           tab={tab}
           onTabChange={setTab}
           onMark={mark}
