@@ -38,7 +38,7 @@ function levenshtein(a: string, b: string): number {
 function suggest(normalized: string, whitelist: string[]): string | null {
   let best: { t: string; d: number } | null = null;
   for (const t of whitelist) {
-    const d = levenshtein(normalized, t.toLowerCase());
+    const d = levenshtein(normalized, t);
     if (!best || d < best.d) best = { t, d };
     if (best.d === 0) break;
   }
