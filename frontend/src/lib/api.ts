@@ -29,6 +29,8 @@ export type Item = {
 
   comments_count?: number;
 
+  is_global?: number;
+
   created_at: string;
   created_by_email?: string | null;
   created_by_username?: string | null;
@@ -97,6 +99,8 @@ export type AdminCreateItemPayload = {
   title: string;
   url: string;
   description: string;
+
+  is_global?: boolean;
 
   category_id: string | null;
   action_ids: string[];

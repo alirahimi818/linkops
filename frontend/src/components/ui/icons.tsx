@@ -481,3 +481,21 @@ export function IconExternal({ className, title }: IconProps) {
     </svg>
   );
 }
+export function PinIcon({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path d="M12 17v5" />
+      <path d="M9 3h6" />
+      <path d="M10 3v5l-3 4v3h10v-3l-3-4V3" />
+    </svg>
+  );
+}

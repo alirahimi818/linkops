@@ -7,7 +7,6 @@ function isValidDate(d: string) {
 
 export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   try {
-    // Ensure FK cascades work in D1/SQLite
     await env.DB.exec("PRAGMA foreign_keys = ON;");
 
     if (request.method !== "GET") {
@@ -20,15 +19,14 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ error: "Invalid date. Use YYYY-MM-DD" }, { status: 400 });
     }
 
-    // Include category data for the public UI (category cards)
     const { results } = await env.DB.prepare(
       `SELECT i.*,
               c.name  AS category_name,
               c.image AS category_image
        FROM items i
        LEFT JOIN categories c ON c.id = i.category_id
-       WHERE i.date = ?
-       ORDER BY i.created_at DESC`
+       WHERE (i.date = ? OR i.is_global = 1)
+       ORDER BY i.is_global DESC, i.created_at DESC`
     )
       .bind(date)
       .all<any>();
@@ -40,7 +38,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     const placeholders = itemIds.map(() => "?").join(",");
 
-    // FIX: item_actions uses action_id, so join actions table
     const { results: actionRows } = await env.DB.prepare(
       `SELECT ia.item_id,
               a.id    AS id,

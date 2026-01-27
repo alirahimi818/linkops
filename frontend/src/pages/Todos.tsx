@@ -28,7 +28,11 @@ function safeTab(v: string | null): ListTab {
   return "todo";
 }
 
-export default function Home() {
+function isGlobalItem(it: any): boolean {
+  return it?.is_global === 1 || it?.is_global === true;
+}
+
+export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);
   const [sp, setSp] = useSearchParams();
 
@@ -44,12 +48,12 @@ export default function Home() {
 
   // Data
   const [items, setItems] = useState<Item[]>([]);
-  const [status, setStatus] = useState<StatusMap>({});
+  const [dayStatus, setDayStatus] = useState<StatusMap>({});
+  const [globalStatus, setGlobalStatus] = useState<StatusMap>({});
   const [loading, setLoading] = useState(true);
 
   // Keep date valid format (optional strictness)
   useEffect(() => {
-    // if date is invalid, reset to today
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       setSp((p) => {
         p.set("date", today);
@@ -67,10 +71,15 @@ export default function Home() {
     (async () => {
       try {
         setLoading(true);
-        const [it, st] = await Promise.all([fetchItems(date), getStatusMap(date)]);
+        const [it, stDay, stGlobal] = await Promise.all([
+          fetchItems(date),
+          getStatusMap({ kind: "date", date }),
+          getStatusMap({ kind: "global" }),
+        ]);
         if (!alive) return;
         setItems(it);
-        setStatus(st);
+        setDayStatus(stDay);
+        setGlobalStatus(stGlobal);
       } finally {
         if (alive) setLoading(false);
       }
@@ -79,6 +88,21 @@ export default function Home() {
       alive = false;
     };
   }, [date]);
+
+  function getItemStatus(it: any) {
+    return isGlobalItem(it) ? globalStatus[it.id] : dayStatus[it.id];
+  }
+
+  const mergedStatusForUI: StatusMap = useMemo(() => {
+    // ItemList expects one map; we provide per-item correct status by composing
+    const out: StatusMap = {};
+    for (const it of items as any[]) {
+      const s = getItemStatus(it);
+      if (s) out[it.id] = s;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, dayStatus, globalStatus]);
 
   const categories = useMemo<CategoryCard[]>(() => {
     const map = new Map<string, CategoryCard>();
@@ -114,25 +138,40 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     if (view.kind !== "list") return [];
-    return listItems.filter((i: any) => {
-      const s = status[i.id];
+    return (listItems as any[]).filter((i: any) => {
+      const s = getItemStatus(i);
       if (tab === "todo") return !s; // undefined only
       if (tab === "later") return s === "later";
       if (tab === "done") return s === "done";
       if (tab === "hidden") return s === "hidden";
       return true;
     });
-  }, [listItems, status, tab, view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listItems, tab, view, dayStatus, globalStatus]);
 
   const total = items.length;
-  const doneCount = Object.values(status).filter((s) => s === "done").length;
+  const doneCount = useMemo(() => {
+    let c = 0;
+    for (const it of items as any[]) {
+      if (getItemStatus(it) === "done") c++;
+    }
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, dayStatus, globalStatus]);
 
   async function mark(id: string, s: ItemStatus | null) {
-    await setItemStatus(date, id, s);
-    const st = await getStatusMap(date);
-    setStatus(st);
-  }
+    const it = (items as any[]).find((x) => x.id === id);
+    const scope = isGlobalItem(it) ? ({ kind: "global" } as const) : ({ kind: "date", date } as const);
 
+    await setItemStatus(scope, id, s);
+
+    const [stDay, stGlobal] = await Promise.all([
+      getStatusMap({ kind: "date", date }),
+      getStatusMap({ kind: "global" }),
+    ]);
+    setDayStatus(stDay);
+    setGlobalStatus(stGlobal);
+  }
 
   function setDate(next: string) {
     setSp((p) => {
@@ -204,7 +243,7 @@ export default function Home() {
           <TopBar
             dir="rtl"
             title="کارهای امروز"
-            subtitle="یک دسته را انتخاب کنید و آیتم‌ها را انجام دهید."
+            subtitle="یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
             right={headerRight}
           />
 
@@ -237,7 +276,7 @@ export default function Home() {
           tab={tab}
           onTabChange={setTab}
           onMark={mark}
-          statusMap={status}
+          statusMap={mergedStatusForUI}
           onBack={backToCategories}
         />
       )}

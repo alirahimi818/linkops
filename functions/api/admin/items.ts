@@ -104,8 +104,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
          FROM items i
          LEFT JOIN users u ON u.id = i.created_by_user_id
          LEFT JOIN categories c ON c.id = i.category_id
-         WHERE i.date = ?
-         ORDER BY i.created_at DESC`
+         WHERE (i.date = ? OR i.is_global = 1)
+         ORDER BY i.is_global DESC, i.created_at DESC`
       ).bind(date).all();
 
       const items: any[] = results ?? [];
@@ -165,6 +165,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         category_id?: string | null;
         action_ids?: string[];
         comments?: string[];
+        is_global?: boolean;
       };
 
       if (!body || !isValidDate(body.date) || !body.title || !body.url || !body.description) {
@@ -179,6 +180,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const description = body.description.trim();
       const categoryId = body.category_id ? String(body.category_id) : null;
 
+      const isGlobal = body.is_global ? 1 : 0;
+
       const uniqActionIds = normalizeIdList(body.action_ids, 20);
       const comments = normalizeList(body.comments, 400).slice(0, 50);
 
@@ -189,10 +192,16 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const urlNorm = normalizeUrlForDedup(url);
       if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
 
-      // Duplicate check (same date)
-      const dup = await env.DB.prepare(
-        `SELECT id FROM items WHERE date = ? AND url_norm = ? LIMIT 1`
-      ).bind(body.date, urlNorm).first();
+      // Duplicate check:
+      // - global items: unique among globals
+      // - normal items: unique per date
+      const dup = isGlobal
+        ? await env.DB.prepare(
+            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? LIMIT 1`
+          ).bind(urlNorm).first()
+        : await env.DB.prepare(
+            `SELECT id FROM items WHERE date = ? AND url_norm = ? LIMIT 1`
+          ).bind(body.date, urlNorm).first();
 
       if (dup) {
         return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
@@ -214,8 +223,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       await env.DB.prepare(
-        `INSERT INTO items (id, date, title, url, url_norm, description, category_id, created_at, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO items (id, date, title, url, url_norm, description, category_id, is_global, created_at, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id,
         body.date,
@@ -224,6 +233,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         urlNorm,
         description,
         categoryId,
+        isGlobal,
         createdAt,
         user.id
       ).run();
@@ -259,6 +269,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         category_id?: string | null;
         action_ids?: string[];
         comments?: string[];
+        is_global?: boolean;
       };
 
       if (!body || !body.title || !body.url || !body.description) {
@@ -269,22 +280,28 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const url = body.url.trim();
       const description = body.description.trim();
       const categoryId = body.category_id ?? null;
+      const isGlobal = body.is_global ? 1 : 0;
 
       if (!title || !url || !description) {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
       }
 
-      // Need date for dedup constraint (same-date)
-      const current = await env.DB.prepare(`SELECT id, date FROM items WHERE id = ?`).bind(id).first() as any;
+      const current = (await env.DB.prepare(`SELECT id, date FROM items WHERE id = ?`).bind(id).first()) as any;
       if (!current) return Response.json({ error: "Not found" }, { status: 404 });
 
       const urlNorm = normalizeUrlForDedup(url);
       if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
 
-      // Conflict check: another item with same date + url_norm
-      const conflict = await env.DB.prepare(
-        `SELECT id FROM items WHERE date = ? AND url_norm = ? AND id != ? LIMIT 1`
-      ).bind(current.date, urlNorm, id).first();
+      // Conflict check:
+      // - global items: unique among globals
+      // - normal items: unique per date
+      const conflict = isGlobal
+        ? await env.DB.prepare(
+            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? AND id != ? LIMIT 1`
+          ).bind(urlNorm, id).first()
+        : await env.DB.prepare(
+            `SELECT id FROM items WHERE date = ? AND url_norm = ? AND id != ? LIMIT 1`
+          ).bind(current.date, urlNorm, id).first();
 
       if (conflict) {
         return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
@@ -292,18 +309,20 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
       await env.DB.prepare(
         `UPDATE items
-         SET title = ?, url = ?, url_norm = ?, description = ?, category_id = ?
+         SET title = ?, url = ?, url_norm = ?, description = ?, category_id = ?, is_global = ?
          WHERE id = ?`
-      ).bind(title, url, urlNorm, description, categoryId, id).run();
+      ).bind(title, url, urlNorm, description, categoryId, isGlobal, id).run();
 
       const createdAt = nowIso();
 
       await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
       const actionIds = Array.isArray(body.action_ids) ? body.action_ids : [];
       for (const aid of actionIds) {
+        const a = String(aid ?? "").trim();
+        if (!a) continue;
         await env.DB.prepare(
           `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`
-        ).bind(id, aid, createdAt).run();
+        ).bind(id, a, createdAt).run();
       }
 
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();

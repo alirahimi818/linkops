@@ -13,13 +13,18 @@ export type TodayBadgeResult = {
 export async function getTodayRemainingCount(): Promise<TodayBadgeResult> {
   const date = todayYYYYMMDD();
 
-  const [items, map] = await Promise.all([fetchItems(date), getStatusMap(date)]);
+  const [items, dayMap, globalMap] = await Promise.all([
+    fetchItems(date),
+    getStatusMap({ kind: "date", date }),
+    getStatusMap({ kind: "global" }),
+  ]);
 
   const total = items.length;
 
   let doneOrHidden = 0;
-  for (const it of items) {
-    const s = map[it.id];
+  for (const it of items as any[]) {
+    const isGlobal = it?.is_global === 1 || it?.is_global === true;
+    const s = isGlobal ? globalMap[it.id] : dayMap[it.id];
     if (s === "done" || s === "hidden") doneOrHidden++;
   }
 

@@ -2,6 +2,11 @@ import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Badge from "../../ui/Badge";
 import { mapItemCommentsToStrings } from "../../../lib/adminItemUtils";
+import { PinIcon } from "../../ui/icons";
+
+function isGlobalItem(item: any): boolean {
+  return item?.is_global === 1 || item?.is_global === true;
+}
 
 export default function AdminItemList(props: {
   date: string;
@@ -28,9 +33,20 @@ export default function AdminItemList(props: {
             const commentStrings = mapItemCommentsToStrings(i.comments);
             const hasComments = commentStrings.length > 0;
             const isOpen = !!props.openComments[i.id];
+            const pinned = isGlobalItem(i);
 
             return (
-              <Card key={i.id}>
+              <Card key={i.id} className="relative">
+                {pinned ? (
+                  <div
+                    className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-700 shadow-sm"
+                    title="آیتم همیشگی (Global)"
+                    aria-label="Pinned item"
+                  >
+                    <PinIcon className="h-4 w-4" />
+                  </div>
+                ) : null}
+
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-col justify-center items-center gap-2">
                     <Button className="w-full" variant="danger" onClick={() => props.onDelete(i.id)}>
@@ -72,10 +88,13 @@ export default function AdminItemList(props: {
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {i.category_name ? <Badge>{i.category_name}</Badge> : null}
 
-                      {Array.isArray(i.actions) ? i.actions.map((a: any) => <Badge key={a.id}>{a.label ?? a.name}</Badge>) : null}
+                      {Array.isArray(i.actions)
+                        ? i.actions.map((a: any) => <Badge key={a.id}>{a.label ?? a.name}</Badge>)
+                        : null}
 
                       <span className="text-xs text-zinc-500">
-                        توسط {i.created_by_username ?? "نامشخص"} • {new Date(i.created_at).toLocaleString("fa-IR")}
+                        توسط {i.created_by_username ?? "نامشخص"} •{" "}
+                        {new Date(i.created_at).toLocaleString("fa-IR")}
                       </span>
                     </div>
 

@@ -11,7 +11,11 @@ import ActionCheckboxes from "../ActionCheckboxes";
 import CommentsEditor from "../CommentsEditor";
 
 import { validateHashtags } from "../../../lib/hashtags";
-import { autoCategoryIdFromUrl, autoFixUrl, isValidAbsoluteHttpUrl } from "../../../lib/adminItemUtils";
+import {
+  autoCategoryIdFromUrl,
+  autoFixUrl,
+  isValidAbsoluteHttpUrl,
+} from "../../../lib/adminItemUtils";
 
 export type EditState = { id: string; originalDate: string } | null;
 
@@ -41,6 +45,10 @@ export default function AdminItemForm(props: {
   comments: string[];
   setComments: (v: string[]) => void;
 
+  // global
+  isGlobal: boolean;
+  setIsGlobal: (v: boolean) => void;
+
   // edit mode
   editing: EditState;
   saving: boolean;
@@ -61,7 +69,8 @@ export default function AdminItemForm(props: {
   function validateBeforeSave(currentComments: string[]) {
     if (props.whitelist.size === 0) return null;
     const issues = validateHashtags(currentComments.join("\n"), props.whitelist);
-    if (issues.length > 0) return "قبل از ذخیره، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.";
+    if (issues.length > 0)
+      return "قبل از ذخیره، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.";
     return null;
   }
 
@@ -124,13 +133,39 @@ export default function AdminItemForm(props: {
           </div>
 
           {props.editing ? (
-            <Button variant="secondary" onClick={props.onCancelEdit} disabled={props.saving}>
+            <Button
+              variant="secondary"
+              onClick={props.onCancelEdit}
+              disabled={props.saving}
+            >
               انصراف از ویرایش
             </Button>
           ) : null}
         </div>
 
         <div className="grid gap-3">
+          {/* Global toggle */}
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-zinc-900">
+                آیتم همیشگی (Global)
+              </div>
+              <div className="mt-0.5 text-xs text-zinc-600">
+                اگر فعال باشد، این آیتم در همه روزها نمایش داده می‌شود و وضعیت
+                انجام‌شدن آن سراسری خواهد بود.
+              </div>
+            </div>
+
+            <input
+              type="checkbox"
+              className="h-5 w-5 accent-zinc-900"
+              checked={props.isGlobal}
+              onChange={(e) => props.setIsGlobal(e.target.checked)}
+              disabled={props.saving}
+              aria-label="Global item"
+            />
+          </label>
+
           <Input value={props.title} onChange={props.setTitle} placeholder="عنوان" />
 
           <Input
@@ -159,7 +194,12 @@ export default function AdminItemForm(props: {
             ))}
           </Select>
 
-          <Textarea dir="auto" value={props.description} onChange={props.setDescription} placeholder="توضیح کوتاه" />
+          <Textarea
+            dir="auto"
+            value={props.description}
+            onChange={props.setDescription}
+            placeholder="توضیح کوتاه"
+          />
 
           <ActionCheckboxes
             label="اکشن‌ها"
@@ -191,7 +231,9 @@ export default function AdminItemForm(props: {
             </Button>
 
             {!props.editing ? (
-              <div className="text-xs text-zinc-500">نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.</div>
+              <div className="text-xs text-zinc-500">
+                نکته: توضیح‌ها را کوتاه نگه دارید تا کاربران سریع‌تر پیش بروند.
+              </div>
             ) : null}
           </div>
         </div>

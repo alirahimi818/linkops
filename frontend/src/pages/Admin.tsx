@@ -28,6 +28,10 @@ const TOKEN_KEY = "admin:jwt";
 
 type EditState = { id: string; originalDate: string } | null;
 
+function isGlobalItem(i: any): boolean {
+  return i?.is_global === 1 || i?.is_global === true;
+}
+
 export default function Admin() {
   const dateDefault = useMemo(() => todayYYYYMMDD(), []);
   const [date, setDate] = useState(dateDefault);
@@ -48,6 +52,7 @@ export default function Admin() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
   const [comments, setComments] = useState<string[]>([]);
+  const [isGlobal, setIsGlobal] = useState<boolean>(false);
 
   const [categoryTouched, setCategoryTouched] = useState(false);
   const programmaticCategoryChange = useRef(false);
@@ -74,6 +79,7 @@ export default function Admin() {
     setCategoryId("");
     setSelectedActionIds([]);
     setComments([]);
+    setIsGlobal(false);
     setEditing(null);
     setCategoryTouched(false);
   }
@@ -104,6 +110,8 @@ export default function Admin() {
       Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : [],
     );
     setComments(mapItemCommentsToStrings(i.comments));
+
+    setIsGlobal(isGlobalItem(i));
 
     setEditing({ id: i.id, originalDate: i.date ?? date });
 
@@ -161,24 +169,23 @@ export default function Admin() {
   async function onSubmit(fixedUrl: string) {
     setSaving(true);
     try {
+      const payload = {
+        // date is required for POST; PUT ignores date in your API
+        title: title.trim(),
+        url: fixedUrl,
+        description: description.trim(),
+        category_id: categoryId ? categoryId : null,
+        action_ids: selectedActionIds,
+        comments,
+        is_global: isGlobal,
+      };
+
       if (editing) {
-        await adminUpdateItem(editing.id, {
-          title: title.trim(),
-          url: fixedUrl,
-          description: description.trim(),
-          category_id: categoryId ? categoryId : null,
-          action_ids: selectedActionIds,
-          comments,
-        });
+        await adminUpdateItem(editing.id, payload);
       } else {
         await adminCreateItem({
           date,
-          title: title.trim(),
-          url: fixedUrl,
-          description: description.trim(),
-          category_id: categoryId ? categoryId : null,
-          action_ids: selectedActionIds,
-          comments,
+          ...payload,
         });
       }
 
@@ -186,7 +193,7 @@ export default function Admin() {
       await load();
     } catch (e: any) {
       if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
-        setError("این لینک قبلاً برای همین تاریخ ثبت شده است.");
+        setError(isGlobal ? "این لینک قبلاً به‌عنوان آیتم همیشگی ثبت شده است." : "این لینک قبلاً برای همین تاریخ ثبت شده است.");
       } else {
         setError(
           e?.message ??
@@ -255,6 +262,8 @@ export default function Admin() {
         setSelectedActionIds={setSelectedActionIds}
         comments={comments}
         setComments={setComments}
+        isGlobal={isGlobal}
+        setIsGlobal={setIsGlobal}
         editing={editing}
         saving={saving}
         categoryTouched={categoryTouched}

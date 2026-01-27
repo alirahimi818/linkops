@@ -1,3 +1,4 @@
+// /frontend/src/components/home/ItemList.tsx
 import { useMemo, useState } from "react";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
@@ -15,6 +16,7 @@ import {
   buildXIntentTweetUrl,
   isXUrl,
 } from "../../lib/socialIntents";
+import { PinIcon } from "../ui/icons";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -22,9 +24,7 @@ function pickRandom<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function getComments(
-  item: any,
-): Array<{ id?: string; text?: string } | string> {
+function getComments(item: any): Array<{ id?: string; text?: string } | string> {
   if (!item?.comments) return [];
   if (Array.isArray(item.comments)) return item.comments;
   return [];
@@ -33,6 +33,10 @@ function getComments(
 function commentText(c: any) {
   if (typeof c === "string") return c;
   return String(c?.text ?? "");
+}
+
+function isGlobalItem(item: any): boolean {
+  return item?.is_global === 1 || item?.is_global === true;
 }
 
 export default function ItemList(props: {
@@ -88,28 +92,16 @@ export default function ItemList(props: {
       </div>
 
       <Tabs>
-        <TabButton
-          active={props.tab === "todo"}
-          onClick={() => props.onTabChange("todo")}
-        >
+        <TabButton active={props.tab === "todo"} onClick={() => props.onTabChange("todo")}>
           انجام‌نشده
         </TabButton>
-        <TabButton
-          active={props.tab === "later"}
-          onClick={() => props.onTabChange("later")}
-        >
+        <TabButton active={props.tab === "later"} onClick={() => props.onTabChange("later")}>
           بعدا
         </TabButton>
-        <TabButton
-          active={props.tab === "done"}
-          onClick={() => props.onTabChange("done")}
-        >
+        <TabButton active={props.tab === "done"} onClick={() => props.onTabChange("done")}>
           انجام‌شده
         </TabButton>
-        <TabButton
-          active={props.tab === "hidden"}
-          onClick={() => props.onTabChange("hidden")}
-        >
+        <TabButton active={props.tab === "hidden"} onClick={() => props.onTabChange("hidden")}>
           مخفی‌ها
         </TabButton>
       </Tabs>
@@ -126,9 +118,20 @@ export default function ItemList(props: {
             const hasComments = comments.length > 0;
 
             const xEnabled = isXUrl(url);
+            const pinned = isGlobalItem(item);
 
             return (
-              <Card key={item.id}>
+              <Card key={item.id} className="relative">
+                {pinned ? (
+                  <div
+                    className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-700 shadow-sm"
+                    title="آیتم همیشگی"
+                    aria-label="Pinned item"
+                  >
+                    <PinIcon className="h-4 w-4" />
+                  </div>
+                ) : null}
+
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0 flex-1">
@@ -143,15 +146,11 @@ export default function ItemList(props: {
                           <div className="mt-0.5 h-8 w-8 rounded-md border border-zinc-200 bg-zinc-50" />
                         )}
 
-                        <div
-                          className="text-lg font-semibold text-zinc-900"
-                          dir="auto"
-                        >
+                        <div className="text-lg font-semibold text-zinc-900" dir="auto">
                           {item.title}
                         </div>
                       </div>
 
-                      {/* URL row + copy */}
                       <div className="mt-1 flex items-center gap-2">
                         <a
                           href={url}
@@ -170,8 +169,7 @@ export default function ItemList(props: {
                         {item.description}
                       </div>
 
-                      {Array.isArray(item.actions) &&
-                      item.actions.length > 0 ? (
+                      {Array.isArray(item.actions) && item.actions.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {item.actions.map((a: any) => (
                             <Badge key={a.id}>{a.label ?? a.name}</Badge>
@@ -179,18 +177,16 @@ export default function ItemList(props: {
                         </div>
                       ) : null}
 
-                      {/* Comment controls */}
                       {hasComments ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
                           <Button
-                            variant="info"  
+                            variant="info"
                             className="px-3! text-xs"
                             onClick={() => toggleComments(item.id)}
                           >
-                            {isOpen
-                              ? "بستن پیام‌ها"
-                              : `پیام‌های پیشنهادی (${comments.length})`}
+                            {isOpen ? "بستن پیام‌ها" : `پیام‌های پیشنهادی (${comments.length})`}
                           </Button>
+
                           <SplitAction
                             dir="rtl"
                             disabled={!hasComments}
@@ -244,7 +240,6 @@ export default function ItemList(props: {
                         </div>
                       ) : null}
 
-                      {/* Expanded comments list */}
                       {isOpen && hasComments ? (
                         <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                           <div className="mb-2 text-sm font-medium text-zinc-800">
@@ -254,21 +249,12 @@ export default function ItemList(props: {
                           <div className="space-y-2">
                             {comments.map((c: any, idx: number) => {
                               const t = commentText(c);
-                              const cid =
-                                typeof c === "string"
-                                  ? `s-${idx}`
-                                  : (c.id ?? `c-${idx}`);
+                              const cid = typeof c === "string" ? `s-${idx}` : (c.id ?? `c-${idx}`);
 
                               return (
-                                <div
-                                  key={cid}
-                                  className="rounded-lg border border-zinc-200 bg-white p-3"
-                                >
+                                <div key={cid} className="rounded-lg border border-zinc-200 bg-white p-3">
                                   <div className="flex flex-col gap-3">
-                                    <div
-                                      className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
-                                      dir="auto"
-                                    >
+                                    <div className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
                                       {t}
                                     </div>
 
@@ -280,22 +266,14 @@ export default function ItemList(props: {
                                         className="rounded-xl py-2 text-sm"
                                       />
 
-                                      <Button
-                                        variant="secondary"
-                                        onClick={() => openTweet(t)}
-                                        title="ساخت توییت با این متن"
-                                      >
+                                      <Button variant="secondary" onClick={() => openTweet(t)} title="ساخت توییت با این متن">
                                         توییت
                                       </Button>
 
                                       <Button
                                         variant="secondary"
                                         onClick={() => openReply(url, t)}
-                                        title={
-                                          xEnabled
-                                            ? "ریپلای به همان توییت"
-                                            : "این لینک استتوس نیست، به توییت معمولی می‌رود"
-                                        }
+                                        title={xEnabled ? "ریپلای به همان توییت" : "این لینک استتوس نیست، به توییت معمولی می‌رود"}
                                       >
                                         ریپلای
                                       </Button>
@@ -311,101 +289,52 @@ export default function ItemList(props: {
                   </div>
                 </div>
 
-                {/* Status buttons */}
                 <div className="mt-4 flex flex-wrap justify-around md:justify-start gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
-                      <Button
-                        className="text-xs"
-                        variant="success"
-                        onClick={() => props.onMark(item.id, "done")}
-                      >
+                      <Button className="text-xs" variant="success" onClick={() => props.onMark(item.id, "done")}>
                         انجام شد
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="warning"
-                        onClick={() => props.onMark(item.id, "later")}
-                      >
+                      <Button className="text-xs" variant="warning" onClick={() => props.onMark(item.id, "later")}>
                         بعدا انجام می‌دم
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="danger"
-                        onClick={() => props.onMark(item.id, "hidden")}
-                      >
+                      <Button className="text-xs" variant="danger" onClick={() => props.onMark(item.id, "hidden")}>
                         مخفی
                       </Button>
                     </>
                   ) : props.tab === "later" ? (
                     <>
-                      <Button
-                        className="text-xs"
-                        variant="success"
-                        onClick={() => props.onMark(item.id, "done")}
-                      >
+                      <Button className="text-xs" variant="success" onClick={() => props.onMark(item.id, "done")}>
                         انجام شد
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="secondary"
-                        onClick={() => backToTodo(item.id)}
-                      >
+                      <Button className="text-xs" variant="secondary" onClick={() => backToTodo(item.id)}>
                         انجام‌نشده
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="danger"
-                        onClick={() => props.onMark(item.id, "hidden")}
-                      >
+                      <Button className="text-xs" variant="danger" onClick={() => props.onMark(item.id, "hidden")}>
                         مخفی
                       </Button>
                     </>
                   ) : props.tab === "done" ? (
                     <>
-                      <Button
-                        className="text-xs"
-                        variant="secondary"
-                        onClick={() => backToTodo(item.id)}
-                      >
+                      <Button className="text-xs" variant="secondary" onClick={() => backToTodo(item.id)}>
                         انجام‌نشده
                       </Button>
-                      <Button
-                        className="px-2! text-sm"
-                        variant="warning"
-                        onClick={() => props.onMark(item.id, "later")}
-                      >
+                      <Button className="px-2! text-sm" variant="warning" onClick={() => props.onMark(item.id, "later")}>
                         بعدا انجام می‌دم
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="danger"
-                        onClick={() => props.onMark(item.id, "hidden")}
-                      >
+                      <Button className="text-xs" variant="danger" onClick={() => props.onMark(item.id, "hidden")}>
                         مخفی
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button
-                        className="px-2! text-sm"
-                        variant="secondary"
-                        onClick={() => backToTodo(item.id)}
-                      >
+                      <Button className="px-2! text-sm" variant="secondary" onClick={() => backToTodo(item.id)}>
                         انجام‌نشده
                       </Button>
-                      <Button
-                        className="text-xs"
-                        variant="success"
-                        onClick={() => props.onMark(item.id, "done")}
-                      >
+                      <Button className="text-xs" variant="success" onClick={() => props.onMark(item.id, "done")}>
                         انجام شد
                       </Button>
-                      <Button
-                        className="px-2! text-sm"
-                        variant="warning"
-                        onClick={() => props.onMark(item.id, "later")}
-                      >
+                      <Button className="px-2! text-sm" variant="warning" onClick={() => props.onMark(item.id, "later")}>
                         بعدا انجام می‌دم
                       </Button>
                     </>
