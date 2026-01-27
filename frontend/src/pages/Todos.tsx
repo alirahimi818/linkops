@@ -16,7 +16,9 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 
-import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
+import CategoryGrid, {
+  type CategoryCard,
+} from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
 
 type View =
@@ -42,8 +44,13 @@ export default function Todos() {
   const cat = sp.get("cat"); // category id or "all"
   const view: View = useMemo(() => {
     if (!cat) return { kind: "categories" };
-    if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
-    return { kind: "list", categoryId: cat, categoryName: sp.get("catName") ?? "دسته" };
+    if (cat === "all")
+      return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
+    return {
+      kind: "list",
+      categoryId: cat,
+      categoryName: sp.get("catName") ?? "دسته",
+    };
   }, [cat, sp]);
 
   // Data
@@ -108,11 +115,14 @@ export default function Todos() {
     const map = new Map<string, CategoryCard>();
 
     for (const i of items as any[]) {
-      const cid = i.category_id ?? "";
-      const cname = i.category_name ?? "بدون دسته‌بندی";
-      const cimg = i.category_image ?? null;
+      const rawCid = i.category_id ?? "";
+      const cid = rawCid ? String(rawCid) : "__none__";
 
-      if (!cid) continue;
+      const cname =
+        cid === "__none__" ? "بدون دسته‌بندی" : (i.category_name ?? "دسته");
+
+      const cimg = cid === "__none__" ? null : (i.category_image ?? null);
+
       if (!map.has(cid)) {
         map.set(cid, { id: cid, name: cname, image: cimg, count: 0 });
       }
@@ -127,12 +137,24 @@ export default function Todos() {
       isAll: true,
     };
 
-    return [all, ...Array.from(map.values()).sort((a, b) => b.count - a.count)];
+    // Sort: most items first, keep "__none__" at the end (optional)
+    const list = Array.from(map.values()).sort((a, b) => {
+      if (a.id === "__none__") return 1;
+      if (b.id === "__none__") return -1;
+      return b.count - a.count;
+    });
+
+    return [all, ...list];
   }, [items]);
 
   const listItems = useMemo(() => {
     if (view.kind !== "list") return [];
     if (view.categoryId === null) return items;
+
+    if (view.categoryId === "__none__") {
+      return (items as any[]).filter((i) => !i.category_id);
+    }
+
     return (items as any[]).filter((i) => i.category_id === view.categoryId);
   }, [items, view]);
 
@@ -161,7 +183,9 @@ export default function Todos() {
 
   async function mark(id: string, s: ItemStatus | null) {
     const it = (items as any[]).find((x) => x.id === id);
-    const scope = isGlobalItem(it) ? ({ kind: "global" } as const) : ({ kind: "date", date } as const);
+    const scope = isGlobalItem(it)
+      ? ({ kind: "global" } as const)
+      : ({ kind: "date", date } as const);
 
     await setItemStatus(scope, id, s);
 
@@ -265,7 +289,9 @@ export default function Todos() {
         <div className="text-zinc-500">در حال بارگذاری…</div>
       ) : view.kind === "categories" ? (
         categories.length <= 1 ? (
-          <Card className="p-6 text-zinc-600">برای این تاریخ آیتمی وجود ندارد.</Card>
+          <Card className="p-6 text-zinc-600">
+            برای این تاریخ آیتمی وجود ندارد.
+          </Card>
         ) : (
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )

@@ -124,7 +124,7 @@ export default function ItemList(props: {
               <Card key={item.id} className="relative">
                 {pinned ? (
                   <div
-                    className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 shadow-sm"
+                    className="absolute -left-2 -top-2 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 p-2 shadow-sm"
                     title="آیتم همیشگی"
                     aria-label="Pinned item"
                   >
