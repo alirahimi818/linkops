@@ -23,7 +23,7 @@ export function TabButton(props: {
       {showCount ? (
         <div
           className={[
-            "absolute -left-1.5 -top-1.5 flex items-center justify-center rounded-full w-4 h-4 border",
+            "absolute -left-1.5 -top-1.5 flex items-center justify-center rounded-full w-5 h-5 border",
             props.active
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-amber-200 bg-amber-50 text-amber-700",
