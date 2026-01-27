@@ -8,7 +8,7 @@ import { validateHashtags, type HashtagIssue } from "../../lib/hashtags";
 type Props = {
   title?: string;
   text: string;
-  whitelist: Set<string>;
+  whitelist: Set<string>; // MUST contain original tags (camelCase / فارسی), without '#'
   onReplaceText: (next: string) => void;
 };
 
@@ -19,6 +19,7 @@ function escapeRegExp(s: string) {
 /**
  * Replace ONLY hashtag tokens and avoid partial matches.
  * Example: replace "#IranMassacre" but not "#IranMassacre123"
+ * IMPORTANT: suggestion must be the original DB tag (camelCase / Persian)
  */
 function applySuggestedReplacementsSafe(text: string, issues: HashtagIssue[]) {
   let out = text;
@@ -55,9 +56,9 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
 
   const whitelistList = useMemo(() => {
     const all = Array.from(whitelist).sort((a, b) => a.localeCompare(b));
-    const q = whitelistQuery.trim().toLowerCase();
+    const q = whitelistQuery.trim().toLocaleLowerCase();
     if (!q) return all;
-    return all.filter((t) => t.includes(q));
+    return all.filter((t) => t.toLocaleLowerCase().includes(q));
   }, [whitelist, whitelistQuery]);
 
   async function copyWithFlash(key: string, value: string) {
@@ -92,10 +93,7 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
             جایگزینی
           </ActionPill>
 
-          <ActionPill
-            title="نمایش هشتگ‌های مجاز"
-            onClick={() => setShowWhitelist((s) => !s)}
-          >
+          <ActionPill title="نمایش هشتگ‌های مجاز" onClick={() => setShowWhitelist((s) => !s)}>
             {showWhitelist ? "بستن هشتگ‌های مجاز" : "نمایش هشتگ‌های مجاز"}
           </ActionPill>
         </div>
@@ -112,7 +110,7 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
           </div>
         ) : (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-            <div className="mb-2 text-sm font-medium text-red-800">
+            <div className="mb-2 text-sm نکته: suggestion باید camelCase دیتابیس باشد. font-medium text-red-800">
               مشکلات هشتگ ({issues.length})
             </div>
 

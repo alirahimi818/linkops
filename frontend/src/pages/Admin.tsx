@@ -140,7 +140,7 @@ export default function Admin() {
 
       const active = (tags as HashtagWhitelistRow[])
         .filter((t) => t.is_active === 1)
-        .map((t) => t.tag.toLowerCase());
+        .map((t) => t.tag.trim());
       setWhitelist(new Set(active));
     } catch (e: any) {
       // eslint-disable-next-line no-console

@@ -42,7 +42,7 @@ export default function HashtagsPage() {
 
         const active = (rows ?? [])
           .filter((t) => t.is_active === 1)
-          .map((t) => String(t.tag ?? "").toLowerCase())
+          .map((t) => String(t.tag ?? "").trim())
           .filter(Boolean);
 
         if (!alive) return;
