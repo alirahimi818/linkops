@@ -157,8 +157,10 @@ export default function MyHashtags(props: {
           <ActionPill
             title="افزودن"
             onClick={add}
-            className={
+            className={[
+              "rounded-xl bg-zinc-200 border-zinc-500",
               !normalizeTag(draft) ? "opacity-50 pointer-events-none" : ""
+            ].join(" ")
             }
           >
             <span className="inline-flex items-center gap-1">

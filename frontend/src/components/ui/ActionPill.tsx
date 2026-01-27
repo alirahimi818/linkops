@@ -38,7 +38,7 @@ export default function ActionPill(props: {
       ].join(" ")}
     >
       {props.icon ? <span className="opacity-80">{props.icon}</span> : null}
-      <span>{props.children}</span>
+      {props.children}
       {ok ? <span className="ms-1">✓</span> : null}
     </span>
   );
