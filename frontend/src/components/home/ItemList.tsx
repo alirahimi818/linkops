@@ -390,7 +390,7 @@ export default function ItemList(props: {
                         انجام‌نشده
                       </Button>
                       <Button
-                        className="px-2! text-sm"
+                        className="px-2! text-xs"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
@@ -421,7 +421,7 @@ export default function ItemList(props: {
                         انجام شد
                       </Button>
                       <Button
-                        className="px-2! text-sm"
+                        className="px-2! text-xs"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
