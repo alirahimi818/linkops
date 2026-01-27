@@ -106,9 +106,6 @@ export function IconPaste({ className, title }: IconProps) {
   );
 }
 
-/**
- * Random / Shuffle icon
- */
 export function IconShuffle({ className, title }: IconProps) {
   return (
     <svg
@@ -165,9 +162,6 @@ export function IconShuffle({ className, title }: IconProps) {
   );
 }
 
-/**
- * X/Twitter icon
- */
 export function IconX({ className, title }: IconProps) {
   return (
     <svg
@@ -210,9 +204,6 @@ export function IconX({ className, title }: IconProps) {
   );
 }
 
-/**
- * Reply icon
- */
 export function IconReply({ className, title }: IconProps) {
   return (
     <svg
@@ -234,9 +225,6 @@ export function IconReply({ className, title }: IconProps) {
   );
 }
 
-/**
- * Trash icon
- */
 export function IconTrash({ className, title }: IconProps) {
   return (
     <svg
@@ -275,9 +263,6 @@ export function IconTrash({ className, title }: IconProps) {
   );
 }
 
-/**
- * Pencil/Edit icon
- */
 export function IconEdit({ className, title }: IconProps) {
   return (
     <svg
@@ -353,6 +338,144 @@ export function IconPencil({ className, title }: IconProps) {
         d="M12 20h9"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconList({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path
+        d="M8 6h13M8 12h13M8 18h13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconHashtag({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path
+        d="M10 3 8 21M16 3l-2 18M4 8h18M3 16h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconMail({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path
+        d="M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="m4 8 8 6 8-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function IconMap({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path
+        d="M12 22s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+export function IconExternal({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+
+      <path
+        d="M14 3h7v7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 14 21 3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"
+        stroke="currentColor"
+        strokeWidth="2"
         strokeLinecap="round"
       />
     </svg>

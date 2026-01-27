@@ -34,4 +34,9 @@ export async function setItemStatus(date: string, itemId: string, status: ItemSt
   }
 
   setStatusMap(date, map);
+
+  // Notify other pages/components (Home badge, etc.)
+  window.dispatchEvent(
+    new CustomEvent("status:changed", { detail: { date, itemId, status } })
+  );
 }

@@ -1,7 +1,13 @@
+// frontend/src/pages/Home.tsx
+import React, { useEffect, useState } from "react";
+
 import InstallPwaCard from "../components/ops/InstallPwaCard";
 import Card from "../components/ui/Card";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 import OfflineBanner from "../components/ui/OfflineBanner";
+
+import { getTodayRemainingCount } from "../lib/homeBadge";
+import { IconExternal, IconHashtag, IconList, IconMail, IconMap } from "../components/ui/icons";
 
 type MenuItem = {
   title: string;
@@ -9,153 +15,60 @@ type MenuItem = {
   icon: React.ReactNode;
   href: string;
   external?: boolean;
+  badgeCount?: number | null;
+  badgeLabel?: string;
 };
 
-function IconList(props: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={props.className ?? "h-6 w-6"}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M8 6h13M8 12h13M8 18h13"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+function BadgeCorner(props: { count: number; title?: string }) {
+  const c = props.count;
+  if (!Number.isFinite(c) || c <= 0) return null;
 
-function IconHashtag(props: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={props.className ?? "h-6 w-6"}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M10 3 8 21M16 3l-2 18M4 8h18M3 16h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+  const text = c > 99 ? "99+" : String(c);
 
-function IconMail(props: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={props.className ?? "h-6 w-6"}
-      xmlns="http://www.w3.org/2000/svg"
+    <div
+      className="absolute -top-2 -left-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 shadow-sm"
+      title={props.title}
+      aria-label={props.title ?? `${c} remaining`}
     >
-      <path
-        d="M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="m4 8 8 6 8-6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconMap(props: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={props.className ?? "h-6 w-6"}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M12 22s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function IconExternal(props: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={props.className ?? "h-6 w-6"}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M14 3h7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10 14 21 3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
+      {text}
+    </div>
   );
 }
 
 function MenuCard({ item }: { item: MenuItem }) {
   const content = (
-    <Card className="group p-5 transition hover:bg-zinc-50">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-800 group-hover:bg-zinc-100">
-          {item.icon}
-        </div>
+    <div className="relative">
+      {typeof item.badgeCount === "number" ? (
+        <BadgeCorner count={item.badgeCount} title={item.badgeLabel} />
+      ) : null}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-base font-semibold text-zinc-900">
-              {item.title}
+      <Card className="group p-5 transition hover:bg-zinc-50">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-800 group-hover:bg-zinc-100">
+            {item.icon}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <div className="text-base font-semibold text-zinc-900">
+                {item.title}
+              </div>
+
+              {item.external ? (
+                <span className="text-zinc-500" title="لینک خارجی">
+                  <IconExternal className="h-4 w-4" />
+                </span>
+              ) : null}
             </div>
 
-            {item.external ? (
-              <span className="text-zinc-500" title="لینک خارجی">
-                <IconExternal className="h-4 w-4" />
-              </span>
-            ) : null}
-          </div>
-
-          <div className="mt-1 text-sm text-zinc-600" dir="auto">
-            {item.description}
+            <div className="mt-1 text-sm text-zinc-600" dir="auto">
+              {item.description}
+            </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 
   if (item.external) {
@@ -174,6 +87,45 @@ function MenuCard({ item }: { item: MenuItem }) {
 }
 
 export default function Home() {
+  const [todoRemaining, setTodoRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function refresh() {
+      try {
+        const r = await getTodayRemainingCount();
+        if (!alive) return;
+        setTodoRemaining(r.remaining);
+      } catch {
+        if (!alive) return;
+        setTodoRemaining(null);
+      }
+    }
+
+    // initial
+    void refresh();
+
+    // listen to status changes from other pages
+    const onStatusChanged = (ev: Event) => {
+      void ev;
+      void refresh();
+    };
+    window.addEventListener("status:changed", onStatusChanged);
+
+    // refresh when returning to tab/page
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      alive = false;
+      window.removeEventListener("status:changed", onStatusChanged);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
   const items: MenuItem[] = [
     {
       title: "لیست فعالیت‌ها",
@@ -181,6 +133,11 @@ export default function Home() {
         "فعالیت‌های امروز اینستاگرام، توییتر و... رو ببین و هدفمند انجامشون بده.",
       icon: <IconList className="h-12 w-12" />,
       href: "/todos",
+      badgeCount: todoRemaining,
+      badgeLabel:
+        todoRemaining != null
+          ? `کارهای باقی‌مانده امروز: ${todoRemaining}`
+          : undefined,
     },
     {
       title: "ابزار بررسی هشتگ‌ها",
@@ -215,6 +172,7 @@ export default function Home() {
               <img src="/assets/flags/flag-ir-640.png" className="h-6" alt="" />
             </a>
           </div>
+
           <div className="mt-1 text-sm text-zinc-600">
             برای شروع فعالیت، یک بخش رو انتخاب کن.
           </div>
@@ -229,6 +187,7 @@ export default function Home() {
         <div className="mt-6 text-xs text-zinc-500">
           نکته: لینک‌های خارجی در تب جدید باز میشن.
         </div>
+
         <DismissibleAnnouncementModal
           scopeKey="/"
           id="welcome-2026-01"
@@ -236,10 +195,12 @@ export default function Home() {
           description="در نبرد روایت‌ها و جنگ رسانه‌ای که رژیم با صرف بودجه‌های کلان و ارتش سایبری‌اش راه انداخته، ما هم باید از ابزارهای پیشرفته و هوشمند استفاده کنیم تا بتوانیم مؤثرتر عمل کنیم، دروغ‌ها رو افشا کنیم و حقیقت رو به گوش جهان برسانیم."
           imageUrl="/assets/flags/flag-ir-640.png"
         />
+
         <div className="my-4">
           <InstallPwaCard scopeKey="/" id="pwa-install" />
         </div>
       </div>
+
       <OfflineBanner />
     </div>
   );
