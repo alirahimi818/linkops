@@ -2,7 +2,7 @@ import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Badge from "../../ui/Badge";
 import { mapItemCommentsToStrings } from "../../../lib/adminItemUtils";
-import { PinIcon } from "../../ui/icons";
+import { IconPin } from "../../ui/icons";
 
 function isGlobalItem(item: any): boolean {
   return item?.is_global === 1 || item?.is_global === true;
@@ -43,7 +43,7 @@ export default function AdminItemList(props: {
                     title="آیتم همیشگی (Global)"
                     aria-label="Pinned item"
                   >
-                    <PinIcon className="h-4 w-4" />
+                    <IconPin className="h-4 w-4" />
                   </div>
                 ) : null}
 

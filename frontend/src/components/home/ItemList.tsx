@@ -16,7 +16,7 @@ import {
   buildXIntentTweetUrl,
   isXUrl,
 } from "../../lib/socialIntents";
-import { PinIcon } from "../ui/icons";
+import { IconPin } from "../ui/icons";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -128,7 +128,7 @@ export default function ItemList(props: {
                     title="آیتم همیشگی"
                     aria-label="Pinned item"
                   >
-                    <PinIcon className="h-4 w-4" />
+                    <IconPin className="h-4 w-4" />
                   </div>
                 ) : null}
 
