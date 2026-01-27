@@ -7,8 +7,7 @@ export type HashtagIssue = {
 
 export function normalizeTag(tag: string): string {
   const t = tag.trim();
-  const noHash = t.startsWith("#") ? t.slice(1) : t;
-  return noHash.toLowerCase();
+  return t.startsWith("#") ? t.slice(1) : t;
 }
 
 export function extractHashtags(text: string): string[] {
