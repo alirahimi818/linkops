@@ -23,13 +23,11 @@ export function TabButton(props: {
       {showCount ? (
         <div
           className={[
-            "absolute -left-1 -top-1",
-            "min-w-[16px] h-[16px]",
-            "flex items-center justify-center",
+            "absolute -left-1 -top-1 flex items-center justify-center rounded-full p-1.5 border",
             props.active
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-amber-200 bg-amber-50 text-amber-700",
-            "rounded-full px-1 border",
+            "",
             "text-xs font-semibold leading-none",
           ].join(" ")}
           aria-label={`${props.count} items`}

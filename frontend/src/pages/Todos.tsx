@@ -158,32 +158,34 @@ export default function Todos() {
     return (items as any[]).filter((i) => i.category_id === view.categoryId);
   }, [items, view]);
 
-  const counts = useMemo(() => {
-    const c = { todo: 0, later: 0, done: 0, hidden: 0 };
-
-    for (const i of listItems as any[]) {
-      const s = status[i.id];
-      if (!s) c.todo++;
-      else if (s === "later") c.later++;
-      else if (s === "done") c.done++;
-      else if (s === "hidden") c.hidden++;
-    }
-
-    return c;
-  }, [listItems, status]);
+  function filterByTab(itemsAny: any[], t: ListTab) {
+    return itemsAny.filter((i) => {
+      const s = getItemStatus(i);
+      if (t === "todo") return !s;
+      if (t === "later") return s === "later";
+      if (t === "done") return s === "done";
+      if (t === "hidden") return s === "hidden";
+      return true;
+    });
+  }
 
   const filtered = useMemo(() => {
     if (view.kind !== "list") return [];
-    return (listItems as any[]).filter((i: any) => {
-      const s = getItemStatus(i);
-      if (tab === "todo") return !s; // undefined only
-      if (tab === "later") return s === "later";
-      if (tab === "done") return s === "done";
-      if (tab === "hidden") return s === "hidden";
-      return true;
-    });
+    return filterByTab(listItems as any[], tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listItems, tab, view, dayStatus, globalStatus]);
+
+  const counts = useMemo(() => {
+    const base = listItems as any[];
+
+    return {
+      todo: filterByTab(base, "todo").length,
+      later: filterByTab(base, "later").length,
+      done: filterByTab(base, "done").length,
+      hidden: filterByTab(base, "hidden").length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listItems, dayStatus, globalStatus]);
 
   const total = items.length;
   const doneCount = useMemo(() => {
