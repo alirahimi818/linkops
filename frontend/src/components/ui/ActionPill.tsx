@@ -31,7 +31,7 @@ export default function ActionPill(props: {
         }
       }}
       className={[
-        "inline-flex select-none items-center gap-1 rounded-full border px-3 py-1 text-xs transition",
+        "inline-flex select-none items-center gap-1 rounded-full border px-2 py-1 text-xs transition",
         ok ? "border-green-200 bg-green-50 text-green-800" : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50",
         "cursor-pointer",
         props.className ?? "",

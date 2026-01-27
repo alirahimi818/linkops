@@ -122,7 +122,7 @@ export default function HashtagsPage() {
             />
 
             {/* Action row */}
-            <div className="flex flex-wrap items-center gap-1 border-t pt-3 border-zinc-200">
+            <div className="flex flex-wrap items-center justify-between md:justify-start gap-1 border-t pt-3 border-zinc-200">
               <ActionPill
                 title="Paste از کلیپ‌بورد"
                 onClick={pasteFromClipboard}

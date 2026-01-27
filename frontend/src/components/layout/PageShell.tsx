@@ -29,9 +29,7 @@ export default function PageShell(props: {
         ) : (
           <footer className="mt-10 text-xs text-zinc-500">
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4 border-zinc-200 justify-center">
-              <a href="/" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">صفحه اصلی</a>
-              <a href="/hashtags-checker" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">ابزار بررسی هشتگ‌ها</a>
-
+              <a href="/" className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold">بازگشت به صفحه اصلی</a>
             </div>
           </footer>
         )}

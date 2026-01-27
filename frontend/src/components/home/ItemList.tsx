@@ -184,7 +184,7 @@ export default function ItemList(props: {
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
                           <Button
                             variant="info"  
-                            className="px-3!"
+                            className="px-3! text-xs"
                             onClick={() => toggleComments(item.id)}
                           >
                             {isOpen
@@ -199,7 +199,7 @@ export default function ItemList(props: {
                                 label="کپی رندوم"
                                 dir="auto"
                                 title="یک پیام پیشنهادی رندوم کپی می‌شود"
-                                className="rounded-e-none py-2"
+                                className="rounded-e-none rounded-s-xl py-2"
                                 getValue={() => {
                                   const list = getComments(item);
                                   if (!list.length) return null;
@@ -316,18 +316,21 @@ export default function ItemList(props: {
                   {props.tab === "todo" ? (
                     <>
                       <Button
+                        className="text-xs"
                         variant="success"
                         onClick={() => props.onMark(item.id, "done")}
                       >
                         انجام شد
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
                         بعدا انجام می‌دم
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
@@ -337,18 +340,21 @@ export default function ItemList(props: {
                   ) : props.tab === "later" ? (
                     <>
                       <Button
+                        className="text-xs"
                         variant="success"
                         onClick={() => props.onMark(item.id, "done")}
                       >
                         انجام شد
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
                         انجام‌نشده
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
@@ -358,19 +364,21 @@ export default function ItemList(props: {
                   ) : props.tab === "done" ? (
                     <>
                       <Button
+                        className="text-xs"
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
                         انجام‌نشده
                       </Button>
                       <Button
-                        className="px-2!"
+                        className="px-2! text-sm"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
                         بعدا انجام می‌دم
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="danger"
                         onClick={() => props.onMark(item.id, "hidden")}
                       >
@@ -380,20 +388,21 @@ export default function ItemList(props: {
                   ) : (
                     <>
                       <Button
-                        className="px-2!"
+                        className="px-2! text-sm"
                         variant="secondary"
                         onClick={() => backToTodo(item.id)}
                       >
                         انجام‌نشده
                       </Button>
                       <Button
+                        className="text-xs"
                         variant="success"
                         onClick={() => props.onMark(item.id, "done")}
                       >
                         انجام شد
                       </Button>
                       <Button
-                        className="px-2!"
+                        className="px-2! text-sm"
                         variant="warning"
                         onClick={() => props.onMark(item.id, "later")}
                       >
