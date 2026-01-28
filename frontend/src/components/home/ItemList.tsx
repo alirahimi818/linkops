@@ -301,6 +301,7 @@ export default function ItemList(props: {
                                       />
 
                                       <Button
+                                        className="text-xs"
                                         variant="secondary"
                                         onClick={() => openTweet(t)}
                                         title="ساخت توییت با این متن"
@@ -309,6 +310,7 @@ export default function ItemList(props: {
                                       </Button>
 
                                       <Button
+                                        className="text-xs"
                                         variant="secondary"
                                         onClick={() => openReply(url, t)}
                                         title={
