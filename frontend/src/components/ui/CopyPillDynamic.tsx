@@ -39,7 +39,7 @@ export default function CopyPillDynamic(props: {
         title={props.title ?? "کلیک کنید تا کپی شود"}
         aria-describedby={liveId}
         className={[
-          "inline-flex select-none items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition",
+          "inline-flex select-none items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition",
           props.className ?? "",
           copied
             ? "border-emerald-200 bg-emerald-50 text-emerald-800"
