@@ -184,7 +184,23 @@ export default function ItemList(props: {
                           {url}
                         </a>
 
-                        <CopyPill value={url} label="کپی لینک" dir="ltr" />
+                        
+                        <SplitAction
+                            dir="rtl"
+                            primary={
+                              <CopyPill value={url} label="کپی لینک" dir="ltr" />
+                            }
+                            actions={[
+                              {
+                                key: "copyAndTweet",
+                                label: "بازکردن لینک در صفحه جدید",
+                                onClick: async () => {
+                                  window.open(url, "_blank", "noopener,noreferrer");
+                                },
+                                title: "بازکردن لینک در صفحه جدید",
+                              },
+                            ]}
+                          />
                       </div>
 
                       <div className="mt-2 text-sm text-zinc-600" dir="auto">
