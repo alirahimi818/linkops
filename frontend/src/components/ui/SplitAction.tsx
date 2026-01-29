@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Button from "./Button";
+import { IconChevronDown } from "./icons";
 
 export type SplitActionItem = {
   key: string;
@@ -10,15 +11,22 @@ export type SplitActionItem = {
 };
 
 export default function SplitAction(props: {
-  primary: React.ReactNode;            // Inject any primary control (CopyPillDynamic, Button, etc.)
-  actions: SplitActionItem[];          // Dropdown items
+  primary: React.ReactNode; // Inject any primary control (CopyPillDynamic, Button, etc.)
+  actions: SplitActionItem[]; // Dropdown items
   disabled?: boolean;
 
   dir?: "rtl" | "ltr";
   align?: "start" | "end";
   className?: string;
 
-  arrowVariant?: "primary" | "secondary" | "ghost" | "danger" | "success" | "warning" | "info";
+  arrowVariant?:
+    | "primary"
+    | "secondary"
+    | "ghost"
+    | "danger"
+    | "success"
+    | "warning"
+    | "info";
   arrowTitle?: string;
 }) {
   const dir = props.dir ?? "rtl";
@@ -87,9 +95,7 @@ export default function SplitAction(props: {
       className={["relative inline-flex", props.className ?? ""].join(" ")}
     >
       {/* Primary slot (keeps exact UX of injected component) */}
-      <div className="inline-flex [&>*]:rounded-e-none">
-        {props.primary}
-      </div>
+      <div className="inline-flex [&>*]:rounded-e-none">{props.primary}</div>
 
       {/* Arrow button */}
       <Button
@@ -99,7 +105,13 @@ export default function SplitAction(props: {
         title={props.arrowTitle ?? (hasActions ? "More actions" : undefined)}
         className="rounded-s-none px-2 text-xs"
       >
-        <span className="inline-block translate-y-[1px]">▾</span>
+        <IconChevronDown
+          className={[
+            "h-4 w-4 transition-transform duration-150",
+            open ? "rotate-180" : "rotate-0",
+          ].join(" ")}
+          title={props.arrowTitle ?? (hasActions ? "More actions" : undefined)}
+        />
       </Button>
 
       {/* Menu */}
