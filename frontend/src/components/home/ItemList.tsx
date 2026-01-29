@@ -188,7 +188,7 @@ export default function ItemList(props: {
                         <SplitAction
                             dir="rtl"
                             primary={
-                              <CopyPill className="rounded-e-none rounded-s-xl py-2" value={url} label="کپی لینک" dir="ltr" />
+                              <CopyPill className="rounded-e-none rounded-s-xl py-2" value={url} label="کپی لینک" dir="auto" />
                             }
                             actions={[
                               {
