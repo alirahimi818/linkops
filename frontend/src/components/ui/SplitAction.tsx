@@ -103,7 +103,7 @@ export default function SplitAction(props: {
         onClick={toggle}
         disabled={props.disabled || !hasActions}
         title={props.arrowTitle ?? (hasActions ? "More actions" : undefined)}
-        className="rounded-s-none px-2 text-xs"
+        className="rounded-s-none px-2! text-xs"
       >
         <IconChevronDown
           className={[

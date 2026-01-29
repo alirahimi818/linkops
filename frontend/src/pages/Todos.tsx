@@ -20,6 +20,7 @@ import CategoryGrid, {
   type CategoryCard,
 } from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
+import { IconChevronLeft, IconChevronRight } from "../components/ui/icons";
 
 type View =
   | { kind: "categories" }
@@ -297,13 +298,13 @@ export default function Todos() {
       ) : (
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={goNext} title="روز بعد">
-            →
+            <IconChevronRight className="h-4 w-4" />
           </Button>
 
           <DatePicker value={date} onChange={setDate} />
 
           <Button variant="secondary" onClick={goPrev} title="روز قبل">
-            ←
+            <IconChevronLeft className="h-4 w-4" />
           </Button>
         </div>
       )}
