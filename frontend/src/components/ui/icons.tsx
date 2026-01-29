@@ -516,7 +516,6 @@ export function IconShare({ className, title }: IconProps) {
       xmlns="http://www.w3.org/2000/svg"
     >
       {title ? <title>{title}</title> : null}
-
       <path
         d="M12 16V4"
         stroke="currentColor"
@@ -535,6 +534,66 @@ export function IconShare({ className, title }: IconProps) {
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+export function IconTelegram({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+      <path
+        d="M20.5 4.7L3.6 11.4c-1 .4-1 1.9.1 2.2l4.3 1.4 1.6 5c.3 1 1.6 1.2 2.2.4l2.4-3.2 4.6 3.4c.8.6 2 .1 2.2-.9l2.9-13.6c.2-1.1-.8-2-1.9-1.6z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 14.9l11-8.3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 14.9l1.7 5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconWhatsApp({ className, title }: IconProps) {
+  return (
+    <svg
+      className={className ?? "h-6 w-6"}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden={title ? undefined : true}
+      role={title ? "img" : "presentation"}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {title ? <title>{title}</title> : null}
+      <path
+        d="M12 21a9 9 0 10-7.8-4.5L3 21l4.6-1.2A9 9 0 0012 21z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.4 8.8c.2-.5.5-.6.9-.6h.6c.2 0 .5.1.6.4l.9 2.2c.1.3 0 .6-.2.8l-.6.6c-.1.1-.2.3-.1.5.4 1 1.5 2.1 2.5 2.5.2.1.4 0 .5-.1l.6-.6c.2-.2.5-.3.8-.2l2.2.9c.3.1.4.4.4.6v.6c0 .4-.1.7-.6.9-.6.2-1.7.4-3.1-.2-1.7-.7-3.7-2.7-4.4-4.4-.6-1.4-.4-2.5-.2-3.1z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

@@ -17,7 +17,7 @@ import {
   isXUrl,
 } from "../../lib/socialIntents";
 import { IconPin } from "../ui/icons";
-import ShareButton from "../ui/ShareButton";
+import ShareSheet from "../ui/ShareSheet";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -132,7 +132,7 @@ export default function ItemList(props: {
           </TabButton>
         </Tabs>
       )}
-      
+
       <div className="mt-3 space-y-3">
         {props.items.length === 0 ? (
           <Card className="p-6 text-zinc-600">{emptyText}</Card>
@@ -218,10 +218,10 @@ export default function ItemList(props: {
                           ]}
                         />
 
-                        <ShareButton
+                        <ShareSheet
                           itemId={String(item.id)}
                           title={String(item.title ?? "")}
-                          label="اشتراک"
+                          buttonLabel="اشتراک"
                         />
                       </div>
 
