@@ -54,7 +54,7 @@ export default function ItemList(props: {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
 
   const emptyText = useMemo(() => {
-    if (props.tab === "todo") return "چیزی برای انجام‌دادن نیست.";
+    if (props.tab === "todo") return "تبریک! فعلا چیزی برای انجام‌دادن نیست، لطفا چند ساعت بعد مجدد بررسی کنید.";
     if (props.tab === "later") return "فعلاً چیزی برای «بعدا» ندارید.";
     if (props.tab === "done") return "هنوز چیزی را انجام‌شده علامت نزده‌اید.";
     if (props.tab === "hidden") return "هیچ آیتمی مخفی نشده است.";
