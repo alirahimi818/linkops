@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { IconShare } from "./icons";
 
-function buildShareUrl(pathname: string, params: Record<string, string | undefined>) {
+function buildShareUrl(
+  pathname: string,
+  params: Record<string, string | undefined>,
+) {
   const url = new URL(window.location.href);
   url.pathname = pathname;
 
@@ -48,18 +51,17 @@ export default function ShareButton(props: {
 
   async function onShare() {
     const title = props.title ?? "Share";
-    const text = props.title ? `${props.title}` : "";
-
+    
     const canNativeShare =
       typeof navigator !== "undefined" &&
       typeof (navigator as any).share === "function" &&
-      (!("canShare" in navigator) || (navigator as any).canShare?.({ url: shareUrl }) !== false);
+      (!("canShare" in navigator) ||
+        (navigator as any).canShare?.({ url: shareUrl }) !== false);
 
     if (canNativeShare) {
       try {
         await (navigator as any).share({
           title,
-          text,
           url: shareUrl,
         });
         return;
@@ -90,7 +92,7 @@ export default function ShareButton(props: {
       aria-label="Share"
     >
       <IconShare className="h-4 w-4" />
-      <span>{copied ? "کپی شد" : props.label ?? "اشتراک‌گذاری"}</span>
+      <span>{copied ? "کپی شد" : (props.label ?? "اشتراک‌گذاری")}</span>
     </button>
   );
 }
