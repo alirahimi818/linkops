@@ -17,6 +17,7 @@ import {
   isXUrl,
 } from "../../lib/socialIntents";
 import { IconPin } from "../ui/icons";
+import ShareButton from "../ui/ShareButton";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -54,7 +55,8 @@ export default function ItemList(props: {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
 
   const emptyText = useMemo(() => {
-    if (props.tab === "todo") return "تبریک! فعلا چیزی برای انجام‌دادن نیست، لطفا چند ساعت بعد مجدد بررسی کنید.";
+    if (props.tab === "todo")
+      return "تبریک! فعلا چیزی برای انجام‌دادن نیست، لطفا چند ساعت بعد مجدد بررسی کنید.";
     if (props.tab === "later") return "فعلاً چیزی برای «بعدا» ندارید.";
     if (props.tab === "done") return "هنوز چیزی را انجام‌شده علامت نزده‌اید.";
     if (props.tab === "hidden") return "هیچ آیتمی مخفی نشده است.";
@@ -184,23 +186,37 @@ export default function ItemList(props: {
                           {url}
                         </a>
 
-                        
                         <SplitAction
-                            dir="rtl"
-                            primary={
-                              <CopyPill className="rounded-e-none rounded-s-xl py-2" value={url} label="کپی لینک" dir="auto" />
-                            }
-                            actions={[
-                              {
-                                key: "copyAndTweet",
-                                label: "بازکردن لینک در صفحه جدید",
-                                onClick: async () => {
-                                  window.open(url, "_blank", "noopener,noreferrer");
-                                },
-                                title: "بازکردن لینک در صفحه جدید",
+                          dir="rtl"
+                          primary={
+                            <CopyPill
+                              className="rounded-e-none rounded-s-xl py-2"
+                              value={url}
+                              label="کپی لینک"
+                              dir="auto"
+                            />
+                          }
+                          actions={[
+                            {
+                              key: "copyAndTweet",
+                              label: "بازکردن لینک در صفحه جدید",
+                              onClick: async () => {
+                                window.open(
+                                  url,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
                               },
-                            ]}
-                          />
+                              title: "بازکردن لینک در صفحه جدید",
+                            },
+                          ]}
+                        />
+
+                        <ShareButton
+                          itemId={String(item.id)}
+                          title={String(item.title ?? "")}
+                          label="اشتراک"
+                        />
                       </div>
 
                       <div className="mt-2 text-sm text-zinc-600" dir="auto">

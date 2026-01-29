@@ -39,10 +39,14 @@ export default function Todos() {
   const [sp, setSp] = useSearchParams();
 
   // URL state (source of truth)
+  const itemId = sp.get("item") ?? undefined; // new: item id filter
   const date = sp.get("date") ?? today;
   const tab = safeTab(sp.get("tab"));
   const cat = sp.get("cat"); // category id or "all"
   const view: View = useMemo(() => {
+    if (itemId) {
+      return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
+    }
     if (!cat) return { kind: "categories" };
     if (cat === "all")
       return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
@@ -51,7 +55,7 @@ export default function Todos() {
       categoryId: cat,
       categoryName: sp.get("catName") ?? "دسته",
     };
-  }, [cat, sp]);
+  }, [cat, sp, itemId]);
 
   // Data
   const [items, setItems] = useState<Item[]>([]);
@@ -79,7 +83,7 @@ export default function Todos() {
       try {
         setLoading(true);
         const [it, stDay, stGlobal] = await Promise.all([
-          fetchItems(date),
+          fetchItems(date, itemId),
           getStatusMap({ kind: "date", date }),
           getStatusMap({ kind: "global" }),
         ]);
@@ -94,7 +98,7 @@ export default function Todos() {
     return () => {
       alive = false;
     };
-  }, [date]);
+  }, [date, itemId]);
 
   function getItemStatus(it: any) {
     return isGlobalItem(it) ? globalStatus[it.id] : dayStatus[it.id];
@@ -112,6 +116,8 @@ export default function Todos() {
   }, [items, dayStatus, globalStatus]);
 
   const categories = useMemo<CategoryCard[]>(() => {
+    if (itemId) return [];
+
     const map = new Map<string, CategoryCard>();
 
     for (const i of items as any[]) {
@@ -145,18 +151,24 @@ export default function Todos() {
     });
 
     return [all, ...list];
-  }, [items]);
+  }, [items, itemId]);
 
   const listItems = useMemo(() => {
     if (view.kind !== "list") return [];
-    if (view.categoryId === null) return items;
 
-    if (view.categoryId === "__none__") {
-      return (items as any[]).filter((i) => !i.category_id);
+    let base: any[] = [];
+    if (view.categoryId === null) base = items as any[];
+    else if (view.categoryId === "__none__")
+      base = (items as any[]).filter((i) => !i.category_id);
+    else
+      base = (items as any[]).filter((i) => i.category_id === view.categoryId);
+
+    if (itemId) {
+      return base.filter((i) => String(i.id) === String(itemId));
     }
 
-    return (items as any[]).filter((i) => i.category_id === view.categoryId);
-  }, [items, view]);
+    return base;
+  }, [items, view, itemId]);
 
   function filterByTab(itemsAny: any[], t: ListTab) {
     return itemsAny.filter((i) => {
@@ -217,6 +229,7 @@ export default function Todos() {
     setSp((p) => {
       p.set("date", next);
       p.delete("cat");
+      p.delete("item");
       p.delete("catName");
       p.set("tab", "todo");
       return p;
@@ -262,16 +275,32 @@ export default function Todos() {
   }
 
   const headerRight = (
-    <div className="flex items-center gap-2">
-      <Button variant="secondary" onClick={goNext} title="روز بعد">
-        →
-      </Button>
+    <div>
+      {itemId ? (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setSp((p) => {
+              p.delete("item");
+              return p;
+            });
+          }}
+        >
+         بازگشت به لیست
+        </Button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={goNext} title="روز بعد">
+            →
+          </Button>
 
-      <DatePicker value={date} onChange={setDate} />
+          <DatePicker value={date} onChange={setDate} />
 
-      <Button variant="secondary" onClick={goPrev} title="روز قبل">
-        ←
-      </Button>
+          <Button variant="secondary" onClick={goPrev} title="روز قبل">
+            ←
+          </Button>
+        </div>
+      )}
     </div>
   );
 

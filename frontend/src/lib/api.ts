@@ -170,9 +170,12 @@ async function requestJSON<T>(
    Public (no login)
    ========================= */
 
-export async function fetchItems(date: string): Promise<Item[]> {
+export async function fetchItems(date: string, itemId?: string): Promise<Item[]> {
+  const qs = new URLSearchParams({ date });
+  if (itemId) qs.set("item_id", itemId);
+
   const data = await requestJSON<{ items: Item[] }>(
-    `/api/items?date=${encodeURIComponent(date)}`,
+    `/api/items?${qs.toString()}`,
     undefined,
     { auth: false },
   );
