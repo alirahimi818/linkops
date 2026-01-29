@@ -297,14 +297,14 @@ export default function Todos() {
         </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={goNext} title="روز بعد">
-            <IconChevronRight className="h-4 w-4" />
+          <Button className="px-2!" variant="secondary" onClick={goNext} title="روز بعد">
+            <IconChevronRight className="h-6 w-6" />
           </Button>
 
           <DatePicker value={date} onChange={setDate} />
 
-          <Button variant="secondary" onClick={goPrev} title="روز قبل">
-            <IconChevronLeft className="h-4 w-4" />
+          <Button className="px-2!" variant="secondary" onClick={goPrev} title="روز قبل">
+            <IconChevronLeft className="h-6 w-6" />
           </Button>
         </div>
       )}
