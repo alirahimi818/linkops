@@ -40,6 +40,7 @@ export default function Todos() {
 
   // URL state (source of truth)
   const itemId = sp.get("item") ?? undefined; // new: item id filter
+  const isItemView = !!itemId;
   const date = sp.get("date") ?? today;
   const tab = safeTab(sp.get("tab"));
   const cat = sp.get("cat"); // category id or "all"
@@ -183,13 +184,18 @@ export default function Todos() {
 
   const filtered = useMemo(() => {
     if (view.kind !== "list") return [];
+    if (isItemView) return listItems as any[]; // show the item regardless of tab
     return filterByTab(listItems as any[], tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listItems, tab, view, dayStatus, globalStatus]);
+  }, [listItems, tab, view, isItemView, dayStatus, globalStatus]);
 
   const counts = useMemo(() => {
-    const base = listItems as any[];
+    if (isItemView) {
+      const base = listItems as any[];
+      return { todo: base.length, later: 0, done: 0, hidden: 0 };
+    }
 
+    const base = listItems as any[];
     return {
       todo: filterByTab(base, "todo").length,
       later: filterByTab(base, "later").length,
@@ -197,7 +203,7 @@ export default function Todos() {
       hidden: filterByTab(base, "hidden").length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listItems, dayStatus, globalStatus]);
+  }, [listItems, isItemView, dayStatus, globalStatus]);
 
   const total = items.length;
   const doneCount = useMemo(() => {
@@ -286,7 +292,7 @@ export default function Todos() {
             });
           }}
         >
-         بازگشت به لیست
+          بازگشت به لیست
         </Button>
       ) : (
         <div className="flex items-center gap-2">
@@ -311,8 +317,12 @@ export default function Todos() {
         <div>
           <TopBar
             dir="rtl"
-            title="کارهای امروز"
-            subtitle="یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
+            title={itemId ? "مشاهده فعالیت" : "فعالیت‌ها"}
+            subtitle={
+              itemId
+                ? "شما در حال مشاهده یک فعالیت خاص هستید."
+                : "یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
+            }
             right={headerRight}
           />
 
@@ -343,6 +353,7 @@ export default function Todos() {
       ) : (
         <ItemList
           title={view.categoryName}
+          itemId={itemId ?? null}
           items={filtered as any[]}
           counts={counts}
           tab={tab}

@@ -44,6 +44,7 @@ function isGlobalItem(item: any): boolean {
 
 export default function ItemList(props: {
   title: string;
+  itemId: string | null;
   items: any[];
   counts: { todo: number; later: number; done: number; hidden: number };
   tab: ListTab;
@@ -87,46 +88,51 @@ export default function ItemList(props: {
 
   return (
     <div dir="rtl" className="text-right">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="text-sm text-zinc-600">
-          دسته: <span className="font-medium text-zinc-900">{props.title}</span>
+      {props.itemId ? null : (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm text-zinc-600">
+            دسته:{" "}
+            <span className="font-medium text-zinc-900">{props.title}</span>
+          </div>
+          <Button variant="secondary" onClick={props.onBack}>
+            بازگشت
+          </Button>
         </div>
-        <Button variant="secondary" onClick={props.onBack}>
-          بازگشت
-        </Button>
-      </div>
+      )}
 
-      <Tabs>
-        <TabButton
-          active={props.tab === "todo"}
-          onClick={() => props.onTabChange("todo")}
-          count={props.counts.todo}
-        >
-          انجام‌نشده
-        </TabButton>
-        <TabButton
-          active={props.tab === "later"}
-          onClick={() => props.onTabChange("later")}
-          count={props.counts.later}
-        >
-          بعدا
-        </TabButton>
-        <TabButton
-          active={props.tab === "done"}
-          onClick={() => props.onTabChange("done")}
-          count={props.counts.done}
-        >
-          انجام‌شده
-        </TabButton>
-        <TabButton
-          active={props.tab === "hidden"}
-          onClick={() => props.onTabChange("hidden")}
-          count={props.counts.hidden}
-        >
-          مخفی‌ها
-        </TabButton>
-      </Tabs>
-
+      {props.itemId ? null : (
+        <Tabs>
+          <TabButton
+            active={props.tab === "todo"}
+            onClick={() => props.onTabChange("todo")}
+            count={props.counts.todo}
+          >
+            انجام‌نشده
+          </TabButton>
+          <TabButton
+            active={props.tab === "later"}
+            onClick={() => props.onTabChange("later")}
+            count={props.counts.later}
+          >
+            بعدا
+          </TabButton>
+          <TabButton
+            active={props.tab === "done"}
+            onClick={() => props.onTabChange("done")}
+            count={props.counts.done}
+          >
+            انجام‌شده
+          </TabButton>
+          <TabButton
+            active={props.tab === "hidden"}
+            onClick={() => props.onTabChange("hidden")}
+            count={props.counts.hidden}
+          >
+            مخفی‌ها
+          </TabButton>
+        </Tabs>
+      )}
+      
       <div className="mt-3 space-y-3">
         {props.items.length === 0 ? (
           <Card className="p-6 text-zinc-600">{emptyText}</Card>
