@@ -159,7 +159,7 @@ export default function ShareSheet(props: {
                   اشتراک‌گذاری
                 </div>
                 <div className="mt-1 text-xs text-zinc-500">
-                  لینک این آیتم را ارسال کنید
+                  لینک این فعالیت را از طریق روش‌های زیر به اشتراک بگذارید
                 </div>
               </div>
 
