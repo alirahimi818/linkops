@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { copyText } from "../../lib/clipboard";
 
 import {
@@ -47,10 +48,8 @@ export default function ShareSheet(props: {
   buttonLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  // Separate state for animation (mount -> animate in, animate out -> unmount)
   const [mounted, setMounted] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -75,6 +74,27 @@ export default function ShareSheet(props: {
     return () => window.clearTimeout(t);
   }, [open, mounted]);
 
+  // Scroll lock + focus (iOS/PWA friendly)
+  useEffect(() => {
+    if (!open) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverflow = html.style.overflow;
+
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+
+    window.setTimeout(() => panelRef.current?.focus(), 0);
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      html.style.overflow = prevHtmlOverflow;
+    };
+  }, [open]);
+
   // ESC close
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -82,21 +102,6 @@ export default function ShareSheet(props: {
     }
     if (open) document.addEventListener("keydown", onEsc);
     return () => document.removeEventListener("keydown", onEsc);
-  }, [open]);
-
-  // Focus & scroll lock
-  useEffect(() => {
-    if (!open) return;
-
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    body.style.overflow = "hidden";
-
-    window.setTimeout(() => panelRef.current?.focus(), 0);
-
-    return () => {
-      body.style.overflow = prevOverflow;
-    };
   }, [open]);
 
   async function doCopy() {
@@ -123,7 +128,9 @@ export default function ShareSheet(props: {
 
   function shareTelegram() {
     const t = props.title ? `${props.title}` : "";
-    const u = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(t)}`;
+    const u = `https://t.me/share/url?url=${encodeURIComponent(
+      shareUrl,
+    )}&text=${encodeURIComponent(t)}`;
     openUrl(u);
     setOpen(false);
   }
@@ -145,7 +152,9 @@ export default function ShareSheet(props: {
   function shareEmail() {
     const subject = props.title ?? "Shared item";
     const body = props.title ? `${props.title}\n\n${shareUrl}` : shareUrl;
-    const u = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const u = `mailto:?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
     window.location.href = u;
     setOpen(false);
   }
@@ -165,93 +174,100 @@ export default function ShareSheet(props: {
         <span>{props.buttonLabel ?? "اشتراک"}</span>
       </button>
 
-      {mounted ? (
-        <div className="fixed inset-0 z-[999]">
-          {/* Backdrop */}
-          <div
-            className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${
-              open ? "opacity-100" : "opacity-0"
-            }`}
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-
-          {/* Sheet */}
-          <div className="absolute inset-x-0 bottom-0">
+      {mounted
+        ? createPortal(
             <div
-              ref={panelRef}
-              tabIndex={-1}
-              dir="rtl"
               className={[
-                "mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl outline-none",
-                "transition-transform duration-200 ease-out",
-                open ? "translate-y-0" : "translate-y-6",
+                "fixed inset-0 z-[999]",
+                open ? "pointer-events-auto" : "pointer-events-none",
               ].join(" ")}
+              aria-hidden={!open}
             >
-              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-200" />
-
-              <div className="mb-2 text-right">
-                <div className="text-sm font-semibold text-zinc-900">
-                  اشتراک‌گذاری
-                </div>
-                <div className="mt-1 text-xs text-zinc-500">
-                  لینک این آیتم را از طریق روش‌های زیر به اشتراک بگذارید
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <ActionTile
-                  icon={<IconLink className="h-6 w-6" title="کپی لینک" />}
-                  label={copied ? "کپی شد" : "کپی لینک"}
-                  onClick={doCopy}
-                />
-                <ActionTile
-                  icon={<IconTelegram className="h-6 w-6" title="تلگرام" />}
-                  label="تلگرام"
-                  onClick={shareTelegram}
-                />
-                <ActionTile
-                  icon={<IconWhatsApp className="h-6 w-6" title="واتساپ" />}
-                  label="واتساپ"
-                  onClick={shareWhatsApp}
-                />
-                <ActionTile
-                  icon={<IconX className="h-6 w-6" title="X" />}
-                  label="X"
-                  onClick={shareX}
-                />
-                <ActionTile
-                  icon={<IconMail className="h-6 w-6" title="ایمیل" />}
-                  label="ایمیل"
-                  onClick={shareEmail}
-                />
-                <ActionTile
-                  icon={
-                    <IconShare className="h-6 w-6" title="اشتراک‌گذاری سیستم" />
-                  }
-                  label="سیستم"
-                  onClick={doNativeShare}
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="mt-4 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 hover:bg-zinc-50 transition"
-              >
-                بستن
-              </button>
-
+              {/* Backdrop */}
               <div
-                className="mt-3 text-center text-[11px] text-zinc-400"
-                dir="ltr"
-              >
-                {shareUrl}
+                className={[
+                  "absolute inset-0 bg-black/30 transition-opacity duration-200",
+                  open ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+                onClick={() => setOpen(false)}
+                aria-hidden="true"
+              />
+
+              {/* Sheet */}
+              <div className="absolute inset-x-0 bottom-0">
+                <div
+                  ref={panelRef}
+                  tabIndex={-1}
+                  dir="rtl"
+                  className={[
+                    "mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl outline-none",
+                    "transition-transform duration-200 ease-out",
+                    open ? "translate-y-0" : "translate-y-full",
+                    "pb-[max(16px,env(safe-area-inset-bottom))]",
+                    "max-h-[85vh] overflow-y-auto",
+                  ].join(" ")}
+                >
+                  <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-200" />
+
+                  <div className="mb-2 text-right">
+                    <div className="text-sm font-semibold text-zinc-900">
+                      اشتراک‌گذاری
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      لینک این آیتم را از طریق روش‌های زیر به اشتراک بگذارید
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <ActionTile
+                      icon={<IconLink className="h-6 w-6" title="کپی لینک" />}
+                      label={copied ? "کپی شد" : "کپی لینک"}
+                      onClick={doCopy}
+                    />
+                    <ActionTile
+                      icon={<IconTelegram className="h-6 w-6" title="تلگرام" />}
+                      label="تلگرام"
+                      onClick={shareTelegram}
+                    />
+                    <ActionTile
+                      icon={<IconWhatsApp className="h-6 w-6" title="واتساپ" />}
+                      label="واتساپ"
+                      onClick={shareWhatsApp}
+                    />
+                    <ActionTile
+                      icon={<IconX className="h-6 w-6" title="X" />}
+                      label="X"
+                      onClick={shareX}
+                    />
+                    <ActionTile
+                      icon={<IconMail className="h-6 w-6" title="ایمیل" />}
+                      label="ایمیل"
+                      onClick={shareEmail}
+                    />
+                    <ActionTile
+                      icon={<IconShare className="h-6 w-6" title="اشتراک سیستم" />}
+                      label="سیستم"
+                      onClick={doNativeShare}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="mt-4 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 hover:bg-zinc-50 transition"
+                  >
+                    بستن
+                  </button>
+
+                  <div className="mt-3 text-center text-[11px] text-zinc-400" dir="ltr">
+                    {shareUrl}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
