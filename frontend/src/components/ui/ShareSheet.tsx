@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { copyText } from "../../lib/clipboard";
 
 import {
@@ -50,6 +49,9 @@ export default function ShareSheet(props: {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Separate state for animation (mount -> animate in, animate out -> unmount)
+  const [mounted, setMounted] = useState(false);
+
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const shareUrl = useMemo(() => {
@@ -61,26 +63,17 @@ export default function ShareSheet(props: {
     });
   }, [props.itemId]);
 
-  // Scroll lock + focus (iOS/PWA friendly)
+  // Mount/unmount with exit animation
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    if (!mounted) return;
 
-    const body = document.body;
-    const html = document.documentElement;
-
-    const prevBodyOverflow = body.style.overflow;
-    const prevHtmlOverflow = html.style.overflow;
-
-    body.style.overflow = "hidden";
-    html.style.overflow = "hidden";
-
-    window.setTimeout(() => panelRef.current?.focus(), 0);
-
-    return () => {
-      body.style.overflow = prevBodyOverflow;
-      html.style.overflow = prevHtmlOverflow;
-    };
-  }, [open]);
+    const t = window.setTimeout(() => setMounted(false), 220);
+    return () => window.clearTimeout(t);
+  }, [open, mounted]);
 
   // ESC close
   useEffect(() => {
@@ -89,6 +82,21 @@ export default function ShareSheet(props: {
     }
     if (open) document.addEventListener("keydown", onEsc);
     return () => document.removeEventListener("keydown", onEsc);
+  }, [open]);
+
+  // Focus & scroll lock
+  useEffect(() => {
+    if (!open) return;
+
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+
+    window.setTimeout(() => panelRef.current?.focus(), 0);
+
+    return () => {
+      body.style.overflow = prevOverflow;
+    };
   }, [open]);
 
   async function doCopy() {
@@ -115,9 +123,7 @@ export default function ShareSheet(props: {
 
   function shareTelegram() {
     const t = props.title ? `${props.title}` : "";
-    const u = `https://t.me/share/url?url=${encodeURIComponent(
-      shareUrl,
-    )}&text=${encodeURIComponent(t)}`;
+    const u = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(t)}`;
     openUrl(u);
     setOpen(false);
   }
@@ -139,9 +145,7 @@ export default function ShareSheet(props: {
   function shareEmail() {
     const subject = props.title ?? "Shared item";
     const body = props.title ? `${props.title}\n\n${shareUrl}` : shareUrl;
-    const u = `mailto:?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(body)}`;
+    const u = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = u;
     setOpen(false);
   }
@@ -161,21 +165,15 @@ export default function ShareSheet(props: {
         <span>{props.buttonLabel ?? "اشتراک"}</span>
       </button>
 
-      {createPortal(
-        <div
-          className={[
-            "fixed inset-0 z-[999] transition",
-            open ? "pointer-events-auto" : "pointer-events-none",
-          ].join(" ")}
-          aria-hidden={!open}
-        >
+      {mounted ? (
+        <div className="fixed inset-0 z-[999]">
           {/* Backdrop */}
           <div
-            className={[
-              "absolute inset-0 bg-black/30 transition-opacity duration-200",
-              open ? "opacity-100" : "opacity-0",
-            ].join(" ")}
+            className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${
+              open ? "opacity-100" : "opacity-0"
+            }`}
             onClick={() => setOpen(false)}
+            aria-hidden="true"
           />
 
           {/* Sheet */}
@@ -188,8 +186,6 @@ export default function ShareSheet(props: {
                 "mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl outline-none",
                 "transition-transform duration-200 ease-out",
                 open ? "translate-y-0" : "translate-y-6",
-                "pb-[max(16px,env(safe-area-inset-bottom))]",
-                "max-h-[85vh] overflow-y-auto",
               ].join(" ")}
             >
               <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-200" />
@@ -230,7 +226,9 @@ export default function ShareSheet(props: {
                   onClick={shareEmail}
                 />
                 <ActionTile
-                  icon={<IconShare className="h-6 w-6" title="اشتراک سیستم" />}
+                  icon={
+                    <IconShare className="h-6 w-6" title="اشتراک‌گذاری سیستم" />
+                  }
                   label="سیستم"
                   onClick={doNativeShare}
                 />
@@ -244,14 +242,16 @@ export default function ShareSheet(props: {
                 بستن
               </button>
 
-              <div className="mt-3 text-center text-[11px] text-zinc-400" dir="ltr">
+              <div
+                className="mt-3 text-center text-[11px] text-zinc-400"
+                dir="ltr"
+              >
                 {shareUrl}
               </div>
             </div>
           </div>
-        </div>,
-        document.body,
-      )}
+        </div>
+      ) : null}
     </>
   );
 }
