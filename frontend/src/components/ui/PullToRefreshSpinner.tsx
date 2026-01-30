@@ -1,12 +1,25 @@
 export default function PullToRefreshSpinner(props: {
-  visible: boolean;
+  progress: number; // 0..1
+  refreshing: boolean; // true when refresh started
 }) {
-  if (!props.visible) return null;
+  const visible = props.progress > 0 || props.refreshing;
+  if (!visible) return null;
+
+  const scale = 0.85 + Math.min(props.progress, 1) * 0.15;
+  const opacity = 0.25 + Math.min(props.progress, 1) * 0.75;
+  const rotate = props.refreshing ? "animate-spin" : "";
 
   return (
-    <div className="fixed top-2 left-0 right-0 z-50 flex justify-center pointer-events-none">
+    <div
+      className="fixed top-2 left-0 right-0 z-50 flex justify-center pointer-events-none"
+      style={{
+        transform: `translateY(${Math.min(props.progress, 1) * 18}px) scale(${scale})`,
+        opacity,
+        transition: props.refreshing ? "opacity 120ms ease-out" : "none",
+      }}
+    >
       <svg
-        className="h-5 w-5 animate-spin text-zinc-400"
+        className={["h-5 w-5 text-zinc-400", rotate].join(" ")}
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

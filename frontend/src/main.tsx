@@ -9,11 +9,12 @@ import Admin from "./pages/Admin";
 import SuperAdmin from "./pages/SuperAdmin";
 import HashtagsPage from "./pages/Hashtags";
 import Todos from "./pages/Todos";
-
+import GlobalLoadingOverlay from "./components/ui/GlobalLoadingOverlay";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
+      <GlobalLoadingOverlay />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/todos" element={<Todos />} />

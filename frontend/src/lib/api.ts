@@ -1,5 +1,7 @@
 // frontend/src/lib/api.ts
 
+import { loadingStart, loadingStop } from "./loadingStore";
+
 /**
  * Notes:
  * - Public endpoints do NOT use auth token.
@@ -131,46 +133,52 @@ async function requestJSON<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // If sending body, enforce JSON content-type unless caller set it
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(input, { ...init, headers });
+  loadingStart();
+  try {
+    const res = await fetch(input, { ...init, headers });
 
-  // Try to read JSON, even on errors (to get server error message)
-  const text = await res.text();
+    const text = await res.text();
 
-  let data: any = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = null;
+    let data: any = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
     }
+
+    if (!res.ok) {
+      const msg =
+        (data && (data.error || data.message)) ||
+        (text
+          ? `Request failed (${res.status}): ${text.slice(0, 200)}`
+          : `Request failed (${res.status})`);
+
+      const err: any = new Error(msg);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+
+    return data as T;
+  } finally {
+    loadingStop();
   }
-
-  if (!res.ok) {
-    const msg =
-      (data && (data.error || data.message)) ||
-      (text
-        ? `Request failed (${res.status}): ${text.slice(0, 200)}`
-        : `Request failed (${res.status})`);
-
-    const err: any = new Error(msg);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-
-  return data as T;
 }
 
 /* =========================
    Public (no login)
    ========================= */
 
-export async function fetchItems(date: string, itemId?: string): Promise<Item[]> {
+export async function fetchItems(
+  date: string,
+  itemId?: string,
+): Promise<Item[]> {
   const qs = new URLSearchParams({ date });
   if (itemId) qs.set("item_id", itemId);
 

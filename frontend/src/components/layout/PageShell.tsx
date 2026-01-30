@@ -3,6 +3,7 @@ import OfflineBanner from "../ui/OfflineBanner";
 import PullToRefreshSpinner from "../ui/PullToRefreshSpinner";
 import { useNativeLikePullToRefresh } from "../../hooks/useNativeLikePullToRefresh";
 import PullToRefreshWrap from "../ui/PullToRefreshWrap";
+import { loadingForceOn } from "../../lib/loadingStore";
 
 export default function PageShell(props: {
   children: React.ReactNode;
@@ -15,13 +16,16 @@ export default function PageShell(props: {
   const maxW = props.maxWidthClassName ?? "max-w-3xl";
   const dir = props.dir ?? "rtl";
 
-  const { offset, isAnimatingBack, isRefreshingUI } =
-    useNativeLikePullToRefresh(() => window.location.reload());
+  const { offset, progress, isAnimating, isRefreshingUI } =
+    useNativeLikePullToRefresh(() => {
+      loadingForceOn();
+      window.location.reload();
+    });
 
   return (
     <>
-      <PullToRefreshSpinner visible={isRefreshingUI} />
-      <PullToRefreshWrap offset={offset} isAnimatingBack={isAnimatingBack}>
+      <PullToRefreshSpinner progress={progress} refreshing={isRefreshingUI} />
+      <PullToRefreshWrap offset={offset} isAnimating={isAnimating}>
         <div
           dir={dir}
           className={[

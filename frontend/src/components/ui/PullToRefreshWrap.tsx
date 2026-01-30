@@ -2,14 +2,14 @@ import type React from "react";
 
 export default function PullToRefreshWrap(props: {
   offset: number;
-  isAnimatingBack: boolean;
+  isAnimating: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       style={{
         transform: `translateY(${props.offset}px)`,
-        transition: props.isAnimatingBack ? "transform 200ms ease-out" : "none",
+        transition: props.isAnimating ? "transform 200ms ease-out" : "none",
         willChange: "transform",
       }}
     >

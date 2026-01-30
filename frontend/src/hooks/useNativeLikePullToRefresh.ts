@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 type Options = {
   enabled?: boolean;
-  threshold?: number; // px required to trigger refresh
-  maxPull?: number; // max visual pull distance
+  threshold?: number; // px to trigger refresh
+  maxPull?: number;   // max visual pull distance
+  resistance?: number; // 0..1 (lower => heavier)
 };
 
 export function useNativeLikePullToRefresh(
@@ -12,31 +13,32 @@ export function useNativeLikePullToRefresh(
 ) {
   const enabled = opts?.enabled ?? true;
   const threshold = opts?.threshold ?? 90;
-  const maxPull = opts?.maxPull ?? 140;
+  const maxPull = opts?.maxPull ?? 160;
+  const resistance = opts?.resistance ?? 0.55;
 
   const startY = useRef<number | null>(null);
   const pulling = useRef(false);
   const refreshing = useRef(false);
 
   const [offset, setOffset] = useState(0);
-  const [isAnimatingBack, setIsAnimatingBack] = useState(false);
-
+  const [isAnimating, setIsAnimating] = useState(false);
   const [isRefreshingUI, setIsRefreshingUI] = useState(false);
+
+  const progress = Math.min(offset / threshold, 1);
+
+  function atTop() {
+    return window.scrollY <= 0;
+  }
 
   useEffect(() => {
     if (!enabled) return;
 
-    function atTop() {
-      return window.scrollY <= 0;
-    }
-
     function onTouchStart(e: TouchEvent) {
       if (!atTop()) return;
       if (refreshing.current) return;
-
       startY.current = e.touches[0].clientY;
       pulling.current = true;
-      setIsAnimatingBack(false);
+      setIsAnimating(false);
     }
 
     function onTouchMove(e: TouchEvent) {
@@ -51,20 +53,18 @@ export function useNativeLikePullToRefresh(
         return;
       }
 
-      // Prevent native scroll bounce to make it feel like an app
+      // Prevent native bounce to feel app-like
       e.preventDefault();
 
-      // Add resistance (feels native)
-      const resisted = Math.min(
-        maxPull,
-        raw * 0.55 + raw * 0.15 * (raw / maxPull),
-      );
-      setOffset(resisted);
+      // Resistance curve (more pull => harder)
+      const eased = raw * resistance;
+      const extra = Math.max(0, eased - threshold);
+      const curved = threshold + extra * 0.35; // harder after threshold
+      setOffset(Math.min(maxPull, curved));
     }
 
     async function endPull() {
       if (!pulling.current) return;
-
       pulling.current = false;
       startY.current = null;
 
@@ -74,32 +74,34 @@ export function useNativeLikePullToRefresh(
         refreshing.current = true;
         setIsRefreshingUI(true);
 
-        setIsAnimatingBack(true);
+        // Snap to threshold (like native apps)
+        setIsAnimating(true);
         setOffset(threshold);
 
+        // Trigger refresh a tick later so UI snaps first
         window.setTimeout(async () => {
           try {
             await onRefresh();
           } finally {
+            // If onRefresh does not hard reload, reset
             refreshing.current = false;
             setIsRefreshingUI(false);
-            setIsAnimatingBack(true);
+            setIsAnimating(true);
             setOffset(0);
-            window.setTimeout(() => setIsAnimatingBack(false), 220);
+            window.setTimeout(() => setIsAnimating(false), 220);
           }
         }, 120);
 
         return;
       }
 
-      // Not enough pull -> animate back
-      setIsAnimatingBack(true);
+      // Animate back
+      setIsAnimating(true);
       setOffset(0);
-      window.setTimeout(() => setIsAnimatingBack(false), 220);
+      window.setTimeout(() => setIsAnimating(false), 220);
     }
 
     window.addEventListener("touchstart", onTouchStart, { passive: true });
-    // NOTE: must be passive:false so we can preventDefault()
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("touchend", endPull);
     window.addEventListener("touchcancel", endPull);
@@ -111,11 +113,12 @@ export function useNativeLikePullToRefresh(
       window.removeEventListener("touchcancel", endPull);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, threshold, maxPull, offset]);
+  }, [enabled, threshold, maxPull, resistance, offset]);
 
   return {
-  offset,
-  isAnimatingBack,
-  isRefreshingUI,
-};
+    offset,
+    progress,
+    isAnimating,
+    isRefreshingUI,
+  };
 }
