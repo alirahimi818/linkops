@@ -7,7 +7,14 @@ import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnounceme
 import OfflineBanner from "../components/ui/OfflineBanner";
 
 import { getTodayRemainingCount } from "../lib/homeBadge";
-import { IconExternal, IconHashtag, IconList, IconMail, IconMap } from "../components/ui/icons";
+import {
+  IconExternal,
+  IconHashtag,
+  IconList,
+  IconMail,
+  IconMap,
+} from "../components/ui/icons";
+import { isIOSStandalonePWA } from "../lib/openExternal";
 
 type MenuItem = {
   title: string;
@@ -37,6 +44,7 @@ function BadgeCorner(props: { count: number; title?: string }) {
 }
 
 function MenuCard({ item }: { item: MenuItem }) {
+  const isPwaIOS = isIOSStandalonePWA();
   const content = (
     <div className="relative">
       {typeof item.badgeCount === "number" ? (
@@ -73,7 +81,19 @@ function MenuCard({ item }: { item: MenuItem }) {
 
   if (item.external) {
     return (
-      <a href={item.href} target="_blank" rel="noreferrer" className="block">
+      <a
+        href={item.href}
+        target={isPwaIOS ? undefined : "_blank"}
+        onClick={(e) => {
+          if (isPwaIOS) {
+            return;
+          }
+          e.preventDefault();
+          window.open(item.href, "_blank", "noopener,noreferrer");
+        }}
+        rel="noreferrer"
+        className="block"
+      >
         {content}
       </a>
     );

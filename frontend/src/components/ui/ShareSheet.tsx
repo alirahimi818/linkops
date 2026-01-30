@@ -10,6 +10,7 @@ import {
   IconWhatsApp,
   IconX,
 } from "./icons";
+import { openExternal } from "../../lib/openExternal";
 
 function buildShareUrl(params: Record<string, string | undefined>) {
   const url = new URL(window.location.href);
@@ -38,7 +39,7 @@ function canNativeShare(url: string) {
 }
 
 function openUrl(u: string) {
-  window.open(u, "_blank", "noopener,noreferrer");
+  openExternal(u);
 }
 
 export default function ShareSheet(props: {
@@ -245,7 +246,9 @@ export default function ShareSheet(props: {
                       onClick={shareEmail}
                     />
                     <ActionTile
-                      icon={<IconShare className="h-6 w-6" title="اشتراک سیستم" />}
+                      icon={
+                        <IconShare className="h-6 w-6" title="اشتراک سیستم" />
+                      }
                       label="سیستم"
                       onClick={doNativeShare}
                     />
@@ -259,7 +262,10 @@ export default function ShareSheet(props: {
                     بستن
                   </button>
 
-                  <div className="mt-3 text-center text-[11px] text-zinc-400" dir="ltr">
+                  <div
+                    className="mt-3 text-center text-[11px] text-zinc-400"
+                    dir="ltr"
+                  >
                     {shareUrl}
                   </div>
                 </div>

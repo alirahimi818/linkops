@@ -18,6 +18,7 @@ import {
 } from "../../lib/socialIntents";
 import { IconPin } from "../ui/icons";
 import ShareSheet from "../ui/ShareSheet";
+import { isIOSStandalonePWA, openExternal } from "../../lib/openExternal";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -74,7 +75,7 @@ export default function ItemList(props: {
 
   function openTweet(text: string) {
     const url = buildXIntentTweetUrl(text);
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternal(url);
   }
 
   function openReply(itemUrl: string, text: string) {
@@ -83,7 +84,7 @@ export default function ItemList(props: {
       openTweet(text);
       return;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternal(url);
   }
 
   return (
@@ -146,6 +147,8 @@ export default function ItemList(props: {
 
             const xEnabled = isXUrl(url);
             const pinned = isGlobalItem(item);
+            
+            const isPwaIOS = isIOSStandalonePWA();
 
             return (
               <Card key={item.id} className="relative">
@@ -184,7 +187,14 @@ export default function ItemList(props: {
                       <div className="mt-1 flex items-center gap-2">
                         <a
                           href={url}
-                          target="_blank"
+                          target={isPwaIOS ? undefined : "_blank"}
+                          onClick={(e) => {
+                            if (isPwaIOS) {
+                              return;
+                            }
+                            e.preventDefault();
+                            window.open(url, "_blank", "noopener,noreferrer");
+                          }}
                           rel="noreferrer"
                           className="min-w-0 truncate text-sm text-zinc-600 underline"
                           dir="ltr"
@@ -207,11 +217,7 @@ export default function ItemList(props: {
                               key: "copyAndTweet",
                               label: "بازکردن لینک در صفحه جدید",
                               onClick: async () => {
-                                window.open(
-                                  url,
-                                  "_blank",
-                                  "noopener,noreferrer",
-                                );
+                                openExternal(url);
                               },
                               title: "بازکردن لینک در صفحه جدید",
                             },
