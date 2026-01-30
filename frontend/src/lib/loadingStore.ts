@@ -115,4 +115,4 @@ export function loadingReset() {
   minVisibleTimer = null;
   hideTimer = null;
   if (active) emit(false);
-}ظ
+}
