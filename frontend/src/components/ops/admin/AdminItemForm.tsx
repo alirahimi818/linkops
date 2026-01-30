@@ -216,7 +216,7 @@ export default function AdminItemForm(props: {
             onChange={props.setComments}
             whitelist={props.whitelist}
             maxItems={50}
-            maxLen={280}
+            maxLen={1000}
           />
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
