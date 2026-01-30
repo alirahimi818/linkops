@@ -83,7 +83,7 @@ export default function ShareSheet(props: {
       body.style.overflow = prevBodyOverflow;
       html.style.overflow = prevHtmlOverflow;
     };
-  }, [open]);
+  }, [open, mounted]);
 
   // ESC close
   useEffect(() => {
