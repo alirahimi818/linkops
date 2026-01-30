@@ -297,13 +297,23 @@ export default function Todos() {
         </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <Button className="px-2!" variant="secondary" onClick={goNext} title="روز بعد">
+          <Button
+            className="px-2!"
+            variant="secondary"
+            onClick={goNext}
+            title="روز بعد"
+          >
             <IconChevronRight className="h-6 w-6" />
           </Button>
 
           <DatePicker value={date} onChange={setDate} />
 
-          <Button className="px-2!" variant="secondary" onClick={goPrev} title="روز قبل">
+          <Button
+            className="px-2!"
+            variant="secondary"
+            onClick={goPrev}
+            title="روز قبل"
+          >
             <IconChevronLeft className="h-6 w-6" />
           </Button>
         </div>
@@ -331,7 +341,9 @@ export default function Todos() {
             <div className="h-2 w-full rounded bg-zinc-200">
               <div
                 className="h-2 rounded bg-zinc-900"
-                style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }}
+                style={{
+                  width: `${total ? (doneCount / total) * 100 : 0}%`,
+                }}
               />
             </div>
             <div className="mt-2 text-xs text-zinc-500">
