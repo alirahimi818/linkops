@@ -3,49 +3,71 @@ type Listener = (active: boolean) => void;
 let inFlight = 0;
 let active = false;
 
-let showTimer: number | null = null;
-let minVisibleTimer: number | null = null;
-
 const listeners = new Set<Listener>();
 
-const SHOW_DELAY_MS = 120;      // don't show overlay for very fast requests
-const MIN_VISIBLE_MS = 250;     // once shown, keep it at least this long
+// Tuning
+const SHOW_DELAY_MS = 120;     // don't show overlay for very fast requests
+const MIN_VISIBLE_MS = 250;    // once shown, keep visible at least this long
+const HIDE_DELAY_MS = 250;     // when inFlight hits 0, wait before hiding (prevents flicker)
+
+let showTimer: number | null = null;
+let minVisibleTimer: number | null = null;
+let hideTimer: number | null = null;
 
 function emit(next: boolean) {
   active = next;
   for (const l of listeners) l(active);
 }
 
-function clearTimer(t: number | null) {
+function clear(t: number | null) {
   if (t !== null) window.clearTimeout(t);
 }
 
-export function subscribeLoading(fn: Listener) {
+export function subscribeLoading(fn: Listener): () => void {
   listeners.add(fn);
   fn(active);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+function scheduleHideIfIdle() {
+  // Only hide if currently visible and no min-visible lock and no inflight
+  if (!active) return;
+  if (inFlight > 0) return;
+  if (minVisibleTimer !== null) return;
+
+  clear(hideTimer);
+  hideTimer = window.setTimeout(() => {
+    hideTimer = null;
+    if (inFlight === 0 && minVisibleTimer === null) emit(false);
+  }, HIDE_DELAY_MS);
 }
 
 export function loadingStart() {
   inFlight += 1;
 
-  // If already visible or scheduled, do nothing
-  if (active || showTimer !== null) return;
+  // If a hide was pending, cancel it (new work arrived)
+  clear(hideTimer);
+  hideTimer = null;
 
-  // Schedule showing (debounce)
+  // If already visible, we're done
+  if (active) return;
+
+  // If already scheduled to show, keep it
+  if (showTimer !== null) return;
+
   showTimer = window.setTimeout(() => {
     showTimer = null;
-
-    // Only show if still in-flight
     if (inFlight > 0 && !active) {
       emit(true);
 
       // Start min-visible lock
-      clearTimer(minVisibleTimer);
+      clear(minVisibleTimer);
       minVisibleTimer = window.setTimeout(() => {
         minVisibleTimer = null;
-        // If no requests by now, hide
-        if (inFlight === 0) emit(false);
+        // If nothing in-flight at end of min visible, hide (with cooldown)
+        scheduleHideIfIdle();
       }, MIN_VISIBLE_MS);
     }
   }, SHOW_DELAY_MS);
@@ -54,33 +76,43 @@ export function loadingStart() {
 export function loadingStop() {
   inFlight = Math.max(0, inFlight - 1);
 
-  // If we haven't shown yet and no requests remain -> cancel showing
-  if (inFlight === 0 && showTimer !== null) {
-    clearTimer(showTimer);
+  // If no requests remain and overlay not shown yet -> cancel scheduled show
+  if (inFlight === 0 && !active && showTimer !== null) {
+    clear(showTimer);
     showTimer = null;
     return;
   }
 
-  // If overlay is visible:
-  if (active) {
-    // If min-visible timer is still running, wait for it
-    if (minVisibleTimer !== null) return;
-
-    // Otherwise hide immediately when no requests remain
-    if (inFlight === 0) emit(false);
+  // If visible and we're idle -> hide with cooldown (prevents off/on between chained requests)
+  if (inFlight === 0) {
+    scheduleHideIfIdle();
   }
-}
-
-export function loadingReset() {
-  inFlight = 0;
-  clearTimer(showTimer);
-  clearTimer(minVisibleTimer);
-  showTimer = null;
-  minVisibleTimer = null;
-  if (active) emit(false);
 }
 
 export function loadingForceOn() {
   // Cancel timers, force visible
+  clear(showTimer);
+  clear(hideTimer);
+  showTimer = null;
+  hideTimer = null;
+
   if (!active) emit(true);
+
+  // keep minVisible lock simple
+  clear(minVisibleTimer);
+  minVisibleTimer = window.setTimeout(() => {
+    minVisibleTimer = null;
+    scheduleHideIfIdle();
+  }, MIN_VISIBLE_MS);
 }
+
+export function loadingReset() {
+  inFlight = 0;
+  clear(showTimer);
+  clear(minVisibleTimer);
+  clear(hideTimer);
+  showTimer = null;
+  minVisibleTimer = null;
+  hideTimer = null;
+  if (active) emit(false);
+}ظ
