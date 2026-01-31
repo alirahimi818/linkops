@@ -64,14 +64,6 @@ function authorTypeLabel(authorType: string | null) {
   return authorType;
 }
 
-function authorTypeBadgeVariant(authorType: string | null): "default" | "success" | "warning" | "info" {
-  const t = (authorType ?? "").toLowerCase().trim();
-  if (t === "ai") return "info";
-  if (t === "user") return "warning";
-  if (t === "admin" || t === "editor" || t === "superadmin") return "success";
-  return "default";
-}
-
 export default function AdminItemList(props: {
   date: string;
   items: any[];
@@ -191,7 +183,7 @@ export default function AdminItemList(props: {
                               >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   {label ? (
-                                    <Badge variant={authorTypeBadgeVariant(c.author_type)}>
+                                    <Badge key={`${idx}:${c.text.slice(0, 16)}:badge`}>
                                       {label}
                                     </Badge>
                                   ) : (
