@@ -234,10 +234,6 @@ export default function CommentsEditor({
               </button>
             ))}
           </div>
-
-          <div className="mt-2 text-xs text-zinc-500">
-            با ۲ کاراکتر پیشنهاد می‌دهد؛ حتی با یک غلط تایپی هم نزدیک‌ترین‌ها را نشان می‌دهد.
-          </div>
         </div>
       ) : null}
 

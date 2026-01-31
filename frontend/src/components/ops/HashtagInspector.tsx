@@ -142,10 +142,6 @@ export default function HashtagInspector({
             <div className="mb-2 text-sm font-medium text-red-800">
               مشکلات هشتگ ({issues.length})
             </div>
-            <div className="mb-2 text-xs text-red-700">
-              نکته: suggestion باید همان tag واقعی دیتابیس (camelCase / فارسی) باشد.
-              {pruneUnknownOnReplace ? " • در حالت جایگزینی، ناشناخته‌ها هم حذف می‌شوند." : null}
-            </div>
 
             <ul className="list-disc ps-5 text-sm text-red-700 space-y-1">
               {issues.map((i, idx) => (
