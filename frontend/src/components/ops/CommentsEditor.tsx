@@ -38,7 +38,7 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
 function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   if (whitelist.size === 0) return text;
 
-  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (full, lead, tag) => {
+  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (_full, lead, tag) => {
     const t = String(tag ?? "").trim();
     if (!t) return lead;
     if (whitelist.has(t)) return `${lead}#${t}`;
