@@ -416,12 +416,12 @@ export default function CommentsEditor({
             return (
               <Card key={idx}>
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" onClick={() => removeAt(idx)}>
+                  <div className="flex flex-col justify-center items-center gap-2">
+                    <Button className="w-full" variant="danger" onClick={() => removeAt(idx)}>
                       حذف
                     </Button>
 
-                    <Button variant="secondary" onClick={() => startEdit(idx)}>
+                    <Button className="w-full" variant="secondary" onClick={() => startEdit(idx)}>
                       ویرایش
                     </Button>
                   </div>
@@ -431,12 +431,6 @@ export default function CommentsEditor({
                       <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
                         {c.text}
                       </div>
-
-                      {hasNonEmptyTranslation(c) ? (
-                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700">
-                          ترجمه دارد
-                        </span>
-                      ) : null}
                     </div>
 
                     {hasIssues ? (
