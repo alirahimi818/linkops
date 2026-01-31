@@ -19,6 +19,7 @@ import {
 import { IconPin } from "../ui/icons";
 import ShareSheet from "../ui/ShareSheet";
 import { isIOSStandalonePWA, openExternal } from "../../lib/openExternal";
+import CommentRowUI from "./CommentRowUI";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -341,62 +342,14 @@ export default function ItemList(props: {
                                   key={cid}
                                   className="rounded-lg border border-zinc-200 bg-white p-3"
                                 >
-                                  <div className="flex flex-col gap-3">
-                                    {/* Original text */}
-                                    <div
-                                      className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
-                                      dir="auto"
-                                    >
-                                      {t}
-                                    </div>
-
-                                    {/* Translation (display only) */}
-                                    {tr ? (
-                                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                                        <div className="mb-1 text-xs font-medium text-zinc-700">
-                                          ترجمه
-                                        </div>
-                                        <div
-                                          className="whitespace-pre-wrap text-sm text-zinc-700"
-                                          dir="rtl"
-                                        >
-                                          {tr}
-                                        </div>
-                                      </div>
-                                    ) : null}
-
-                                    {/* Actions must use ORIGINAL text */}
-                                    <div className="flex flex-wrap items-center gap-2 justify-around md:justify-start border-t pt-3 border-zinc-200">
-                                      <CopyPill
-                                        value={t}
-                                        label="کپی"
-                                        dir="auto"
-                                        className="rounded-xl py-2 text-sm"
-                                      />
-
-                                      <Button
-                                        className="text-xs"
-                                        variant="secondary"
-                                        onClick={() => openTweet(t)}
-                                        title="ساخت توییت با این متن"
-                                      >
-                                        توییت
-                                      </Button>
-
-                                      <Button
-                                        className="text-xs"
-                                        variant="secondary"
-                                        onClick={() => openReply(url, t)}
-                                        title={
-                                          xEnabled
-                                            ? "ریپلای به همان توییت"
-                                            : "این لینک استتوس نیست، به توییت معمولی می‌رود"
-                                        }
-                                      >
-                                        ریپلای
-                                      </Button>
-                                    </div>
-                                  </div>
+                                  <CommentRowUI
+                                    text={t}
+                                    translation={tr}
+                                    url={url}
+                                    xEnabled={xEnabled}
+                                    onOpenTweet={openTweet}
+                                    onOpenReply={openReply}
+                                  />
                                 </div>
                               );
                             })}
