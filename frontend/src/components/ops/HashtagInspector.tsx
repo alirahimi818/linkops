@@ -10,6 +10,9 @@ type Props = {
   text: string;
   whitelist: Set<string>; // MUST contain original tags (camelCase / فارسی), without '#'
   onReplaceText: (next: string) => void;
+
+  // If true: on replace, also remove unknown hashtags
+  pruneUnknownOnReplace?: boolean;
 };
 
 function escapeRegExp(s: string) {
@@ -42,7 +45,31 @@ function applySuggestedReplacementsSafe(text: string, issues: HashtagIssue[]) {
   return out;
 }
 
-export default function HashtagInspector({ title, text, whitelist, onReplaceText }: Props) {
+function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
+  if (whitelist.size === 0) return text;
+
+  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (full, lead, tag) => {
+    const t = String(tag ?? "").trim();
+    if (!t) return lead;
+    if (whitelist.has(t)) return `${lead}#${t}`;
+    return lead;
+  });
+
+  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function applySuggestedReplacementsAndPruneUnknown(text: string, issues: HashtagIssue[], whitelist: Set<string>) {
+  const replaced = applySuggestedReplacementsSafe(text, issues);
+  return pruneUnknownHashtags(replaced, whitelist);
+}
+
+export default function HashtagInspector({
+  title,
+  text,
+  whitelist,
+  onReplaceText,
+  pruneUnknownOnReplace = false,
+}: Props) {
   const [showWhitelist, setShowWhitelist] = useState(false);
   const [whitelistQuery, setWhitelistQuery] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -71,8 +98,10 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
     if (!text.trim() || whitelist.size === 0) return;
     if (issues.length === 0) return;
 
-    const next = applySuggestedReplacementsSafe(text, issues);
-    // Even if nothing changes, calling onReplaceText is harmless but we can avoid no-op
+    const next = pruneUnknownOnReplace
+      ? applySuggestedReplacementsAndPruneUnknown(text, issues, whitelist)
+      : applySuggestedReplacementsSafe(text, issues);
+
     if (next !== text) onReplaceText(next);
   }
 
@@ -85,10 +114,10 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
 
         <div className="flex flex-wrap items-center gap-2">
           <ActionPill
-            title="جایگزینی پیشنهادها"
+            title={pruneUnknownOnReplace ? "جایگزینی پیشنهادها + حذف ناشناخته‌ها" : "جایگزینی پیشنهادها"}
             onClick={doReplace}
             successKey="replace"
-            className={fixableCount === 0 ? "opacity-50 pointer-events-none" : ""}
+            className={fixableCount === 0 && !pruneUnknownOnReplace ? "opacity-50 pointer-events-none" : ""}
           >
             جایگزینی
           </ActionPill>
@@ -110,8 +139,12 @@ export default function HashtagInspector({ title, text, whitelist, onReplaceText
           </div>
         ) : (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-            <div className="mb-2 text-sm نکته: suggestion باید camelCase دیتابیس باشد. font-medium text-red-800">
+            <div className="mb-2 text-sm font-medium text-red-800">
               مشکلات هشتگ ({issues.length})
+            </div>
+            <div className="mb-2 text-xs text-red-700">
+              نکته: suggestion باید همان tag واقعی دیتابیس (camelCase / فارسی) باشد.
+              {pruneUnknownOnReplace ? " • در حالت جایگزینی، ناشناخته‌ها هم حذف می‌شوند." : null}
             </div>
 
             <ul className="list-disc ps-5 text-sm text-red-700 space-y-1">

@@ -31,6 +31,113 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
   return applySuggestedReplacements(comment, issues);
 }
 
+/**
+ * Remove unknown hashtags after replacements.
+ * Keeps whitespace and normal text, removes tokens like "#UnknownTag".
+ */
+function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
+  if (whitelist.size === 0) return text;
+
+  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (full, lead, tag) => {
+    const t = String(tag ?? "").trim();
+    if (!t) return lead;
+    if (whitelist.has(t)) return `${lead}#${t}`;
+    return lead;
+  });
+
+  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Detect last hashtag fragment at the end of the textarea (active typing token).
+ * Example: "hello #Ir" => fragment "Ir"
+ */
+function getActiveHashtagFragment(text: string) {
+  const m = text.match(/(^|\s)#([^\s#]{1,80})$/u);
+  if (!m) return null;
+  return { fragment: (m[2] ?? "").trim() };
+}
+
+/**
+ * Damerau-Levenshtein distance with early exit (small threshold).
+ * Useful for "one typo" suggestions.
+ */
+function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
+
+  const al = a.length;
+  const bl = b.length;
+
+  // Small strings -> cheap DP with early exit
+  const dp: number[][] = Array.from({ length: al + 1 }, () => new Array(bl + 1).fill(0));
+  for (let i = 0; i <= al; i++) dp[i][0] = i;
+  for (let j = 0; j <= bl; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= al; i++) {
+    let rowMin = Infinity;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+
+      let val = Math.min(
+        dp[i - 1][j] + 1, // deletion
+        dp[i][j - 1] + 1, // insertion
+        dp[i - 1][j - 1] + cost // substitution
+      );
+
+      // transposition
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        val = Math.min(val, dp[i - 2][j - 2] + cost);
+      }
+
+      dp[i][j] = val;
+      if (val < rowMin) rowMin = val;
+    }
+
+    if (rowMin > maxDist) return maxDist + 1;
+  }
+
+  return dp[al][bl];
+}
+
+function scoreCandidate(query: string, candidate: string) {
+  const q = query.toLocaleLowerCase();
+  const c = candidate.toLocaleLowerCase();
+
+  if (c === q) return 1000;
+  if (c.startsWith(q)) return 900 - Math.min(200, c.length);
+  if (c.includes(q)) return 700 - Math.min(200, c.length);
+
+  // typo tolerance:
+  // for short queries (2-4), allow distance <= 1
+  // for longer (>=5), allow distance <= 2
+  const maxDist = q.length <= 4 ? 1 : 2;
+  const dist = damerauLevenshteinWithin(q, c.slice(0, Math.max(q.length, Math.min(c.length, q.length + 2))), maxDist);
+  if (dist <= maxDist) return 500 - dist * 50 - Math.min(200, c.length);
+
+  return -Infinity;
+}
+
+function buildHashtagSuggestions(fragment: string, whitelist: Set<string>, limit = 12) {
+  const q = fragment.trim();
+  if (q.length < 2) return [];
+
+  const all = Array.from(whitelist);
+
+  const scored = all
+    .map((t) => ({ t, score: scoreCandidate(q, t) }))
+    .filter((x) => Number.isFinite(x.score) && x.score > -Infinity)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.t);
+
+  return scored;
+}
+
+function replaceActiveHashtag(text: string, nextTag: string) {
+  return text.replace(/(^|\s)#([^\s#]{1,80})$/u, `$1#${nextTag}`);
+}
+
 export default function CommentsEditor({
   label,
   value,
@@ -40,6 +147,13 @@ export default function CommentsEditor({
   maxLen = 400,
 }: Props) {
   const [draft, setDraft] = useState("");
+
+  const activeFrag = useMemo(() => getActiveHashtagFragment(draft), [draft]);
+
+  const suggestions = useMemo(() => {
+    if (!activeFrag) return [];
+    return buildHashtagSuggestions(activeFrag.fragment, whitelist, 12);
+  }, [activeFrag, whitelist]);
 
   const draftIssues = useMemo(() => {
     if (!draft.trim() || whitelist.size === 0) return [];
@@ -71,6 +185,7 @@ export default function CommentsEditor({
     const next = value
       .slice(0, maxItems)
       .map((c) => autoFixComment(c, whitelist))
+      .map((c) => pruneUnknownHashtags(c, whitelist))
       .map((s) => s.trim())
       .filter(Boolean);
 
@@ -99,12 +214,40 @@ export default function CommentsEditor({
         }}
       />
 
+      {suggestions.length > 0 ? (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="mb-2 text-xs text-zinc-600">
+            پیشنهاد هشتگ‌ها (با کلیک جایگزین می‌شود)
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((t) => (
+              <button
+                key={t}
+                type="button"
+                dir="ltr"
+                onClick={() => setDraft((prev) => replaceActiveHashtag(prev, t))}
+                className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-mono text-zinc-800 hover:bg-zinc-100 transition"
+                title="Insert hashtag"
+              >
+                #{t}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-2 text-xs text-zinc-500">
+            با ۲ کاراکتر پیشنهاد می‌دهد؛ حتی با یک غلط تایپی هم نزدیک‌ترین‌ها را نشان می‌دهد.
+          </div>
+        </div>
+      ) : null}
+
       {draftIssues.length > 0 ? (
         <HashtagInspector
           title="مشکلات هشتگ در متن پیش‌نویس"
           text={draft}
           whitelist={whitelist}
           onReplaceText={setDraft}
+          pruneUnknownOnReplace
         />
       ) : null}
 
@@ -117,7 +260,7 @@ export default function CommentsEditor({
           variant="warning"
           onClick={replaceAll}
           disabled={value.length === 0 || whitelist.size === 0}
-          title="اصلاح خودکار غلط‌های قابل‌تبدیل در همه کامنت‌ها"
+          title="اصلاح خودکار غلط‌های قابل‌تبدیل + حذف هشتگ‌های ناشناخته در همه کامنت‌ها"
         >
           اصلاح خودکار همه
         </Button>
