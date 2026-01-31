@@ -16,6 +16,23 @@ export type Action = {
   created_at: string;
 };
 
+export type CommentInput = {
+  text: string;
+  translation_text?: string | null;
+};
+
+export type ItemComment = {
+  id: string;
+  item_id: string;
+  text: string;
+  translation_text?: string | null;
+
+  author_type?: string | null;
+  author_id?: string | null;
+
+  created_at: string;
+};
+
 export type Item = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -28,6 +45,9 @@ export type Item = {
   category_image?: string | null;
 
   actions?: Action[];
+
+  // IMPORTANT: admin/items returns full comments array (not just count)
+  comments?: ItemComment[];
 
   comments_count?: number;
 
@@ -87,20 +107,6 @@ export type Me = {
   name?: string | null;
   avatar_url?: string | null;
   bio?: string | null;
-};
-
-export type CommentInput = {
-  text: string;
-  translation_text?: string | null;
-};
-
-export type ItemComment = {
-  id: string;
-  item_id: string;
-  text: string;
-  translation_text?: string | null;
-  author_type?: string;
-  created_at: string;
 };
 
 export type AdminCreateItemPayload = {
@@ -358,11 +364,12 @@ export async function adminFetchItemComments(
 
 /**
  * Admin: replace comments for an item (bulk up to 20)
+ * NOTE: Now supports new schema: {text, translation_text}
  * Expected endpoint: PUT /api/admin/item-comments?item_id=...
  */
 export async function adminReplaceItemComments(
   itemId: string,
-  comments: string[],
+  comments: Array<string | CommentInput>,
 ) {
   return requestJSON<{ ok: boolean }>(
     `/api/admin/item-comments?item_id=${encodeURIComponent(itemId)}`,
@@ -565,7 +572,7 @@ export async function superadminUpdateHashtag(
 
 /**
  * SuperAdmin: delete hashtag
- * Expected endpoint: DELETE /api/admin/hashtags?id=...
+ * Expected endpoint: DELETE /api/admin/hashtags
  */
 export async function superadminDeleteHashtag(id: string) {
   return requestJSON<{ ok: boolean }>(
@@ -638,9 +645,6 @@ export async function superadminDeleteAction(id: string) {
 
 /* =========================
    SuperAdmin: Global Hashtag Validator (optional)
-   If you want server-side validation or suggestions
-   Page to build:
-   - SuperAdmin / Tools: validate text against whitelist
    ========================= */
 
 /**

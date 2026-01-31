@@ -1,11 +1,75 @@
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Badge from "../../ui/Badge";
-import { mapItemCommentsToStrings } from "../../../lib/adminItemUtils";
 import { IconPin } from "../../ui/icons";
 
 function isGlobalItem(item: any): boolean {
   return item?.is_global === 1 || item?.is_global === true;
+}
+
+type AnyComment =
+  | string
+  | {
+      id?: string;
+      item_id?: string;
+      text?: string;
+      translation_text?: string | null;
+      author_type?: string | null;
+      created_at?: string;
+    };
+
+function normalizeComments(input: any): Array<{
+  text: string;
+  translation_text: string | null;
+  author_type: string | null;
+  created_at: string | null;
+}> {
+  if (!input) return [];
+
+  // old format: string[]
+  if (Array.isArray(input) && input.length > 0 && typeof input[0] === "string") {
+    return (input as string[]).map((t) => ({
+      text: String(t ?? ""),
+      translation_text: null,
+      author_type: null,
+      created_at: null,
+    }));
+  }
+
+  if (Array.isArray(input)) {
+    return (input as AnyComment[])
+      .map((c: any) => ({
+        text: String(c?.text ?? "").trim(),
+        translation_text:
+          typeof c?.translation_text === "string" ? c.translation_text : null,
+        author_type: c?.author_type ? String(c.author_type) : null,
+        created_at: c?.created_at ? String(c.created_at) : null,
+      }))
+      .filter((c) => c.text.length > 0);
+  }
+
+  return [];
+}
+
+function authorTypeLabel(authorType: string | null) {
+  const t = (authorType ?? "").toLowerCase().trim();
+  if (!t) return null;
+
+  if (t === "admin") return "ادمین";
+  if (t === "editor") return "ادیتور";
+  if (t === "superadmin") return "سوپرادمین";
+  if (t === "user") return "کاربر";
+  if (t === "ai") return "AI";
+
+  return authorType;
+}
+
+function authorTypeBadgeVariant(authorType: string | null): "default" | "success" | "warning" | "info" {
+  const t = (authorType ?? "").toLowerCase().trim();
+  if (t === "ai") return "info";
+  if (t === "user") return "warning";
+  if (t === "admin" || t === "editor" || t === "superadmin") return "success";
+  return "default";
 }
 
 export default function AdminItemList(props: {
@@ -21,7 +85,9 @@ export default function AdminItemList(props: {
 }) {
   return (
     <section className="mt-6">
-      <div className="mb-3 text-sm text-zinc-500">آیتم‌های تاریخ {props.date}</div>
+      <div className="mb-3 text-sm text-zinc-500">
+        آیتم‌های تاریخ {props.date}
+      </div>
 
       {props.loading ? (
         <div className="text-zinc-500">در حال بارگذاری…</div>
@@ -30,8 +96,8 @@ export default function AdminItemList(props: {
       ) : (
         <div className="space-y-3">
           {props.items.map((i: any) => {
-            const commentStrings = mapItemCommentsToStrings(i.comments);
-            const hasComments = commentStrings.length > 0;
+            const comments = normalizeComments(i.comments);
+            const hasComments = comments.length > 0;
             const isOpen = !!props.openComments[i.id];
             const pinned = isGlobalItem(i);
 
@@ -49,11 +115,19 @@ export default function AdminItemList(props: {
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-col justify-center items-center gap-2">
-                    <Button className="w-full" variant="danger" onClick={() => props.onDelete(i.id)}>
+                    <Button
+                      className="w-full"
+                      variant="danger"
+                      onClick={() => props.onDelete(i.id)}
+                    >
                       حذف
                     </Button>
 
-                    <Button className="w-full" variant="info" onClick={() => props.onStartEdit(i)}>
+                    <Button
+                      className="w-full"
+                      variant="info"
+                      onClick={() => props.onStartEdit(i)}
+                    >
                       ویرایش
                     </Button>
 
@@ -64,7 +138,7 @@ export default function AdminItemList(props: {
                       disabled={!hasComments}
                       title={!hasComments ? "کامنتی ثبت نشده است" : undefined}
                     >
-                      {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${commentStrings.length})`}
+                      {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${comments.length})`}
                     </Button>
                   </div>
 
@@ -89,7 +163,9 @@ export default function AdminItemList(props: {
                       {i.category_name ? <Badge>{i.category_name}</Badge> : null}
 
                       {Array.isArray(i.actions)
-                        ? i.actions.map((a: any) => <Badge key={a.id}>{a.label ?? a.name}</Badge>)
+                        ? i.actions.map((a: any) => (
+                            <Badge key={a.id}>{a.label ?? a.name}</Badge>
+                          ))
                         : null}
 
                       <span className="text-xs text-zinc-500">
@@ -100,18 +176,52 @@ export default function AdminItemList(props: {
 
                     {isOpen && hasComments ? (
                       <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                        <div className="mb-2 text-sm font-medium text-zinc-800">کامنت‌های پیشنهادی</div>
+                        <div className="mb-2 text-sm font-medium text-zinc-800">
+                          کامنت‌های پیشنهادی
+                        </div>
 
                         <div className="space-y-2">
-                          {commentStrings.map((c, idx) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-zinc-200 bg-white p-3 text-sm whitespace-pre-wrap"
-                              dir="auto"
-                            >
-                              {c}
-                            </div>
-                          ))}
+                          {comments.map((c, idx) => {
+                            const label = authorTypeLabel(c.author_type);
+
+                            return (
+                              <div
+                                key={`${idx}:${c.text.slice(0, 16)}`}
+                                className="rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  {label ? (
+                                    <Badge variant={authorTypeBadgeVariant(c.author_type)}>
+                                      {label}
+                                    </Badge>
+                                  ) : (
+                                    <span />
+                                  )}
+
+                                  {c.created_at ? (
+                                    <span className="text-xs text-zinc-500">
+                                      {new Date(c.created_at).toLocaleString("fa-IR")}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                                  {c.text}
+                                </div>
+
+                                {c.translation_text ? (
+                                  <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                                    <div className="mb-1 text-xs font-medium text-zinc-700">
+                                      ترجمه
+                                    </div>
+                                    <div className="whitespace-pre-wrap text-sm text-zinc-700" dir="rtl">
+                                      {c.translation_text}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}

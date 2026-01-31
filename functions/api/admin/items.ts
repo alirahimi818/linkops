@@ -24,7 +24,11 @@ function normalizeIdList(input: unknown, maxItems: number): string[] {
 
 type CommentInput = { text: string; translation_text?: string | null };
 
-function normalizeComments(input: unknown, maxLen: number, maxItems: number): CommentInput[] {
+function normalizeComments(
+  input: unknown,
+  maxLen: number,
+  maxItems: number,
+): CommentInput[] {
   if (!Array.isArray(input)) return [];
 
   const out: CommentInput[] = [];
@@ -35,6 +39,7 @@ function normalizeComments(input: unknown, maxLen: number, maxItems: number): Co
       const text = v.trim();
       if (!text) continue;
       if (text.length > maxLen) continue;
+
       out.push({ text, translation_text: null });
       if (out.length >= maxItems) break;
       continue;
@@ -80,8 +85,14 @@ function normalizeUrlForDedup(input: string): string {
   u.hash = "";
   u.hostname = u.hostname.toLowerCase().replace(/^www\./, "");
 
+  // X / Twitter status canonical
   const host = u.hostname;
-  if (host === "x.com" || host === "twitter.com" || host.endsWith(".x.com") || host.endsWith(".twitter.com")) {
+  if (
+    host === "x.com" ||
+    host === "twitter.com" ||
+    host.endsWith(".x.com") ||
+    host.endsWith(".twitter.com")
+  ) {
     const m = u.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
     if (m) {
       u.pathname = `/${m[1]}/status/${m[2]}`;
@@ -91,13 +102,26 @@ function normalizeUrlForDedup(input: string): string {
   }
 
   // Instagram: drop all query params
-  if (host === "instagram.com" || host.endsWith(".instagram.com") || host === "instagr.am" || host.endsWith(".instagr.am")) {
+  if (
+    host === "instagram.com" ||
+    host.endsWith(".instagram.com") ||
+    host === "instagr.am" ||
+    host.endsWith(".instagr.am")
+  ) {
     u.search = "";
     return u.toString();
   }
 
   // Default: drop common tracking params
-  const tracking = new Set(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"]);
+  const tracking = new Set([
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "fbclid",
+    "gclid",
+  ]);
   for (const k of [...u.searchParams.keys()]) {
     if (tracking.has(k.toLowerCase())) u.searchParams.delete(k);
   }
@@ -117,11 +141,17 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     const method = request.method;
 
+    /* =========================
+       GET /api/admin/items?date=YYYY-MM-DD
+       ========================= */
     if (method === "GET") {
       const url = new URL(request.url);
       const date = url.searchParams.get("date");
       if (!date || !isValidDate(date)) {
-        return Response.json({ error: "Invalid date. Use YYYY-MM-DD" }, { status: 400 });
+        return Response.json(
+          { error: "Invalid date. Use YYYY-MM-DD" },
+          { status: 400 },
+        );
       }
 
       const { results } = await env.DB.prepare(
@@ -135,10 +165,12 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
          LEFT JOIN users u ON u.id = i.created_by_user_id
          LEFT JOIN categories c ON c.id = i.category_id
          WHERE (i.date = ? OR i.is_global = 1)
-         ORDER BY i.is_global DESC, i.created_at DESC`
-      ).bind(date).all();
+         ORDER BY i.is_global DESC, i.created_at DESC`,
+      )
+        .bind(date)
+        .all();
 
-      const items: any[] = results ?? [];
+      const items: any[] = (results as any[]) ?? [];
       const itemIds = items.map((x: any) => x.id);
 
       if (itemIds.length === 0) return Response.json({ items: [] });
@@ -153,30 +185,56 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
          FROM item_actions ia
          JOIN actions a ON a.id = ia.action_id
          WHERE ia.item_id IN (${placeholders})
-         ORDER BY ia.item_id ASC, a.label ASC`
-      ).bind(...itemIds).all();
+         ORDER BY ia.item_id ASC, a.label ASC`,
+      )
+        .bind(...itemIds)
+        .all();
 
       const { results: commentsRows } = await env.DB.prepare(
-        `SELECT item_id, id, text, translation_text, created_at
+        `SELECT item_id,
+                id,
+                text,
+                translation_text,
+                author_type,
+                author_id,
+                created_at
          FROM item_comments
          WHERE item_id IN (${placeholders})
-         ORDER BY item_id, created_at ASC`
-      ).bind(...itemIds).all();
+         ORDER BY item_id, created_at ASC`,
+      )
+        .bind(...itemIds)
+        .all();
 
-      const actionsMap = new Map<string, Array<{ id: string; name: string; label: string }>>();
+      const actionsMap = new Map<
+        string,
+        Array<{ id: string; name: string; label: string }>
+      >();
       for (const r of (actionRows as any[]) ?? []) {
         const arr = actionsMap.get(r.item_id) ?? [];
         arr.push({ id: r.id, name: r.name, label: r.label });
         actionsMap.set(r.item_id, arr);
       }
 
-      const commentsMap = new Map<string, Array<{ id: string; text: string; translation_text: string | null; created_at: string }>>();
+      const commentsMap = new Map<
+        string,
+        Array<{
+          id: string;
+          text: string;
+          translation_text: string | null;
+          author_type: string | null;
+          author_id: string | null;
+          created_at: string;
+        }>
+      >();
+
       for (const r of (commentsRows as any[]) ?? []) {
         const arr = commentsMap.get(r.item_id) ?? [];
         arr.push({
           id: r.id,
           text: r.text,
           translation_text: r.translation_text ?? null,
+          author_type: r.author_type ?? null,
+          author_id: r.author_id ?? null,
           created_at: r.created_at,
         });
         commentsMap.set(r.item_id, arr);
@@ -191,6 +249,9 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ items: enriched });
     }
 
+    /* =========================
+       POST /api/admin/items
+       ========================= */
     if (method === "POST") {
       const body = (await request.json().catch(() => null)) as null | {
         date: string;
@@ -203,7 +264,13 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         is_global?: boolean;
       };
 
-      if (!body || !isValidDate(body.date) || !body.title || !body.url || !body.description) {
+      if (
+        !body ||
+        !isValidDate(body.date) ||
+        !body.title ||
+        !body.url ||
+        !body.description
+      ) {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
       }
 
@@ -225,72 +292,109 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       const urlNorm = normalizeUrlForDedup(url);
-      if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
+      if (!urlNorm)
+        return Response.json({ error: "Invalid url" }, { status: 400 });
 
+      // Duplicate check:
+      // - global items: unique among globals
+      // - normal items: unique per date
       const dup = isGlobal
         ? await env.DB.prepare(
-            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? LIMIT 1`
-          ).bind(urlNorm).first()
+            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? LIMIT 1`,
+          )
+            .bind(urlNorm)
+            .first()
         : await env.DB.prepare(
-            `SELECT id FROM items WHERE date = ? AND url_norm = ? LIMIT 1`
-          ).bind(body.date, urlNorm).first();
+            `SELECT id FROM items WHERE date = ? AND url_norm = ? LIMIT 1`,
+          )
+            .bind(body.date, urlNorm)
+            .first();
 
       if (dup) {
-        return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
+        return Response.json(
+          { error: "Duplicate URL", code: "DUPLICATE_URL" },
+          { status: 409 },
+        );
       }
 
       if (categoryId) {
-        const cat = await env.DB.prepare(`SELECT id FROM categories WHERE id = ?`).bind(categoryId).first();
-        if (!cat) return Response.json({ error: "Invalid category_id" }, { status: 400 });
+        const cat = await env.DB.prepare(
+          `SELECT id FROM categories WHERE id = ?`,
+        )
+          .bind(categoryId)
+          .first();
+        if (!cat)
+          return Response.json({ error: "Invalid category_id" }, { status: 400 });
       }
 
       let validActionIds: string[] = [];
       if (uniqActionIds.length > 0) {
         const placeholders = uniqActionIds.map(() => "?").join(",");
         const { results: rows } = await env.DB.prepare(
-          `SELECT id FROM actions WHERE id IN (${placeholders})`
-        ).bind(...uniqActionIds).all();
+          `SELECT id FROM actions WHERE id IN (${placeholders})`,
+        )
+          .bind(...uniqActionIds)
+          .all();
 
         validActionIds = ((rows as any[]) ?? []).map((r) => r.id);
       }
 
       await env.DB.prepare(
         `INSERT INTO items (id, date, title, url, url_norm, description, category_id, is_global, created_at, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        id,
-        body.date,
-        title,
-        url,
-        urlNorm,
-        description,
-        categoryId,
-        isGlobal,
-        createdAt,
-        user.id
-      ).run();
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          id,
+          body.date,
+          title,
+          url,
+          urlNorm,
+          description,
+          categoryId,
+          isGlobal,
+          createdAt,
+          user.id,
+        )
+        .run();
 
       if (validActionIds.length > 0) {
         const stmt = env.DB.prepare(
-          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`
+          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`,
         );
         const batch = validActionIds.map((aid) => stmt.bind(id, aid, createdAt));
         await env.DB.batch(batch);
       }
 
       if (comments.length > 0) {
+        const authorType = user?.role ? String(user.role) : "admin";
+        const authorId = user?.id ? String(user.id) : null;
+
         const stmt = env.DB.prepare(
-          `INSERT INTO item_comments (id, item_id, text, translation_text, created_at) VALUES (?, ?, ?, ?, ?)`
+          `INSERT INTO item_comments (id, item_id, text, translation_text, author_type, author_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         );
+
         const batch = comments.map((c) =>
-          stmt.bind(crypto.randomUUID(), id, c.text, c.translation_text ?? null, createdAt)
+          stmt.bind(
+            crypto.randomUUID(),
+            id,
+            c.text,
+            c.translation_text ?? null,
+            authorType,
+            authorId,
+            createdAt,
+          ),
         );
+
         await env.DB.batch(batch);
       }
 
       return Response.json({ ok: true, id });
     }
 
+    /* =========================
+       PUT /api/admin/items?id=...
+       ========================= */
     if (method === "PUT") {
       const urlObj = new URL(request.url);
       const id = urlObj.searchParams.get("id");
@@ -320,61 +424,103 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
       }
 
-      const current = (await env.DB.prepare(`SELECT id, date FROM items WHERE id = ?`).bind(id).first()) as any;
+      const current = (await env.DB.prepare(
+        `SELECT id, date FROM items WHERE id = ?`,
+      )
+        .bind(id)
+        .first()) as any;
+
       if (!current) return Response.json({ error: "Not found" }, { status: 404 });
 
       const urlNorm = normalizeUrlForDedup(url);
-      if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
+      if (!urlNorm)
+        return Response.json({ error: "Invalid url" }, { status: 400 });
 
       // Conflict check:
       // - global items: unique among globals
       // - normal items: unique per date
       const conflict = isGlobal
         ? await env.DB.prepare(
-            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? AND id != ? LIMIT 1`
-          ).bind(urlNorm, id).first()
+            `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? AND id != ? LIMIT 1`,
+          )
+            .bind(urlNorm, id)
+            .first()
         : await env.DB.prepare(
-            `SELECT id FROM items WHERE date = ? AND url_norm = ? AND id != ? LIMIT 1`
-          ).bind(current.date, urlNorm, id).first();
+            `SELECT id FROM items WHERE date = ? AND url_norm = ? AND id != ? LIMIT 1`,
+          )
+            .bind(current.date, urlNorm, id)
+            .first();
 
       if (conflict) {
-        return Response.json({ error: "Duplicate URL", code: "DUPLICATE_URL" }, { status: 409 });
+        return Response.json(
+          { error: "Duplicate URL", code: "DUPLICATE_URL" },
+          { status: 409 },
+        );
       }
 
       await env.DB.prepare(
         `UPDATE items
          SET title = ?, url = ?, url_norm = ?, description = ?, category_id = ?, is_global = ?
-         WHERE id = ?`
-      ).bind(title, url, urlNorm, description, categoryId, isGlobal, id).run();
+         WHERE id = ?`,
+      )
+        .bind(title, url, urlNorm, description, categoryId, isGlobal, id)
+        .run();
 
       const createdAt = nowIso();
 
-      await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`).bind(id).run();
+      // Replace actions
+      await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`)
+        .bind(id)
+        .run();
+
       const actionIds = Array.isArray(body.action_ids) ? body.action_ids : [];
       for (const aid of actionIds) {
         const a = String(aid ?? "").trim();
         if (!a) continue;
         await env.DB.prepare(
-          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`
-        ).bind(id, a, createdAt).run();
+          `INSERT INTO item_actions (item_id, action_id, created_at) VALUES (?, ?, ?)`,
+        )
+          .bind(id, a, createdAt)
+          .run();
       }
 
-      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
+      // Replace comments
+      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`)
+        .bind(id)
+        .run();
+
       const comments = normalizeComments(body.comments, 1000, 50);
 
       if (comments.length > 0) {
+        const authorType = user?.role ? String(user.role) : "admin";
+        const authorId = user?.id ? String(user.id) : null;
+
         const stmt = env.DB.prepare(
-          `INSERT INTO item_comments (id, item_id, text, translation_text, created_at) VALUES (?, ?, ?, ?, ?)`
+          `INSERT INTO item_comments (id, item_id, text, translation_text, author_type, author_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         );
+
         const batch = comments.map((c) =>
-          stmt.bind(crypto.randomUUID(), id, c.text, c.translation_text ?? null, createdAt)
+          stmt.bind(
+            crypto.randomUUID(),
+            id,
+            c.text,
+            c.translation_text ?? null,
+            authorType,
+            authorId,
+            createdAt,
+          ),
         );
+
         await env.DB.batch(batch);
       }
 
       return Response.json({ ok: true });
     }
 
+    /* =========================
+       DELETE /api/admin/items?id=...
+       ========================= */
     if (method === "DELETE") {
       if (!requireRole(user, ["superadmin", "admin"])) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -384,7 +530,12 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const id = url.searchParams.get("id");
       if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
-      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
+      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`)
+        .bind(id)
+        .run();
+      await env.DB.prepare(`DELETE FROM item_actions WHERE item_id = ?`)
+        .bind(id)
+        .run();
       await env.DB.prepare(`DELETE FROM items WHERE id = ?`).bind(id).run();
 
       return Response.json({ ok: true });
@@ -394,7 +545,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
   } catch (e: any) {
     return Response.json(
       { error: "items endpoint failed", message: String(e?.message ?? e) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 };
