@@ -25,7 +25,7 @@ export default function CommentRowUI(props: {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="w-full px-3 py-2 text-right text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition rounded-xl"
+            className="w-full px-3 py-2 text-right text-xs font-medium text-blue-500 hover:bg-zinc-100 transition rounded-xl"
           >
             {open ? "بستن ترجمه" : "نمایش ترجمه"}
           </button>
