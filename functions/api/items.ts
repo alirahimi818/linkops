@@ -16,6 +16,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const url = new URL(request.url);
     const itemId = url.searchParams.get("item_id");
     const date = url.searchParams.get("date");
+
     if (!date || !isValidDate(date)) {
       return Response.json(
         { error: "Invalid date. Use YYYY-MM-DD" },
@@ -44,9 +45,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     itemsQuery += ` ORDER BY i.is_global DESC, i.created_at DESC`;
 
-    const { results } = await env.DB.prepare(itemsQuery)
-      .bind(...binds)
-      .all<any>();
+    const { results } = await env.DB.prepare(itemsQuery).bind(...binds).all<any>();
 
     const items: any[] = results ?? [];
     const itemIds = items.map((x: any) => x.id);
@@ -69,7 +68,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       .all<any>();
 
     const { results: commentsRows } = await env.DB.prepare(
-      `SELECT item_id, id, text, created_at
+      `SELECT item_id, id, text, translation_text, created_at
        FROM item_comments
        WHERE item_id IN (${placeholders})
        ORDER BY item_id, created_at ASC`,
@@ -77,10 +76,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       .bind(...itemIds)
       .all<any>();
 
-    const actionsMap = new Map<
-      string,
-      Array<{ id: string; name: string; label: string }>
-    >();
+    const actionsMap = new Map<string, Array<{ id: string; name: string; label: string }>>();
     for (const r of (actionRows ?? []) as any[]) {
       const arr = actionsMap.get(r.item_id) ?? [];
       arr.push({ id: r.id, name: r.name, label: r.label });
@@ -89,11 +85,17 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     const commentsMap = new Map<
       string,
-      Array<{ id: string; text: string; created_at: string }>
+      Array<{ id: string; text: string; translation_text: string | null; created_at: string }>
     >();
+
     for (const r of (commentsRows ?? []) as any[]) {
       const arr = commentsMap.get(r.item_id) ?? [];
-      arr.push({ id: r.id, text: r.text, created_at: r.created_at });
+      arr.push({
+        id: r.id,
+        text: r.text,
+        translation_text: r.translation_text ?? null,
+        created_at: r.created_at,
+      });
       commentsMap.set(r.item_id, arr);
     }
 

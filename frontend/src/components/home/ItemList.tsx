@@ -22,21 +22,32 @@ import { isIOSStandalonePWA, openExternal } from "../../lib/openExternal";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
+type CommentRow = {
+  id?: string;
+  text?: string;
+  translation_text?: string | null;
+};
+
 function pickRandom<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function getComments(
-  item: any,
-): Array<{ id?: string; text?: string } | string> {
+function getComments(item: any): Array<CommentRow | string> {
   if (!item?.comments) return [];
   if (Array.isArray(item.comments)) return item.comments;
   return [];
 }
 
 function commentText(c: any) {
+  // Copy/random must ALWAYS use original text
   if (typeof c === "string") return c;
   return String(c?.text ?? "");
+}
+
+function commentTranslation(c: any): string | null {
+  if (!c || typeof c === "string") return null;
+  const t = String(c?.translation_text ?? "").trim();
+  return t ? t : null;
 }
 
 function isGlobalItem(item: any): boolean {
@@ -147,7 +158,7 @@ export default function ItemList(props: {
 
             const xEnabled = isXUrl(url);
             const pinned = isGlobalItem(item);
-            
+
             const isPwaIOS = isIOSStandalonePWA();
 
             return (
@@ -317,7 +328,9 @@ export default function ItemList(props: {
 
                           <div className="space-y-2">
                             {comments.map((c: any, idx: number) => {
-                              const t = commentText(c);
+                              const t = commentText(c).trim(); // original text (copy source)
+                              const tr = commentTranslation(c); // optional translation (display only)
+
                               const cid =
                                 typeof c === "string"
                                   ? `s-${idx}`
@@ -329,6 +342,7 @@ export default function ItemList(props: {
                                   className="rounded-lg border border-zinc-200 bg-white p-3"
                                 >
                                   <div className="flex flex-col gap-3">
+                                    {/* Original text */}
                                     <div
                                       className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
                                       dir="auto"
@@ -336,6 +350,22 @@ export default function ItemList(props: {
                                       {t}
                                     </div>
 
+                                    {/* Translation (display only) */}
+                                    {tr ? (
+                                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                                        <div className="mb-1 text-xs font-medium text-zinc-700">
+                                          ترجمه
+                                        </div>
+                                        <div
+                                          className="whitespace-pre-wrap text-sm text-zinc-700"
+                                          dir="rtl"
+                                        >
+                                          {tr}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {/* Actions must use ORIGINAL text */}
                                     <div className="flex flex-wrap items-center gap-2 justify-around md:justify-start border-t pt-3 border-zinc-200">
                                       <CopyPill
                                         value={t}
