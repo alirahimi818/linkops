@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import Textarea from "../ui/Textarea";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
-import { applySuggestedReplacements, type HashtagIssue, validateHashtags } from "../../lib/hashtags";
+import {
+  applySuggestedReplacements,
+  type HashtagIssue,
+  validateHashtags,
+} from "../../lib/hashtags";
 import HashtagInspector from "../ops/HashtagInspector";
 
 export type CommentDraft = {
@@ -23,7 +27,10 @@ function normalizeComment(s: string, maxLen: number) {
   return s.trim().slice(0, maxLen);
 }
 
-function collectIssuesForComments(comments: CommentDraft[], whitelist: Set<string>): HashtagIssue[] {
+function collectIssuesForComments(
+  comments: CommentDraft[],
+  whitelist: Set<string>,
+): HashtagIssue[] {
   if (comments.length === 0 || whitelist.size === 0) return [];
   const out: HashtagIssue[] = [];
   for (const c of comments) out.push(...validateHashtags(c.text, whitelist));
@@ -42,22 +49,35 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
 function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   if (whitelist.size === 0) return text;
 
-  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (_full, lead, tag) => {
-    const t = String(tag ?? "").trim();
-    if (!t) return lead;
-    if (whitelist.has(t)) return `${lead}#${t}`;
-    return lead;
-  });
+  const out = text.replace(
+    /(^|\s)#([\p{L}\p{N}_]+)/gu,
+    (_full, lead, tag) => {
+      const t = String(tag ?? "").trim();
+      if (!t) return lead;
+      if (whitelist.has(t)) return `${lead}#${t}`;
+      return lead;
+    },
+  );
 
-  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
+/**
+ * Detect last hashtag fragment at the end of the textarea (active typing token).
+ * Example: "hello #Ir" => fragment "Ir"
+ */
 function getActiveHashtagFragment(text: string) {
   const m = text.match(/(^|\s)#([^\s#]{1,80})$/u);
   if (!m) return null;
   return { fragment: (m[2] ?? "").trim() };
 }
 
+/**
+ * Damerau-Levenshtein distance with early exit (small threshold).
+ */
 function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
@@ -65,7 +85,9 @@ function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
   const al = a.length;
   const bl = b.length;
 
-  const dp: number[][] = Array.from({ length: al + 1 }, () => new Array(bl + 1).fill(0));
+  const dp: number[][] = Array.from({ length: al + 1 }, () =>
+    new Array(bl + 1).fill(0),
+  );
   for (let i = 0; i <= al; i++) dp[i][0] = i;
   for (let j = 0; j <= bl; j++) dp[0][j] = j;
 
@@ -77,10 +99,15 @@ function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
       let val = Math.min(
         dp[i - 1][j] + 1,
         dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
+        dp[i - 1][j - 1] + cost,
       );
 
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+      if (
+        i > 1 &&
+        j > 1 &&
+        a[i - 1] === b[j - 2] &&
+        a[i - 2] === b[j - 1]
+      ) {
         val = Math.min(val, dp[i - 2][j - 2] + cost);
       }
 
@@ -106,14 +133,18 @@ function scoreCandidate(query: string, candidate: string) {
   const dist = damerauLevenshteinWithin(
     q,
     c.slice(0, Math.max(q.length, Math.min(c.length, q.length + 2))),
-    maxDist
+    maxDist,
   );
 
   if (dist <= maxDist) return 500 - dist * 50 - Math.min(200, c.length);
   return -Infinity;
 }
 
-function buildHashtagSuggestions(fragment: string, whitelist: Set<string>, limit = 12) {
+function buildHashtagSuggestions(
+  fragment: string,
+  whitelist: Set<string>,
+  limit = 12,
+) {
   const q = fragment.trim();
   if (q.length < 2) return [];
 
@@ -131,6 +162,10 @@ function replaceActiveHashtag(text: string, nextTag: string) {
   return text.replace(/(^|\s)#([^\s#]{1,80})$/u, `$1#${nextTag}`);
 }
 
+function hasNonEmptyTranslation(c: CommentDraft) {
+  return typeof c.translation_text === "string" && c.translation_text.trim().length > 0;
+}
+
 export default function CommentsEditor({
   label,
   value,
@@ -139,9 +174,15 @@ export default function CommentsEditor({
   maxItems = 50,
   maxLen = 400,
 }: Props) {
-  const [draft, setDraft] = useState("");
+  // Draft editor (create/edit)
+  const [draftText, setDraftText] = useState("");
+  const [draftTranslation, setDraftTranslation] = useState("");
+  const [showTranslation, setShowTranslation] = useState(false);
 
-  const activeFrag = useMemo(() => getActiveHashtagFragment(draft), [draft]);
+  // If editing, we keep the original index so we can replace in same position (optional)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const activeFrag = useMemo(() => getActiveHashtagFragment(draftText), [draftText]);
 
   const suggestions = useMemo(() => {
     if (!activeFrag) return [];
@@ -149,41 +190,93 @@ export default function CommentsEditor({
   }, [activeFrag, whitelist]);
 
   const draftIssues = useMemo(() => {
-    if (!draft.trim() || whitelist.size === 0) return [];
-    return validateHashtags(draft, whitelist);
-  }, [draft, whitelist]);
+    if (!draftText.trim() || whitelist.size === 0) return [];
+    return validateHashtags(draftText, whitelist);
+  }, [draftText, whitelist]);
 
   const allIssues = useMemo(() => {
     return collectIssuesForComments(value, whitelist);
   }, [value, whitelist]);
 
-  const canAdd = draft.trim().length > 0 && value.length < maxItems;
+  const canAddOrSave =
+    draftText.trim().length > 0 &&
+    value.length < maxItems &&
+    (editingIndex !== null || value.length < maxItems);
 
-  function addDraft() {
-    if (!canAdd) return;
-    const t = normalizeComment(draft, maxLen);
+  function resetDraft() {
+    setDraftText("");
+    setDraftTranslation("");
+    setShowTranslation(false);
+    setEditingIndex(null);
+  }
+
+  function addOrSave() {
+    if (!draftText.trim()) return;
+
+    const t = normalizeComment(draftText, maxLen);
     if (!t) return;
 
-    onChange([...value, { text: t, translation_text: null }]);
-    setDraft("");
+    const tr = draftTranslation.trim();
+    const draft: CommentDraft = {
+      text: t,
+      translation_text: showTranslation ? (tr ? tr.slice(0, maxLen) : null) : null,
+    };
+
+    // If editing -> replace at index
+    if (editingIndex !== null) {
+      const next = value.slice();
+      next.splice(editingIndex, 0, draft); // insert back at the same position
+      onChange(next);
+      resetDraft();
+      return;
+    }
+
+    // Create
+    if (value.length >= maxItems) return;
+    onChange([...value, draft]);
+    resetDraft();
   }
 
   function removeAt(idx: number) {
     onChange(value.filter((_, i) => i !== idx));
   }
 
-  function toggleTranslation(idx: number) {
-    const next = value.slice();
-    const cur = next[idx];
-    const has = (cur.translation_text ?? "").trim().length > 0;
-    next[idx] = { ...cur, translation_text: has ? null : "" };
+  function startEdit(idx: number) {
+    const c = value[idx];
+    const next = value.filter((_, i) => i !== idx);
+
     onChange(next);
+
+    setDraftText(c.text ?? "");
+    const tr = typeof c.translation_text === "string" ? c.translation_text : "";
+    setDraftTranslation(tr);
+    setShowTranslation(tr.trim().length > 0);
+    setEditingIndex(idx);
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function updateTranslation(idx: number, nextText: string) {
-    const next = value.slice();
-    next[idx] = { ...next[idx], translation_text: nextText };
-    onChange(next);
+  function cancelEdit() {
+    // Put back draft into list if user cancels edit
+    if (editingIndex === null) {
+      resetDraft();
+      return;
+    }
+
+    const t = draftText.trim();
+    if (t) {
+      const tr = draftTranslation.trim();
+      const draft: CommentDraft = {
+        text: normalizeComment(draftText, maxLen),
+        translation_text: showTranslation ? (tr ? tr.slice(0, maxLen) : null) : null,
+      };
+
+      const next = value.slice();
+      next.splice(editingIndex, 0, draft);
+      onChange(next);
+    }
+
+    resetDraft();
   }
 
   function replaceAll() {
@@ -203,70 +296,117 @@ export default function CommentsEditor({
   return (
     <div dir="rtl" className="grid gap-2 text-right">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-zinc-800">{label ?? "کامنت‌های پیشنهادی"}</div>
+        <div className="text-sm font-medium text-zinc-800">
+          {label ?? "کامنت‌های پیشنهادی"}
+        </div>
         <div className="text-xs text-zinc-500">
           {value.length} / {maxItems}
         </div>
       </div>
 
-      <Textarea
-        dir="auto"
-        value={draft}
-        onChange={setDraft}
-        placeholder="کامنت را بنویسید (Enter برای افزودن، Shift+Enter برای خط جدید). هشتگ‌ها بررسی می‌شوند."
-        onKeyDown={(e: any) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            addDraft();
-          }
-        }}
-      />
+      {/* Draft editor */}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs text-zinc-600">
+            {editingIndex !== null ? "ویرایش کامنت" : "افزودن کامنت جدید"}
+          </div>
 
-      {suggestions.length > 0 ? (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-          <div className="mb-2 text-xs text-zinc-600">پیشنهاد هشتگ‌ها (با کلیک جایگزین می‌شود)</div>
-          <div className="flex flex-wrap gap-2">
-            {suggestions.map((t) => (
-              <button
-                key={t}
-                type="button"
-                dir="ltr"
-                onClick={() => setDraft((prev) => replaceActiveHashtag(prev, t))}
-                className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-mono text-zinc-800 hover:bg-zinc-100 transition"
-                title="Insert hashtag"
-              >
-                #{t}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowTranslation((s) => !s)}
+              disabled={!draftText.trim() && editingIndex === null}
+              title="Toggle translation"
+            >
+              {showTranslation ? "بستن ترجمه" : "افزودن ترجمه"}
+            </Button>
+
+            {editingIndex !== null ? (
+              <Button variant="ghost" onClick={cancelEdit}>
+                انصراف از ویرایش
+              </Button>
+            ) : null}
           </div>
         </div>
-      ) : null}
 
-      {draftIssues.length > 0 ? (
-        <HashtagInspector
-          title="مشکلات هشتگ در متن پیش‌نویس"
-          text={draft}
-          whitelist={whitelist}
-          onReplaceText={setDraft}
-          pruneUnknownOnReplace
-        />
-      ) : null}
+        <div className="mt-3 grid gap-3">
+          <Textarea
+            dir="auto"
+            value={draftText}
+            onChange={setDraftText}
+            placeholder="کامنت را بنویسید (Enter برای افزودن/ذخیره، Shift+Enter برای خط جدید)."
+            onKeyDown={(e: any) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                addOrSave();
+              }
+            }}
+          />
 
-      <div className="flex items-center gap-2">
-        <Button variant="info" onClick={addDraft} disabled={!canAdd}>
-          افزودن کامنت
-        </Button>
+          {suggestions.length > 0 ? (
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <div className="mb-2 text-xs text-zinc-600">
+                پیشنهاد هشتگ‌ها (با کلیک جایگزین می‌شود)
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    dir="ltr"
+                    onClick={() => setDraftText((prev) => replaceActiveHashtag(prev, t))}
+                    className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-mono text-zinc-800 hover:bg-zinc-100 transition"
+                    title="Insert hashtag"
+                  >
+                    #{t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
-        <Button
-          variant="warning"
-          onClick={replaceAll}
-          disabled={value.length === 0 || whitelist.size === 0}
-          title="اصلاح خودکار غلط‌های قابل‌تبدیل + حذف هشتگ‌های ناشناخته در همه کامنت‌ها (فقط متن اصلی)"
-        >
-          اصلاح خودکار همه
-        </Button>
-      </div>
+          {draftIssues.length > 0 ? (
+            <HashtagInspector
+              title="مشکلات هشتگ در متن"
+              text={draftText}
+              whitelist={whitelist}
+              onReplaceText={setDraftText}
+              pruneUnknownOnReplace
+            />
+          ) : null}
 
+          {showTranslation ? (
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <div className="mb-2 text-xs font-medium text-zinc-700">
+                ترجمه (اختیاری)
+              </div>
+              <Textarea
+                dir="rtl"
+                value={draftTranslation}
+                onChange={setDraftTranslation}
+                placeholder="ترجمه فارسی را وارد کنید (در صورت نیاز)"
+              />
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3">
+            <Button variant="info" onClick={addOrSave} disabled={!canAddOrSave}>
+              {editingIndex !== null ? "ذخیره و بازگشت به لیست" : "افزودن کامنت"}
+            </Button>
+
+            <Button
+              variant="warning"
+              onClick={replaceAll}
+              disabled={value.length === 0 || whitelist.size === 0}
+              title="اصلاح خودکار غلط‌های قابل‌تبدیل + حذف هشتگ‌های ناشناخته در همه کامنت‌ها (فقط متن اصلی)"
+            >
+              اصلاح خودکار همه
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* List */}
       {value.length > 0 ? (
         <div className="space-y-2">
           {value.map((c, idx) => {
@@ -281,14 +421,22 @@ export default function CommentsEditor({
                       حذف
                     </Button>
 
-                    <Button variant="secondary" onClick={() => toggleTranslation(idx)}>
-                      {(c.translation_text ?? "").trim().length > 0 ? "حذف ترجمه" : "افزودن ترجمه"}
+                    <Button variant="secondary" onClick={() => startEdit(idx)}>
+                      ویرایش
                     </Button>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
-                      {c.text}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                        {c.text}
+                      </div>
+
+                      {hasNonEmptyTranslation(c) ? (
+                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700">
+                          ترجمه دارد
+                        </span>
+                      ) : null}
                     </div>
 
                     {hasIssues ? (
@@ -302,32 +450,16 @@ export default function CommentsEditor({
                       </div>
                     ) : null}
 
-                    {(c.translation_text ?? "") !== null && (c.translation_text ?? "") !== undefined ? (
-                      <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                        <div className="mb-2 text-xs font-medium text-zinc-700">ترجمه (اختیاری)</div>
-                        <Textarea
-                          dir="rtl"
-                          value={c.translation_text ?? ""}
-                          onChange={(v) => updateTranslation(idx, v)}
-                          placeholder="ترجمه فارسی را وارد کنید (در صورت نیاز)"
-                        />
+                    {hasNonEmptyTranslation(c) ? (
+                      <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                        <div className="mb-1 text-xs font-medium text-zinc-700">
+                          ترجمه
+                        </div>
+                        <div className="whitespace-pre-wrap text-sm text-zinc-700">
+                          {c.translation_text}
+                        </div>
                       </div>
                     ) : null}
-
-                    <div className="mt-3">
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          // Inline edit: open a prompt-like edit using the draft area approach
-                          // Simple approach: move the text into draft for editing, remove from list
-                          setDraft(c.text);
-                          removeAt(idx);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                      >
-                        ویرایش متن اصلی
-                      </Button>
-                    </div>
                   </div>
                 </div>
               </Card>
@@ -338,8 +470,12 @@ export default function CommentsEditor({
 
       {allIssues.length > 0 ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <div className="mb-1 text-sm font-medium text-red-800">مشکلات هشتگ در کامنت‌ها</div>
-          <div className="text-sm text-red-700">قبل از ساخت/ذخیره آیتم، این موارد را اصلاح کنید.</div>
+          <div className="mb-1 text-sm font-medium text-red-800">
+            مشکلات هشتگ در کامنت‌ها
+          </div>
+          <div className="text-sm text-red-700">
+            قبل از ساخت/ذخیره آیتم، این موارد را اصلاح کنید.
+          </div>
         </div>
       ) : null}
     </div>
