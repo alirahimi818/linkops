@@ -1,12 +1,57 @@
 import type { Category } from "./api";
 
-export type ItemComment = { id: string; text: string; created_at: string };
+export type ItemCommentRow = {
+  id?: string;
+  item_id?: string;
+  text: string;
+  translation_text?: string | null;
+  created_at?: string;
+};
 
-export function mapItemCommentsToStrings(c: any): string[] {
+export type CommentDraft = {
+  text: string;
+  translation_text?: string | null;
+};
+
+export function mapItemCommentsToDrafts(c: any): CommentDraft[] {
   if (!c) return [];
-  if (Array.isArray(c) && c.length > 0 && typeof c[0] === "string") return c;
-  if (Array.isArray(c)) return (c as ItemComment[]).map((x) => x.text);
+
+  // Old format: string[]
+  if (Array.isArray(c) && c.length > 0 && typeof c[0] === "string") {
+    return (c as string[])
+      .map((t) => String(t ?? "").trim())
+      .filter(Boolean)
+      .map((text) => ({ text, translation_text: null }));
+  }
+
+  // New/DB format: array of objects
+  if (Array.isArray(c)) {
+    return (c as any[])
+      .map((x) => {
+        if (!x) return null;
+        // If already draft-like
+        if (typeof x.text === "string") {
+          return {
+            text: String(x.text ?? "").trim(),
+            translation_text:
+              x.translation_text === undefined ? null : (x.translation_text ?? null),
+          } as CommentDraft;
+        }
+        // Fallback if shape is weird
+        return null;
+      })
+      .filter((x): x is CommentDraft => !!x && !!x.text);
+  }
+
   return [];
+}
+
+/**
+ * Keep this for legacy callers that still need string[]
+ */
+export function mapItemCommentsToStrings(c: any): string[] {
+  const drafts = mapItemCommentsToDrafts(c);
+  return drafts.map((d) => d.text);
 }
 
 export function normalizeHost(inputUrl: string): string | null {

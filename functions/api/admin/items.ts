@@ -9,19 +9,6 @@ function isValidDate(d: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(d);
 }
 
-function normalizeList(input: unknown, maxLen: number): string[] {
-  if (!Array.isArray(input)) return [];
-  const out: string[] = [];
-  for (const v of input) {
-    if (typeof v !== "string") continue;
-    const s = v.trim();
-    if (!s) continue;
-    if (s.length > maxLen) continue;
-    out.push(s);
-  }
-  return out;
-}
-
 function normalizeIdList(input: unknown, maxItems: number): string[] {
   if (!Array.isArray(input)) return [];
   const out: string[] = [];
@@ -33,6 +20,50 @@ function normalizeIdList(input: unknown, maxItems: number): string[] {
     if (out.length >= maxItems) break;
   }
   return Array.from(new Set(out));
+}
+
+type CommentInput = { text: string; translation_text?: string | null };
+
+function normalizeComments(input: unknown, maxLen: number, maxItems: number): CommentInput[] {
+  if (!Array.isArray(input)) return [];
+
+  const out: CommentInput[] = [];
+
+  for (const v of input) {
+    // Legacy: string[]
+    if (typeof v === "string") {
+      const text = v.trim();
+      if (!text) continue;
+      if (text.length > maxLen) continue;
+      out.push({ text, translation_text: null });
+      if (out.length >= maxItems) break;
+      continue;
+    }
+
+    // New: {text, translation_text}
+    if (v && typeof v === "object") {
+      const textRaw = (v as any).text;
+      const trRaw = (v as any).translation_text;
+
+      if (typeof textRaw !== "string") continue;
+
+      const text = textRaw.trim();
+      if (!text) continue;
+      if (text.length > maxLen) continue;
+
+      let translation_text: string | null = null;
+      if (typeof trRaw === "string") {
+        const t = trRaw.trim();
+        translation_text = t ? t.slice(0, maxLen) : null;
+      }
+
+      out.push({ text, translation_text });
+      if (out.length >= maxItems) break;
+      continue;
+    }
+  }
+
+  return out;
 }
 
 function normalizeUrlForDedup(input: string): string {
@@ -49,7 +80,6 @@ function normalizeUrlForDedup(input: string): string {
   u.hash = "";
   u.hostname = u.hostname.toLowerCase().replace(/^www\./, "");
 
-  // X / Twitter status canonical
   const host = u.hostname;
   if (host === "x.com" || host === "twitter.com" || host.endsWith(".x.com") || host.endsWith(".twitter.com")) {
     const m = u.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
@@ -127,7 +157,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       ).bind(...itemIds).all();
 
       const { results: commentsRows } = await env.DB.prepare(
-        `SELECT item_id, id, text, created_at
+        `SELECT item_id, id, text, translation_text, created_at
          FROM item_comments
          WHERE item_id IN (${placeholders})
          ORDER BY item_id, created_at ASC`
@@ -140,10 +170,15 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         actionsMap.set(r.item_id, arr);
       }
 
-      const commentsMap = new Map<string, Array<{ id: string; text: string; created_at: string }>>();
+      const commentsMap = new Map<string, Array<{ id: string; text: string; translation_text: string | null; created_at: string }>>();
       for (const r of (commentsRows as any[]) ?? []) {
         const arr = commentsMap.get(r.item_id) ?? [];
-        arr.push({ id: r.id, text: r.text, created_at: r.created_at });
+        arr.push({
+          id: r.id,
+          text: r.text,
+          translation_text: r.translation_text ?? null,
+          created_at: r.created_at,
+        });
         commentsMap.set(r.item_id, arr);
       }
 
@@ -164,7 +199,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         description: string;
         category_id?: string | null;
         action_ids?: string[];
-        comments?: string[];
+        comments?: Array<string | CommentInput>;
         is_global?: boolean;
       };
 
@@ -183,7 +218,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const isGlobal = body.is_global ? 1 : 0;
 
       const uniqActionIds = normalizeIdList(body.action_ids, 20);
-      const comments = normalizeList(body.comments, 400).slice(0, 50);
+      const comments = normalizeComments(body.comments, 1000, 50);
 
       if (!title || !url || !description) {
         return Response.json({ error: "Invalid payload" }, { status: 400 });
@@ -192,9 +227,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       const urlNorm = normalizeUrlForDedup(url);
       if (!urlNorm) return Response.json({ error: "Invalid url" }, { status: 400 });
 
-      // Duplicate check:
-      // - global items: unique among globals
-      // - normal items: unique per date
       const dup = isGlobal
         ? await env.DB.prepare(
             `SELECT id FROM items WHERE is_global = 1 AND url_norm = ? LIMIT 1`
@@ -248,9 +280,11 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
       if (comments.length > 0) {
         const stmt = env.DB.prepare(
-          `INSERT INTO item_comments (id, item_id, text, created_at) VALUES (?, ?, ?, ?)`
+          `INSERT INTO item_comments (id, item_id, text, translation_text, created_at) VALUES (?, ?, ?, ?, ?)`
         );
-        const batch = comments.map((c) => stmt.bind(crypto.randomUUID(), id, c, createdAt));
+        const batch = comments.map((c) =>
+          stmt.bind(crypto.randomUUID(), id, c.text, c.translation_text ?? null, createdAt)
+        );
         await env.DB.batch(batch);
       }
 
@@ -268,7 +302,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         description: string;
         category_id?: string | null;
         action_ids?: string[];
-        comments?: string[];
+        comments?: Array<string | CommentInput>;
         is_global?: boolean;
       };
 
@@ -326,14 +360,16 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`).bind(id).run();
-      const comments = Array.isArray(body.comments) ? body.comments : [];
-      for (const text of comments) {
-        const trimmed = String(text ?? "").trim();
-        if (!trimmed) continue;
-        const cid = crypto.randomUUID();
-        await env.DB.prepare(
-          `INSERT INTO item_comments (id, item_id, text, created_at) VALUES (?, ?, ?, ?)`
-        ).bind(cid, id, trimmed, createdAt).run();
+      const comments = normalizeComments(body.comments, 1000, 50);
+
+      if (comments.length > 0) {
+        const stmt = env.DB.prepare(
+          `INSERT INTO item_comments (id, item_id, text, translation_text, created_at) VALUES (?, ?, ?, ?, ?)`
+        );
+        const batch = comments.map((c) =>
+          stmt.bind(crypto.randomUUID(), id, c.text, c.translation_text ?? null, createdAt)
+        );
+        await env.DB.batch(batch);
       }
 
       return Response.json({ ok: true });

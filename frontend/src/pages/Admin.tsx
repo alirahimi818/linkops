@@ -21,8 +21,9 @@ import AdminProfilePanel from "../components/ops/admin/AdminProfilePanel";
 import {
   autoFixUrl,
   autoCategoryIdFromUrl,
-  mapItemCommentsToStrings,
+  mapItemCommentsToDrafts,
 } from "../lib/adminItemUtils";
+import type { CommentDraft } from "../components/ops/CommentsEditor";
 
 const TOKEN_KEY = "admin:jwt";
 
@@ -51,7 +52,7 @@ export default function Admin() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
-  const [comments, setComments] = useState<string[]>([]);
+  const [comments, setComments] = useState<CommentDraft[]>([]);
   const [isGlobal, setIsGlobal] = useState<boolean>(false);
 
   const [categoryTouched, setCategoryTouched] = useState(false);
@@ -109,7 +110,7 @@ export default function Admin() {
     setSelectedActionIds(
       Array.isArray(i.actions) ? i.actions.map((a: any) => a.id) : [],
     );
-    setComments(mapItemCommentsToStrings(i.comments));
+    setComments(mapItemCommentsToDrafts(i.comments));
 
     setIsGlobal(isGlobalItem(i));
 
@@ -169,6 +170,16 @@ export default function Admin() {
   async function onSubmit(fixedUrl: string) {
     setSaving(true);
     try {
+      
+      const commentsPayload = comments
+        .map((c) => ({
+          text: String(c.text ?? "").trim(),
+          translation_text: (c.translation_text ?? "").trim()
+            ? c.translation_text
+            : null,
+        }))
+        .filter((c) => c.text.length > 0);
+
       const payload = {
         // date is required for POST; PUT ignores date in your API
         title: title.trim(),
@@ -176,7 +187,7 @@ export default function Admin() {
         description: description.trim(),
         category_id: categoryId ? categoryId : null,
         action_ids: selectedActionIds,
-        comments,
+        comments: commentsPayload,
         is_global: isGlobal,
       };
 
@@ -193,7 +204,11 @@ export default function Admin() {
       await load();
     } catch (e: any) {
       if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
-        setError(isGlobal ? "این لینک قبلاً به‌عنوان آیتم همیشگی ثبت شده است." : "این لینک قبلاً برای همین تاریخ ثبت شده است.");
+        setError(
+          isGlobal
+            ? "این لینک قبلاً به‌عنوان آیتم همیشگی ثبت شده است."
+            : "این لینک قبلاً برای همین تاریخ ثبت شده است.",
+        );
       } else {
         setError(
           e?.message ??

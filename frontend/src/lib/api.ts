@@ -89,10 +89,17 @@ export type Me = {
   bio?: string | null;
 };
 
+export type CommentInput = {
+  text: string;
+  translation_text?: string | null;
+};
+
 export type ItemComment = {
   id: string;
   item_id: string;
   text: string;
+  translation_text?: string | null;
+  author_type?: string;
   created_at: string;
 };
 
@@ -106,7 +113,8 @@ export type AdminCreateItemPayload = {
 
   category_id: string | null;
   action_ids: string[];
-  comments: string[];
+
+  comments: Array<string | CommentInput>;
 };
 
 export type AdminUpdateItemPayload = Partial<

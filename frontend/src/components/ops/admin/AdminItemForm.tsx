@@ -8,7 +8,7 @@ import Select from "../../ui/Select";
 import Alert from "../../ui/Alert";
 
 import ActionCheckboxes from "../ActionCheckboxes";
-import CommentsEditor from "../CommentsEditor";
+import CommentsEditor, { type CommentDraft } from "../CommentsEditor";
 
 import { validateHashtags } from "../../../lib/hashtags";
 import {
@@ -42,8 +42,8 @@ export default function AdminItemForm(props: {
   selectedActionIds: string[];
   setSelectedActionIds: (v: string[]) => void;
 
-  comments: string[];
-  setComments: (v: string[]) => void;
+  comments: CommentDraft[];
+  setComments: (v: CommentDraft[]) => void;
 
   // global
   isGlobal: boolean;
@@ -66,11 +66,18 @@ export default function AdminItemForm(props: {
   onSubmit: (fixedUrl: string) => Promise<void>;
   onCancelEdit: () => void;
 }) {
-  function validateBeforeSave(currentComments: string[]) {
+  function validateBeforeSave(currentComments: CommentDraft[]) {
     if (props.whitelist.size === 0) return null;
-    const issues = validateHashtags(currentComments.join("\n"), props.whitelist);
+
+    const text = currentComments
+      .map((c) => String(c?.text ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
+
+    const issues = validateHashtags(text, props.whitelist);
     if (issues.length > 0)
       return "قبل از ذخیره، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.";
+
     return null;
   }
 
@@ -83,7 +90,8 @@ export default function AdminItemForm(props: {
   async function handleSubmit() {
     props.setError(null);
 
-    if (!props.title.trim() || !props.url.trim() || !props.description.trim()) return;
+    if (!props.title.trim() || !props.url.trim() || !props.description.trim())
+      return;
 
     const fixedUrl = autoFixUrl(props.url);
     if (fixedUrl !== props.url) props.setUrl(fixedUrl);
@@ -166,7 +174,11 @@ export default function AdminItemForm(props: {
             />
           </label>
 
-          <Input value={props.title} onChange={props.setTitle} placeholder="عنوان" />
+          <Input
+            value={props.title}
+            onChange={props.setTitle}
+            placeholder="عنوان"
+          />
 
           <Input
             dir="ltr"
@@ -220,7 +232,11 @@ export default function AdminItemForm(props: {
           />
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
-            <Button variant="success" onClick={handleSubmit} disabled={submitDisabled}>
+            <Button
+              variant="success"
+              onClick={handleSubmit}
+              disabled={submitDisabled}
+            >
               {props.editing
                 ? props.saving
                   ? "در حال ذخیره…"

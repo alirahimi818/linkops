@@ -5,10 +5,15 @@ import Card from "../ui/Card";
 import { applySuggestedReplacements, type HashtagIssue, validateHashtags } from "../../lib/hashtags";
 import HashtagInspector from "../ops/HashtagInspector";
 
+export type CommentDraft = {
+  text: string;
+  translation_text?: string | null;
+};
+
 type Props = {
   label?: string;
-  value: string[];
-  onChange: (next: string[]) => void;
+  value: CommentDraft[];
+  onChange: (next: CommentDraft[]) => void;
   whitelist: Set<string>; // normalized tags without '#'
   maxItems?: number;
   maxLen?: number;
@@ -18,10 +23,10 @@ function normalizeComment(s: string, maxLen: number) {
   return s.trim().slice(0, maxLen);
 }
 
-function collectIssuesForComments(comments: string[], whitelist: Set<string>): HashtagIssue[] {
+function collectIssuesForComments(comments: CommentDraft[], whitelist: Set<string>): HashtagIssue[] {
   if (comments.length === 0 || whitelist.size === 0) return [];
   const out: HashtagIssue[] = [];
-  for (const c of comments) out.push(...validateHashtags(c, whitelist));
+  for (const c of comments) out.push(...validateHashtags(c.text, whitelist));
   return out;
 }
 
@@ -33,7 +38,6 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
 
 /**
  * Remove unknown hashtags after replacements.
- * Keeps whitespace and normal text, removes tokens like "#UnknownTag".
  */
 function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   if (whitelist.size === 0) return text;
@@ -48,20 +52,12 @@ function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/**
- * Detect last hashtag fragment at the end of the textarea (active typing token).
- * Example: "hello #Ir" => fragment "Ir"
- */
 function getActiveHashtagFragment(text: string) {
   const m = text.match(/(^|\s)#([^\s#]{1,80})$/u);
   if (!m) return null;
   return { fragment: (m[2] ?? "").trim() };
 }
 
-/**
- * Damerau-Levenshtein distance with early exit (small threshold).
- * Useful for "one typo" suggestions.
- */
 function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
@@ -69,7 +65,6 @@ function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
   const al = a.length;
   const bl = b.length;
 
-  // Small strings -> cheap DP with early exit
   const dp: number[][] = Array.from({ length: al + 1 }, () => new Array(bl + 1).fill(0));
   for (let i = 0; i <= al; i++) dp[i][0] = i;
   for (let j = 0; j <= bl; j++) dp[0][j] = j;
@@ -80,12 +75,11 @@ function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
 
       let val = Math.min(
-        dp[i - 1][j] + 1, // deletion
-        dp[i][j - 1] + 1, // insertion
-        dp[i - 1][j - 1] + cost // substitution
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
       );
 
-      // transposition
       if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
         val = Math.min(val, dp[i - 2][j - 2] + cost);
       }
@@ -108,13 +102,14 @@ function scoreCandidate(query: string, candidate: string) {
   if (c.startsWith(q)) return 900 - Math.min(200, c.length);
   if (c.includes(q)) return 700 - Math.min(200, c.length);
 
-  // typo tolerance:
-  // for short queries (2-4), allow distance <= 1
-  // for longer (>=5), allow distance <= 2
   const maxDist = q.length <= 4 ? 1 : 2;
-  const dist = damerauLevenshteinWithin(q, c.slice(0, Math.max(q.length, Math.min(c.length, q.length + 2))), maxDist);
-  if (dist <= maxDist) return 500 - dist * 50 - Math.min(200, c.length);
+  const dist = damerauLevenshteinWithin(
+    q,
+    c.slice(0, Math.max(q.length, Math.min(c.length, q.length + 2))),
+    maxDist
+  );
 
+  if (dist <= maxDist) return 500 - dist * 50 - Math.min(200, c.length);
   return -Infinity;
 }
 
@@ -124,14 +119,12 @@ function buildHashtagSuggestions(fragment: string, whitelist: Set<string>, limit
 
   const all = Array.from(whitelist);
 
-  const scored = all
+  return all
     .map((t) => ({ t, score: scoreCandidate(q, t) }))
     .filter((x) => Number.isFinite(x.score) && x.score > -Infinity)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((x) => x.t);
-
-  return scored;
 }
 
 function replaceActiveHashtag(text: string, nextTag: string) {
@@ -171,7 +164,7 @@ export default function CommentsEditor({
     const t = normalizeComment(draft, maxLen);
     if (!t) return;
 
-    onChange([...value, t]);
+    onChange([...value, { text: t, translation_text: null }]);
     setDraft("");
   }
 
@@ -179,15 +172,30 @@ export default function CommentsEditor({
     onChange(value.filter((_, i) => i !== idx));
   }
 
+  function toggleTranslation(idx: number) {
+    const next = value.slice();
+    const cur = next[idx];
+    const has = (cur.translation_text ?? "").trim().length > 0;
+    next[idx] = { ...cur, translation_text: has ? null : "" };
+    onChange(next);
+  }
+
+  function updateTranslation(idx: number, nextText: string) {
+    const next = value.slice();
+    next[idx] = { ...next[idx], translation_text: nextText };
+    onChange(next);
+  }
+
   function replaceAll() {
     if (whitelist.size === 0 || value.length === 0) return;
 
     const next = value
       .slice(0, maxItems)
-      .map((c) => autoFixComment(c, whitelist))
-      .map((c) => pruneUnknownHashtags(c, whitelist))
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .map((c) => ({
+        ...c,
+        text: pruneUnknownHashtags(autoFixComment(c.text, whitelist), whitelist).trim(),
+      }))
+      .filter((c) => c.text.length > 0);
 
     onChange(next);
   }
@@ -216,10 +224,7 @@ export default function CommentsEditor({
 
       {suggestions.length > 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-          <div className="mb-2 text-xs text-zinc-600">
-            پیشنهاد هشتگ‌ها (با کلیک جایگزین می‌شود)
-          </div>
-
+          <div className="mb-2 text-xs text-zinc-600">پیشنهاد هشتگ‌ها (با کلیک جایگزین می‌شود)</div>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((t) => (
               <button
@@ -256,7 +261,7 @@ export default function CommentsEditor({
           variant="warning"
           onClick={replaceAll}
           disabled={value.length === 0 || whitelist.size === 0}
-          title="اصلاح خودکار غلط‌های قابل‌تبدیل + حذف هشتگ‌های ناشناخته در همه کامنت‌ها"
+          title="اصلاح خودکار غلط‌های قابل‌تبدیل + حذف هشتگ‌های ناشناخته در همه کامنت‌ها (فقط متن اصلی)"
         >
           اصلاح خودکار همه
         </Button>
@@ -265,19 +270,25 @@ export default function CommentsEditor({
       {value.length > 0 ? (
         <div className="space-y-2">
           {value.map((c, idx) => {
-            const issues = whitelist.size ? validateHashtags(c, whitelist) : [];
+            const issues = whitelist.size ? validateHashtags(c.text, whitelist) : [];
             const hasIssues = issues.length > 0;
 
             return (
               <Card key={idx}>
                 <div className="flex items-start justify-between gap-4">
-                  <Button variant="ghost" onClick={() => removeAt(idx)}>
-                    حذف
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" onClick={() => removeAt(idx)}>
+                      حذف
+                    </Button>
+
+                    <Button variant="secondary" onClick={() => toggleTranslation(idx)}>
+                      {(c.translation_text ?? "").trim().length > 0 ? "حذف ترجمه" : "افزودن ترجمه"}
+                    </Button>
+                  </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
-                      {c}
+                      {c.text}
                     </div>
 
                     {hasIssues ? (
@@ -290,6 +301,33 @@ export default function CommentsEditor({
                         ))}
                       </div>
                     ) : null}
+
+                    {(c.translation_text ?? "") !== null && (c.translation_text ?? "") !== undefined ? (
+                      <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                        <div className="mb-2 text-xs font-medium text-zinc-700">ترجمه (اختیاری)</div>
+                        <Textarea
+                          dir="rtl"
+                          value={c.translation_text ?? ""}
+                          onChange={(v) => updateTranslation(idx, v)}
+                          placeholder="ترجمه فارسی را وارد کنید (در صورت نیاز)"
+                        />
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          // Inline edit: open a prompt-like edit using the draft area approach
+                          // Simple approach: move the text into draft for editing, remove from list
+                          setDraft(c.text);
+                          removeAt(idx);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        ویرایش متن اصلی
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
