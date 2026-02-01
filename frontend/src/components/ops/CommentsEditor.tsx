@@ -381,6 +381,7 @@ export default function CommentsEditor({
                 ترجمه (اختیاری)
               </div>
               <Textarea
+                className="w-full"
                 dir="rtl"
                 value={draftTranslation}
                 onChange={setDraftTranslation}
