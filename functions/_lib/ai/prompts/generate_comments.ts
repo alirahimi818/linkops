@@ -9,7 +9,7 @@ function normalizeHashtags(tags: string[]): string[] {
 
 export function buildGeneratePrompt(input: GenerateInput): AIChatMessage[] {
   const allowed = normalizeHashtags(input.allowed_hashtags);
-  const examples = input.examples?.slice(0, 10) ?? [];
+  const examples = allowed.length === 0 ? [] : (input.examples?.slice(0, 10) ?? []);
 
   const examplesBlock =
     examples.length === 0

@@ -121,20 +121,36 @@ export async function runGenerateCommentsJob(
     mode: "admin" | "public";
   },
 ): Promise<GenerateOutput> {
-  // mark running
   await env.DB.prepare(
     "UPDATE ai_jobs SET status='running', started_at=?1 WHERE id=?2",
   )
     .bind(new Date().toISOString(), args.job_id)
     .run();
 
-  try {
-    const messages = buildGeneratePrompt(args.input);
+  const provider = getAIProvider(env);
 
-    // store prompt messages
-    await addJobMessages(env, args.job_id, messages);
+  function shouldRetry(errMsg: string) {
+    const m = String(errMsg || "");
+    return (
+      m.includes("INVALID_JSON_OUTPUT") ||
+      m.includes("INVALID_JSON") ||
+      m.includes("INVALID_TRANSLATION_SCRIPT") ||
+      m.includes("INVALID_LINEBREAKS") ||
+      m.includes("INVALID_COMMENTS_COUNT") ||
+      m.includes("Expected ',' or '}'") || // JSON parse message
+      m.includes("Unterminated string in JSON") // JSON parse message
+    );
+  }
 
-    const provider = getAIProvider(env);
+  async function storeAssistant(content: string) {
+    await env.DB.prepare(
+      "INSERT INTO ai_job_messages (id, job_id, role, content, created_at) VALUES (?1, ?2, 'assistant', ?3, ?4)",
+    )
+      .bind(crypto.randomUUID(), args.job_id, content, new Date().toISOString())
+      .run();
+  }
+
+  async function runOnce(messages: any[]) {
     const resp = await provider.chat({
       messages,
       temperature: args.mode === "admin" ? 0.6 : 0.7,
@@ -142,38 +158,80 @@ export async function runGenerateCommentsJob(
       mode: args.mode,
     });
 
-    // store assistant raw output
-    await env.DB.prepare(
-      "INSERT INTO ai_job_messages (id, job_id, role, content, created_at) VALUES (?1, ?2, 'assistant', ?3, ?4)",
-    )
-      .bind(
-        crypto.randomUUID(),
-        args.job_id,
-        resp.content,
-        new Date().toISOString(),
-      )
-      .run();
+    await storeAssistant(resp.content);
 
-    const output = validateGenerateOutput({
+    return validateGenerateOutput({
       raw: resp.content,
       count: args.input.count,
       allowed_hashtags: args.input.allowed_hashtags,
     });
+  }
 
-    await env.DB.prepare(
-      "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
-    )
-      .bind(new Date().toISOString(), args.job_id)
-      .run();
+  try {
+    // Build base prompt
+    const messages = buildGeneratePrompt(args.input);
 
-    return output;
+    // Store prompt messages
+    await addJobMessages(env, args.job_id, messages);
+
+    // First attempt
+    try {
+      const output = await runOnce(messages);
+
+      await env.DB.prepare(
+        "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
+      )
+        .bind(new Date().toISOString(), args.job_id)
+        .run();
+
+      return output;
+    } catch (e1: any) {
+      const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
+
+      if (!shouldRetry(msg1)) {
+        throw e1;
+      }
+
+      // Log retry instruction as a job message
+      const retryNudge = {
+        role: "user",
+        content:
+          "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
+          'Schema: {"comments":[{"text":string,"translation_text":string,"hashtags_used":string[]}]}. ' +
+          `comments.length MUST equal ${args.input.count}. ` +
+          "All strings must be single-line. " +
+          "translation_text must be Persian (Arabic script) only—no Latin/Cyrillic/CJK characters. " +
+          "No markdown, no code fences, no commentary.",
+      };
+
+      await addJobMessages(env, args.job_id, [
+        {
+          role: "user",
+          content: "[RETRY] previous output invalid. Forcing strict JSON only.",
+        },
+      ]);
+
+      // Second attempt (retry once)
+      const retryMessages = [...messages, retryNudge];
+      const output2 = await runOnce(retryMessages);
+
+      await env.DB.prepare(
+        "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
+      )
+        .bind(new Date().toISOString(), args.job_id)
+        .run();
+
+      return output2;
+    }
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
+
     await env.DB.prepare(
       "UPDATE ai_jobs SET status='failed', error=?1, finished_at=?2 WHERE id=?3",
     )
       .bind(msg, new Date().toISOString(), args.job_id)
       .run();
+
     throw new Error(msg);
   }
 }
