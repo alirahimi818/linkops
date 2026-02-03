@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import Textarea from "../ui/Textarea";
 import Button from "../ui/Button";
+import Input from "../ui/Input";
+import Select from "../ui/Select";
 import Card from "../ui/Card";
 import {
   applySuggestedReplacements,
@@ -21,6 +23,31 @@ type Props = {
   whitelist: Set<string>; // normalized tags without '#'
   maxItems?: number;
   maxLen?: number;
+  ai?: {
+    enabled: boolean;
+    loading: boolean;
+    error: string | null;
+
+    tone: string;
+    setTone: (v: any) => void;
+
+    need_fa: string;
+    setNeedFa: (v: string) => void;
+
+    comment_type_fa: string;
+    setCommentTypeFa: (v: string) => void;
+
+    hashtagsText: string;
+    setHashtagsText: (v: string) => void;
+
+    useExamples: boolean;
+    setUseExamples: (v: boolean) => void;
+
+    saveToDb: boolean;
+    setSaveToDb: (v: boolean) => void;
+
+    onGenerate: () => Promise<void>;
+  };
 };
 
 function normalizeComment(s: string, maxLen: number) {
@@ -49,15 +76,12 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
 function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   if (whitelist.size === 0) return text;
 
-  const out = text.replace(
-    /(^|\s)#([\p{L}\p{N}_]+)/gu,
-    (_full, lead, tag) => {
-      const t = String(tag ?? "").trim();
-      if (!t) return lead;
-      if (whitelist.has(t)) return `${lead}#${t}`;
-      return lead;
-    },
-  );
+  const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (_full, lead, tag) => {
+    const t = String(tag ?? "").trim();
+    if (!t) return lead;
+    if (whitelist.has(t)) return `${lead}#${t}`;
+    return lead;
+  });
 
   return out
     .replace(/[ \t]{2,}/g, " ")
@@ -102,12 +126,7 @@ function damerauLevenshteinWithin(a: string, b: string, maxDist: number) {
         dp[i - 1][j - 1] + cost,
       );
 
-      if (
-        i > 1 &&
-        j > 1 &&
-        a[i - 1] === b[j - 2] &&
-        a[i - 2] === b[j - 1]
-      ) {
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
         val = Math.min(val, dp[i - 2][j - 2] + cost);
       }
 
@@ -163,7 +182,10 @@ function replaceActiveHashtag(text: string, nextTag: string) {
 }
 
 function hasNonEmptyTranslation(c: CommentDraft) {
-  return typeof c.translation_text === "string" && c.translation_text.trim().length > 0;
+  return (
+    typeof c.translation_text === "string" &&
+    c.translation_text.trim().length > 0
+  );
 }
 
 export default function CommentsEditor({
@@ -173,6 +195,7 @@ export default function CommentsEditor({
   whitelist,
   maxItems = 50,
   maxLen = 400,
+  ai,
 }: Props) {
   // Draft editor (create/edit)
   const [draftText, setDraftText] = useState("");
@@ -182,7 +205,10 @@ export default function CommentsEditor({
   // If editing, we keep the original index so we can replace in same position (optional)
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const activeFrag = useMemo(() => getActiveHashtagFragment(draftText), [draftText]);
+  const activeFrag = useMemo(
+    () => getActiveHashtagFragment(draftText),
+    [draftText],
+  );
 
   const suggestions = useMemo(() => {
     if (!activeFrag) return [];
@@ -219,7 +245,11 @@ export default function CommentsEditor({
     const tr = draftTranslation.trim();
     const draft: CommentDraft = {
       text: t,
-      translation_text: showTranslation ? (tr ? tr.slice(0, maxLen) : null) : null,
+      translation_text: showTranslation
+        ? tr
+          ? tr.slice(0, maxLen)
+          : null
+        : null,
     };
 
     // If editing -> replace at index
@@ -268,7 +298,11 @@ export default function CommentsEditor({
       const tr = draftTranslation.trim();
       const draft: CommentDraft = {
         text: normalizeComment(draftText, maxLen),
-        translation_text: showTranslation ? (tr ? tr.slice(0, maxLen) : null) : null,
+        translation_text: showTranslation
+          ? tr
+            ? tr.slice(0, maxLen)
+            : null
+          : null,
       };
 
       const next = value.slice();
@@ -286,7 +320,10 @@ export default function CommentsEditor({
       .slice(0, maxItems)
       .map((c) => ({
         ...c,
-        text: pruneUnknownHashtags(autoFixComment(c.text, whitelist), whitelist).trim(),
+        text: pruneUnknownHashtags(
+          autoFixComment(c.text, whitelist),
+          whitelist,
+        ).trim(),
       }))
       .filter((c) => c.text.length > 0);
 
@@ -303,6 +340,106 @@ export default function CommentsEditor({
           {value.length} / {maxItems}
         </div>
       </div>
+
+      {ai?.enabled ? (
+        <Card>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-medium text-zinc-800">تولید با AI</div>
+            <Button
+              variant="info"
+              onClick={ai.onGenerate}
+              disabled={ai.loading}
+            >
+              {ai.loading ? "در حال تولید…" : "تولید کامنت"}
+            </Button>
+          </div>
+
+          {ai.error ? (
+            <div className="mt-2 text-sm text-red-700">{ai.error}</div>
+          ) : null}
+
+          <div className="mt-3 grid gap-3">
+            <div className="grid gap-2">
+              <div className="text-xs text-zinc-600">لحن</div>
+              <Select value={ai.tone} onChange={ai.setTone}>
+                <option value="neutral">خنثی</option>
+                <option value="friendly">دوستانه</option>
+                <option value="formal">رسمی</option>
+                <option value="witty">باهوش/طعنه ملایم</option>
+                <option value="professional">حرفه‌ای</option>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
+              <Input
+                value={ai.need_fa}
+                onChange={ai.setNeedFa}
+                placeholder="مثلاً: ریپلای کوتاه برای تعامل…"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <div className="text-xs text-zinc-600">نوع کامنت (فارسی)</div>
+              <Input
+                value={ai.comment_type_fa}
+                onChange={ai.setCommentTypeFa}
+                placeholder="مثلاً: ریپلای کوتاه / سؤال‌محور…"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <div className="text-xs text-zinc-600">هشتگ‌های مجاز</div>
+              <Textarea
+                dir="ltr"
+                value={ai.hashtagsText}
+                onChange={ai.setHashtagsText}
+                placeholder="#tag1 #tag2 ..."
+              />
+              <div className="text-xs text-zinc-500">
+                فقط از این هشتگ‌ها استفاده می‌شود. (می‌توانید خالی بگذارید)
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-zinc-900"
+                checked={ai.useExamples}
+                onChange={(e) => ai.setUseExamples(e.target.checked)}
+              />
+              استفاده از ۵ کامنت فعلی به عنوان مثال
+            </label>
+
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-zinc-900"
+                checked={ai.saveToDb}
+                onChange={(e) => ai.setSaveToDb(e.target.checked)}
+              />
+              ذخیره مستقیم در دیتابیس (بدون نیاز به ذخیره آیتم)
+            </label>
+
+            {ai.saveToDb ? (
+              <div className="text-xs text-amber-700">
+                در این حالت، خروجی AI همان لحظه به دیتابیس اضافه می‌شود.
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-500">
+                پیش‌فرض: فقط به‌صورت پیش‌نویس اضافه می‌شود تا بازبینی کنید؛ سپس
+                با ذخیره آیتم ثبت می‌شود.
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="text-sm text-zinc-700">
+            برای تولید با AI، ابتدا آیتم را ذخیره کنید تا وارد حالت ویرایش شوید.
+          </div>
+        </Card>
+      )}
 
       {/* Draft editor */}
       <Card>
@@ -354,7 +491,9 @@ export default function CommentsEditor({
                     key={t}
                     type="button"
                     dir="ltr"
-                    onClick={() => setDraftText((prev) => replaceActiveHashtag(prev, t))}
+                    onClick={() =>
+                      setDraftText((prev) => replaceActiveHashtag(prev, t))
+                    }
                     className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-mono text-zinc-800 hover:bg-zinc-100 transition"
                     title="Insert hashtag"
                   >
@@ -392,7 +531,9 @@ export default function CommentsEditor({
 
           <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3">
             <Button variant="info" onClick={addOrSave} disabled={!canAddOrSave}>
-              {editingIndex !== null ? "ذخیره و بازگشت به لیست" : "افزودن کامنت"}
+              {editingIndex !== null
+                ? "ذخیره و بازگشت به لیست"
+                : "افزودن کامنت"}
             </Button>
 
             <Button
@@ -411,25 +552,38 @@ export default function CommentsEditor({
       {value.length > 0 ? (
         <div className="space-y-2">
           {value.map((c, idx) => {
-            const issues = whitelist.size ? validateHashtags(c.text, whitelist) : [];
+            const issues = whitelist.size
+              ? validateHashtags(c.text, whitelist)
+              : [];
             const hasIssues = issues.length > 0;
 
             return (
               <Card key={idx}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-col justify-center items-center gap-2">
-                    <Button className="w-full" variant="danger" onClick={() => removeAt(idx)}>
+                    <Button
+                      className="w-full"
+                      variant="danger"
+                      onClick={() => removeAt(idx)}
+                    >
                       حذف
                     </Button>
 
-                    <Button className="w-full" variant="secondary" onClick={() => startEdit(idx)}>
+                    <Button
+                      className="w-full"
+                      variant="secondary"
+                      onClick={() => startEdit(idx)}
+                    >
                       ویرایش
                     </Button>
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                      <div
+                        className="whitespace-pre-wrap text-sm text-zinc-800"
+                        dir="auto"
+                      >
                         {c.text}
                       </div>
                     </div>
@@ -438,7 +592,11 @@ export default function CommentsEditor({
                       <div className="mt-2 text-xs text-red-700">
                         هشتگ‌های نامعتبر:
                         {issues.map((i) => (
-                          <span key={i.raw} className="me-2 font-mono" dir="ltr">
+                          <span
+                            key={i.raw}
+                            className="me-2 font-mono"
+                            dir="ltr"
+                          >
                             {i.raw}
                           </span>
                         ))}

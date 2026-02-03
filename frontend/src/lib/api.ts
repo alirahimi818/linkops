@@ -2,6 +2,44 @@
 
 import { loadingStart, loadingStop } from "./loadingStore";
 
+export type Tone = "friendly" | "formal" | "neutral" | "witty" | "professional";
+
+export type AdminAIGenerateExample = {
+  text: string; // English example
+  translation_text?: string | null; // Optional Persian translation
+};
+
+export type AdminAIGenerateCommentsPayload = {
+  item_id: string;
+
+  title_fa: string;
+  description_fa: string;
+  need_fa: string;
+  comment_type_fa: string;
+
+  tone: Tone;
+
+  allowed_hashtags: string[];
+
+  // Optional: admin can provide examples
+  examples?: AdminAIGenerateExample[];
+
+  save?: boolean;
+};
+
+export type AIGeneratedComment = {
+  text: string;
+  translation_text: string;
+  hashtags_used: string[];
+};
+
+export type AdminAIGenerateCommentsResponse = {
+  ok: boolean;
+  job_id: string;
+  saved_comment_ids: string[];
+  comments: AIGeneratedComment[];
+};
+
 /**
  * Notes:
  * - Public endpoints do NOT use auth token.
@@ -670,3 +708,25 @@ export async function adminValidateHashtags(text: string) {
     { auth: true },
   );
 }
+
+/* =========================
+   Admin AI
+   ========================= */
+
+/**
+ * Admin: generate 10 AI comments + Persian translations and save to item_comments
+ * Expected endpoint: POST /api/admin/ai/generate-comments
+ */
+export async function adminGenerateAIComments(
+  payload: AdminAIGenerateCommentsPayload,
+): Promise<AdminAIGenerateCommentsResponse> {
+  return requestJSON<AdminAIGenerateCommentsResponse>(
+    `/api/admin/ai/generate-comments`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  );
+}
+

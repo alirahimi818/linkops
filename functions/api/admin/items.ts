@@ -485,8 +485,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       }
 
       // Replace comments
-      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ?`)
-        .bind(id)
+      await env.DB.prepare(`DELETE FROM item_comments WHERE item_id = ? AND author_type != ?`)
+        .bind(id, "ai")
         .run();
 
       const comments = normalizeComments(body.comments, 1000, 50);

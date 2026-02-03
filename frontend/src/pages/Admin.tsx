@@ -258,6 +258,7 @@ export default function Admin() {
       ) : null}
 
       <AdminItemForm
+        itemId={editing?.id ?? null}
         date={date}
         categories={categories}
         actions={availableActions}

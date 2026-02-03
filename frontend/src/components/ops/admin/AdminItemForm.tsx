@@ -1,4 +1,5 @@
-import type { Action, Category } from "../../../lib/api";
+import { useState } from "react";
+import type { Action, Category, Tone } from "../../../lib/api";
 
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
@@ -17,9 +18,13 @@ import {
   isValidAbsoluteHttpUrl,
 } from "../../../lib/adminItemUtils";
 
+import { adminGenerateAIComments } from "../../../lib/api";
+
 export type EditState = { id: string; originalDate: string } | null;
 
 export default function AdminItemForm(props: {
+  itemId: string | null;
+
   date: string;
 
   categories: Category[];
@@ -116,6 +121,109 @@ export default function AdminItemForm(props: {
     !props.description.trim() ||
     props.saving ||
     !isValidAbsoluteHttpUrl(autoFixUrl(props.url));
+
+  // AI section
+  function parseHashtags(text: string): string[] {
+    return String(text || "")
+      .split(/[\s,\n]+/g)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => (x.startsWith("#") ? x.slice(1) : x)); // backend normalizes
+  }
+
+  const [aiTone, setAiTone] = useState<Tone>("neutral");
+  const [aiNeedFa, setAiNeedFa] = useState(
+    "تولید ریپلای‌های کوتاه برای تعامل و ادامه گفتگو",
+  );
+  const [aiCommentTypeFa, setAiCommentTypeFa] = useState("ریپلای کوتاه");
+
+  // Text box for hashtags (admin can edit)
+  const [aiHashtagsText, setAiHashtagsText] = useState(
+    props.whitelist.size
+      ? Array.from(props.whitelist)
+          .map((t) => `#${t}`)
+          .join(" ")
+      : "",
+  );
+
+  // Use existing drafts as examples
+  const [aiUseExamples, setAiUseExamples] = useState(true);
+
+  // Save directly or only preview
+  const [aiSaveToDb, setAiSaveToDb] = useState(false);
+
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  async function handleAIGenerate() {
+    props.setError(null);
+    setAiError(null);
+
+    if (!props.itemId) {
+      setAiError(
+        "برای تولید با AI، ابتدا آیتم را ذخیره کنید (بعد وارد حالت ویرایش شوید).",
+      );
+      return;
+    }
+
+    if (!props.title.trim() || !props.description.trim()) {
+      setAiError("برای تولید با AI، عنوان و توضیح را وارد کنید.");
+      return;
+    }
+
+    const allowed = parseHashtags(aiHashtagsText);
+
+    const examples = aiUseExamples
+      ? props.comments
+          .slice(0, 5)
+          .map((c) => ({
+            text: String(c.text || "").trim(),
+            translation_text:
+              typeof c.translation_text === "string" &&
+              c.translation_text.trim()
+                ? c.translation_text.trim()
+                : null,
+          }))
+          .filter((x) => x.text.length > 0)
+      : [];
+
+    setAiLoading(true);
+    try {
+      const res = await adminGenerateAIComments({
+        item_id: props.itemId,
+        title_fa: props.title.trim(),
+        description_fa: props.description.trim(),
+        need_fa: aiNeedFa.trim(),
+        comment_type_fa: aiCommentTypeFa.trim(),
+        tone: aiTone,
+        allowed_hashtags: allowed,
+        examples,
+        save: aiSaveToDb,
+      });
+
+      // Append to local draft list (max 50)
+      const incoming = (res.comments || []).map((c) => ({
+        text: c.text,
+        translation_text: c.translation_text,
+      }));
+
+      const maxItems = 50;
+      const space = Math.max(0, maxItems - props.comments.length);
+      const toAdd = incoming.slice(0, space);
+
+      if (toAdd.length > 0) {
+        props.setComments([...props.comments, ...toAdd]);
+      } else {
+        setAiError(
+          "لیست کامنت‌ها پر است (حداکثر ۵۰). ابتدا چند مورد را حذف کنید.",
+        );
+      }
+    } catch (e: any) {
+      setAiError(e?.message ?? "تولید کامنت با AI ناموفق بود.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   return (
     <>
@@ -229,6 +337,24 @@ export default function AdminItemForm(props: {
             whitelist={props.whitelist}
             maxItems={50}
             maxLen={1000}
+            ai={{
+              enabled: !!props.itemId,
+              loading: aiLoading,
+              error: aiError,
+              tone: aiTone,
+              setTone: setAiTone,
+              need_fa: aiNeedFa,
+              setNeedFa: setAiNeedFa,
+              comment_type_fa: aiCommentTypeFa,
+              setCommentTypeFa: setAiCommentTypeFa,
+              hashtagsText: aiHashtagsText,
+              setHashtagsText: setAiHashtagsText,
+              useExamples: aiUseExamples,
+              setUseExamples: setAiUseExamples,
+              saveToDb: aiSaveToDb,
+              setSaveToDb: setAiSaveToDb,
+              onGenerate: handleAIGenerate,
+            }}
           />
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
