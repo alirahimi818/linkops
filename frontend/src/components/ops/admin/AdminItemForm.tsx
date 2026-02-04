@@ -134,7 +134,7 @@ export default function AdminItemForm(props: {
     "random_existing" | "manual" | "none"
   >("random_existing");
 
-  const [aiManualExamplesText, setAiManualExamplesText] = useState("");
+  const [aiManualExamples, setAiManualExamples] = useState<string[]>([]);
 
   // Save directly or only preview
   const [aiSaveToDb, setAiSaveToDb] = useState(false);
@@ -158,25 +158,6 @@ export default function AdminItemForm(props: {
       return;
     }
 
-    let examples: Array<{ text: string }> = [];
-
-    if (aiExamplesMode === "random_existing") {
-      const pool = props.comments
-        .map((c) => String(c.text || "").trim())
-        .filter((t) => t.length > 0);
-
-      examples = pickRandom(pool, 5).map((t) => ({ text: t }));
-    } else if (aiExamplesMode === "manual") {
-      examples = parseManualExamples(aiManualExamplesText);
-
-      if (examples.length === 0) {
-        setAiError(
-          "برای حالت مثال دستی، لطفاً حداقل ۱ خط مثال انگلیسی وارد کنید.",
-        );
-        return;
-      }
-    }
-
     function pickRandom<T>(arr: T[], count: number): T[] {
       const a = arr.slice();
       for (let i = a.length - 1; i > 0; i--) {
@@ -186,13 +167,27 @@ export default function AdminItemForm(props: {
       return a.slice(0, count);
     }
 
-    function parseManualExamples(text: string): Array<{ text: string }> {
-      return String(text || "")
-        .split(/\r?\n/g)
-        .map((l) => l.trim())
-        .filter(Boolean)
+    let examples: Array<{ text: string }> = [];
+
+    if (aiExamplesMode === "random_existing") {
+      const pool = props.comments
+        .map((c) => String(c.text || "").trim())
+        .filter((t) => t.length > 0);
+
+      examples = pickRandom(pool, 5).map((t) => ({ text: t }));
+    } else if (aiExamplesMode === "manual") {
+      examples = aiManualExamples
+        .map((t) => String(t || "").trim())
+        .filter((t) => t.length > 0)
         .slice(0, 5)
         .map((t) => ({ text: t }));
+
+      if (examples.length === 0) {
+        setAiError("برای حالت مثال دستی، حداقل یک مثال وارد کنید.");
+        return;
+      }
+    } else {
+      examples = [];
     }
 
     setAiLoading(true);
@@ -361,8 +356,8 @@ export default function AdminItemForm(props: {
 
               examplesMode: aiExamplesMode,
               setExamplesMode: setAiExamplesMode,
-              manualExamplesText: aiManualExamplesText,
-              setManualExamplesText: setAiManualExamplesText,
+              manualExamples: aiManualExamples,
+              setManualExamples: setAiManualExamples,
 
               saveToDb: aiSaveToDb,
               setSaveToDb: setAiSaveToDb,

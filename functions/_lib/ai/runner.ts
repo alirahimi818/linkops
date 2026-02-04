@@ -1,10 +1,13 @@
 import { getAIProvider } from "./provider";
 import type { DraftOutput, FinalOutput, GenerateInput } from "./types";
-import {
-  buildDraftPrompt,
-  buildTranslatePrompt,
-} from "./prompts/generate_comments";
-import { validateDraftOutput, validateTranslateOutput } from "./validate";
+
+// New separated prompt files:
+import { buildDraftPrompt } from "./prompts/draft_en";
+import { buildTranslateToFaTextPrompt } from "./prompts/translate_to_fa_text";
+
+import { validateDraftOutput, validateTranslationText } from "./validate";
+
+/* ------------------------------ DB helpers ------------------------------ */
 
 export async function getRandomItemCommentExamples(
   env: Env,
@@ -116,6 +119,8 @@ export async function addJobMessages(
   }
 }
 
+/* ------------------------------ Runner ------------------------------ */
+
 export async function runGenerateCommentsJob(
   env: Env,
   args: {
@@ -126,10 +131,16 @@ export async function runGenerateCommentsJob(
 ): Promise<FinalOutput> {
   const provider = getAIProvider(env);
 
-  const temperature = args.mode === "admin" ? 0.6 : 0.7;
+  // Stage1 quality knobs
+  // - Admin: slightly lower temp for better "style lock"
+  // - Public: keep it a bit higher
+  const temperature = args.mode === "admin" ? 0.55 : 0.7;
 
-  // Representative job max_tokens (Stage1). Stage2 will reuse same unless you later decide otherwise.
-  const max_tokens = args.mode === "admin" ? 2200 : 900;
+  // Stage1 token budget
+  const max_tokens_stage1 = args.mode === "admin" ? 2400 : 900;
+
+  // Stage2 token budget (single short line)
+  const max_tokens_stage2 = 220;
 
   // Single update: mark running + store provider/model/config
   await env.DB.prepare(
@@ -138,32 +149,34 @@ export async function runGenerateCommentsJob(
     .bind(
       new Date().toISOString(),
       provider.name,
-      provider.model ?? null,
+      (provider as any).model ?? null,
       temperature,
-      max_tokens,
+      max_tokens_stage1,
       args.job_id,
     )
     .run();
 
   function shouldRetry(errMsg: string) {
     const m = String(errMsg || "");
+
+    // We only retry once, so keep this permissive.
     return (
       m.includes("INVALID_JSON_OUTPUT") ||
       m.includes("INVALID_JSON") ||
       m.includes("INVALID_JSON_SHAPE") ||
-      m.includes("INVALID_LINEBREAKS") ||
       m.includes("INVALID_COMMENTS_COUNT") ||
-      m.includes("Expected ',' or '}'") ||
-      m.includes("Unterminated string in JSON") ||
-      // Stage 1
+      m.includes("INVALID_LINEBREAKS") ||
+      m.includes("INVALID_TEXT_NOT_ENGLISH") ||
       m.includes("ILLEGAL_HASHTAG_IN_TEXT") ||
       m.includes("HASHTAGS_NOT_ALLOWED") ||
-      m.includes("INVALID_TEXT_NOT_ENGLISH") ||
-      // Stage 2
+      m.includes("Expected ',' or '}'") ||
+      m.includes("Unterminated string") ||
+      // Translation validator errors:
       m.includes("INVALID_TRANSLATION_SCRIPT") ||
       m.includes("TRANSLATION_HASHTAGS_CHANGED") ||
       m.includes("TRANSLATION_MENTIONS_CHANGED") ||
-      m.includes("TEXT_CHANGED_FROM_DRAFT")
+      m.includes("INVALID_TRANSLATION_WRAPPED") ||
+      m.includes("EMPTY_TRANSLATION")
     );
   }
 
@@ -175,11 +188,14 @@ export async function runGenerateCommentsJob(
       .run();
   }
 
-  async function runChatOnce(messages: any[]) {
+  async function runChatOnce(params: {
+    messages: any[];
+    max_tokens: number;
+  }) {
     const resp = await provider.chat({
-      messages,
+      messages: params.messages,
       temperature,
-      max_tokens,
+      max_tokens: params.max_tokens,
       mode: args.mode,
     });
 
@@ -187,18 +203,20 @@ export async function runGenerateCommentsJob(
     return resp.content;
   }
 
-  async function runStageWithOneRetry<T>(params: {
+  async function runStageJsonWithOneRetry<T>(params: {
     stageLabel: string;
     baseMessages: any[];
-    retrySchemaNudge: string;
+    retryNudge: string;
     validate: (raw: string) => T;
+    max_tokens: number;
   }): Promise<T> {
-    const { stageLabel, baseMessages, retrySchemaNudge, validate } = params;
+    const { stageLabel, baseMessages, retryNudge, validate, max_tokens } =
+      params;
 
     await addJobMessages(env, args.job_id, baseMessages);
 
     try {
-      const raw1 = await runChatOnce(baseMessages);
+      const raw1 = await runChatOnce({ messages: baseMessages, max_tokens });
       return validate(raw1);
     } catch (e1: any) {
       const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
@@ -207,20 +225,64 @@ export async function runGenerateCommentsJob(
       await addJobMessages(env, args.job_id, [
         {
           role: "user",
-          content: `[RETRY:${stageLabel}] previous output invalid. Forcing strict JSON only.`,
+          content: `[RETRY:${stageLabel}] previous output invalid. Return strict output only.`,
         },
       ]);
 
-      const retryNudge = { role: "user", content: retrySchemaNudge };
-      const retryMessages = [...baseMessages, retryNudge];
+      const retryMessages = [
+        ...baseMessages,
+        { role: "user", content: retryNudge },
+      ];
 
-      const raw2 = await runChatOnce(retryMessages);
+      const raw2 = await runChatOnce({ messages: retryMessages, max_tokens });
+      return validate(raw2);
+    }
+  }
+
+  async function runTranslateTextWithOneRetry(params: {
+    stageLabel: string;
+    baseMessages: any[];
+    retryNudge: string;
+    validate: (rawText: string) => string; // returns cleaned translation text
+  }): Promise<string> {
+    const { stageLabel, baseMessages, retryNudge, validate } = params;
+
+    await addJobMessages(env, args.job_id, baseMessages);
+
+    try {
+      const raw1 = await runChatOnce({
+        messages: baseMessages,
+        max_tokens: max_tokens_stage2,
+      });
+      return validate(raw1);
+    } catch (e1: any) {
+      const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
+      if (!shouldRetry(msg1)) throw e1;
+
+      await addJobMessages(env, args.job_id, [
+        {
+          role: "user",
+          content: `[RETRY:${stageLabel}] previous output invalid. Return ONLY the Persian translation text.`,
+        },
+      ]);
+
+      const retryMessages = [
+        ...baseMessages,
+        { role: "user", content: retryNudge },
+      ];
+
+      const raw2 = await runChatOnce({
+        messages: retryMessages,
+        max_tokens: max_tokens_stage2,
+      });
+
       return validate(raw2);
     }
   }
 
   try {
-    /* ------------------------------ Stage 1: Draft (EN) ------------------------------ */
+    /* ------------------------------ Stage 1: Draft (EN JSON) ------------------------------ */
+
     const draftMessages = buildDraftPrompt(args.input);
 
     const draftRetryNudge =
@@ -230,13 +292,16 @@ export async function runGenerateCommentsJob(
       "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
       `comments.length MUST equal ${args.input.count}. ` +
       "Each text must be English and single-line. " +
-      "Hashtags, if used, must be ONLY from the allowed list. Do NOT invent hashtags. " +
+      "Match the examples' style: strong, specific, activist tone; not generic. " +
+      "Use @mentions and whitelisted hashtags naturally when appropriate. " +
+      "Respect hashtag rules strictly. " +
       "No markdown, no code fences, no commentary.";
 
-    const draft: DraftOutput = await runStageWithOneRetry<DraftOutput>({
+    const draft: DraftOutput = await runStageJsonWithOneRetry<DraftOutput>({
       stageLabel: "DRAFT_EN",
       baseMessages: draftMessages,
-      retrySchemaNudge: draftRetryNudge,
+      retryNudge: draftRetryNudge,
+      max_tokens: max_tokens_stage1,
       validate: (raw) =>
         validateDraftOutput({
           raw,
@@ -245,50 +310,49 @@ export async function runGenerateCommentsJob(
         }),
     });
 
-    /* ------------------------------ Stage 2: Translate (FA) ------------------------------ */
-    const translateMessages = buildTranslatePrompt({
-      draft,
-      tone: args.input.tone,
-      stream: args.input.stream,
-      topic: args.input.topic,
-    });
+    /* ------------------------------ Stage 2: Translate (FA TEXT, per item) ------------------------------ */
 
-    const translateRetryNudge =
-      "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
-      `Schema: {"comments":[{"text":string,"translation_text":string}]}. ` +
-      "Top-level JSON must contain ONLY the key 'comments'. " +
-      "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
-      `comments.length MUST equal ${draft.comments.length}. ` +
-      "text must be EXACTLY the same as the provided English text (no edits). " +
-      "translation_text must be Persian. " +
-      "IMPORTANT: Do NOT translate or change hashtags (#...) and mentions (@...). Keep them exactly unchanged. " +
-      "All strings must be single-line. " +
-      "No markdown, no code fences, no commentary.";
+    const finalComments: Array<{ text: string; translation_text: string }> = [];
 
-    let finalOut: FinalOutput;
+    for (let i = 0; i < draft.comments.length; i++) {
+      const text_en = String(draft.comments[i]?.text ?? "").trim();
 
-    try {
-      finalOut = await runStageWithOneRetry<FinalOutput>({
-        stageLabel: "TRANSLATE_FA",
-        baseMessages: translateMessages,
-        retrySchemaNudge: translateRetryNudge,
-        validate: (raw) =>
-          validateTranslateOutput({
-            raw,
-            draft,
-          }),
+      const translateMessages = buildTranslateToFaTextPrompt({
+        text_en,
+        tone: args.input.tone,
+        stream: args.input.stream,
+        topic: args.input.topic,
       });
-    } catch (e2: any) {
-      const msg2 = e2?.message ? String(e2.message) : "UNKNOWN_ERROR";
-      if (!shouldRetry(msg2)) throw e2;
 
-      finalOut = {
-        comments: draft.comments.map((c) => ({
-          text: c.text,
-          translation_text: "",
-        })),
-      };
+      const translateRetryNudge =
+        "Return ONLY the Persian translation text as a SINGLE LINE. " +
+        "Do NOT return JSON. Do NOT add quotes. Do NOT add extra text. " +
+        "Do NOT translate or change hashtags (#...) and mentions (@...). Keep them exactly unchanged.";
+
+      let translation_text = "";
+
+      try {
+        translation_text = await runTranslateTextWithOneRetry({
+          stageLabel: `TRANSLATE_FA_${i + 1}`,
+          baseMessages: translateMessages,
+          retryNudge: translateRetryNudge,
+          validate: (rawText) =>
+            validateTranslationText({
+              raw: rawText,
+              source_text: text_en,
+              idx: i,
+            }),
+        });
+      } catch (e: any) {
+        const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
+        if (!shouldRetry(msg)) throw e;
+        translation_text = "";
+      }
+
+      finalComments.push({ text: text_en, translation_text });
     }
+
+    const finalOut: FinalOutput = { comments: finalComments };
 
     await env.DB.prepare(
       "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",

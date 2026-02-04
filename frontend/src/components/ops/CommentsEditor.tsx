@@ -40,8 +40,8 @@ type Props = {
     examplesMode: "random_existing" | "manual" | "none";
     setExamplesMode: (v: "random_existing" | "manual" | "none") => void;
 
-    manualExamplesText: string;
-    setManualExamplesText: (v: string) => void;
+    manualExamples: string[];
+    setManualExamples: (v: string[]) => void;
 
     saveToDb: boolean;
     setSaveToDb: (v: boolean) => void;
@@ -419,7 +419,12 @@ export default function CommentsEditor({
                 مثال‌ها برای هدایت سبک خروجی
               </div>
 
-              <Select value={ai.examplesMode} onChange={(v) => ai.setExamplesMode(v as "random_existing" | "manual" | "none")}>
+              <Select
+                value={ai.examplesMode}
+                onChange={(v) =>
+                  ai.setExamplesMode(v as "random_existing" | "manual" | "none")
+                }
+              >
                 <option value="random_existing">
                   انتخاب تصادفی ۵ کامنت از کامنت‌های همین آیتم
                 </option>
@@ -429,19 +434,71 @@ export default function CommentsEditor({
 
               {ai.examplesMode === "manual" ? (
                 <div className="mt-2 grid gap-2">
-                  <div className="text-xs text-zinc-600">
-                    مثال‌های انگلیسی (هر خط یک کامنت)
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-zinc-600">
+                      مثال‌های انگلیسی (حداکثر ۵ مورد)
+                    </div>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const cur = ai.manualExamples.slice();
+                        if (cur.length >= 5) return;
+                        ai.setManualExamples([...cur, ""]);
+                      }}
+                      disabled={ai.manualExamples.length >= 5}
+                    >
+                      + افزودن مثال
+                    </Button>
                   </div>
-                  <Textarea
-                    dir="ltr"
-                    value={ai.manualExamplesText}
-                    onChange={ai.setManualExamplesText}
-                    placeholder={
-                      "Example 1...\nExample 2...\nExample 3...\nExample 4...\nExample 5..."
-                    }
-                  />
-                  <div className="text-xs text-zinc-500">
-                    حداکثر ۵ خط خوانده می‌شود. خطوط خالی نادیده گرفته می‌شوند.
+
+                  {ai.manualExamples.length === 0 ? (
+                    <div className="text-xs text-zinc-500">
+                      هنوز مثالی اضافه نشده. برای افزودن روی «+ افزودن مثال»
+                      بزنید.
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-2">
+                    {ai.manualExamples.map((ex, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium text-zinc-700">
+                            مثال {idx + 1}
+                          </div>
+
+                          <Button
+                            variant="danger"
+                            onClick={() => {
+                              ai.setManualExamples(
+                                ai.manualExamples.filter((_, i) => i !== idx),
+                              );
+                            }}
+                          >
+                            حذف
+                          </Button>
+                        </div>
+
+                        <Textarea
+                          dir="ltr"
+                          value={ex}
+                          onChange={(v) => {
+                            const next = ai.manualExamples.slice();
+                            next[idx] = v;
+                            ai.setManualExamples(next);
+                          }}
+                          placeholder="متن مثال انگلیسی (می‌تواند چندخطی باشد)..."
+                        />
+
+                        <div className="mt-2 text-xs text-zinc-500">
+                          می‌توانید منشن (@...) و هشتگ (#...) هم داخل مثال داشته
+                          باشید.
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : null}

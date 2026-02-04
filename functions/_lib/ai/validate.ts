@@ -1,4 +1,4 @@
-import type { DraftOutput, FinalOutput } from "./types";
+import type { DraftOutput } from "./types";
 
 /* ------------------------------ Utils ------------------------------ */
 
@@ -15,6 +15,7 @@ function extractHashtagsFromText(text: string): string[] {
 }
 
 function extractMentionsFromText(text: string): string[] {
+  // Mentions should usually be Latin/underscore; allow unicode word chars too (safe)
   const matches = String(text || "").match(/@[\p{L}\p{N}_]+/gu);
   return matches ? matches.map((m) => m.trim()) : [];
 }
@@ -105,28 +106,24 @@ function arraysEqualAsMultiset(a: string[], b: string[]) {
  */
 function validatePersianScriptAllowingTagsAndMentions(
   translation: string,
-  idx: number,
+  idxLabel: string,
 ) {
   const t = String(translation || "");
 
-  // Remove hashtags and mentions completely, then ensure remaining text
-  // does NOT include Latin/Cyrillic/CJK letters.
+  // Remove hashtags and mentions, then forbid Latin/Cyrillic/CJK in the rest
   const stripped = t
     .replace(/#[\p{L}\p{N}_]+/gu, " ")
     .replace(/@[\p{L}\p{N}_]+/gu, " ");
 
-  if (/[A-Za-z]/.test(stripped))
-    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
-  if (/[\u0400-\u04FF]/.test(stripped))
-    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
-  if (/[\u4E00-\u9FFF]/.test(stripped))
-    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
+  if (/[A-Za-z]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idxLabel}`);
+  if (/[\u0400-\u04FF]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idxLabel}`);
+  if (/[\u4E00-\u9FFF]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idxLabel}`);
 }
 
 function ensureSameMentionsAndHashtags(
   sourceText: string,
   translatedText: string,
-  idx: number,
+  idxLabel: string,
 ) {
   const srcTags = extractHashtagsFromText(sourceText);
   const trTags = extractHashtagsFromText(translatedText);
@@ -135,11 +132,35 @@ function ensureSameMentionsAndHashtags(
   const trMentions = extractMentionsFromText(translatedText);
 
   if (!arraysEqualAsMultiset(srcTags, trTags)) {
-    throw new Error(`TRANSLATION_HASHTAGS_CHANGED_${idx}`);
+    throw new Error(`TRANSLATION_HASHTAGS_CHANGED_${idxLabel}`);
   }
   if (!arraysEqualAsMultiset(srcMentions, trMentions)) {
-    throw new Error(`TRANSLATION_MENTIONS_CHANGED_${idx}`);
+    throw new Error(`TRANSLATION_MENTIONS_CHANGED_${idxLabel}`);
   }
+}
+
+/**
+ * Heuristic guard: prevent returning JSON / markdown / wrapper text.
+ * We want ONLY Persian text in stage2.
+ */
+function looksLikeJsonOrWrappedOutput(s: string) {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  if (t.startsWith("{") || t.startsWith("[")) return true;
+  if (t.startsWith("```") || t.includes("```")) return true;
+  if (/^\s*("?response"?\s*:)/i.test(t)) return true;
+  if (/^output\s*:/i.test(t)) return true;
+  if (/^translation\s*:/i.test(t)) return true;
+  return false;
+}
+
+function normalizeTranslationText(raw: string) {
+  // Important: Do NOT change hashtags/mentions tokens.
+  // Only trim and collapse whitespace.
+  return String(raw || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
 }
 
 /* ------------------------------ Stage 1 ------------------------------ */
@@ -150,7 +171,7 @@ function ensureSameMentionsAndHashtags(
  * - English only (reject Arabic/Persian script)
  * - Each text single-line
  * - Hashtags in text must be from allowed whitelist
- * - No hashtags_used field
+ * - comments.length MUST equal count
  */
 export function validateDraftOutput(args: {
   raw: string;
@@ -173,11 +194,9 @@ export function validateDraftOutput(args: {
         ? (parsed as any).response
         : null;
 
-  if (!root) {
-    throw new Error("INVALID_JSON_SHAPE");
-  }
+  if (!root) throw new Error("INVALID_JSON_SHAPE");
 
-  if (root.comments.length === 0) {
+  if (root.comments.length !== args.count) {
     throw new Error("INVALID_COMMENTS_COUNT");
   }
 
@@ -211,70 +230,52 @@ export function validateDraftOutput(args: {
   return { comments };
 }
 
-/* ------------------------------ Stage 2 ------------------------------ */
+/* ------------------------------ Stage 2 (text only) ------------------------------ */
 /**
- * Stage 2 output schema:
- * {"comments":[{"text":string,"translation_text":string}]}
+ * Stage 2 output is PLAIN TEXT ONLY (Persian single-line).
  *
- * Validation rules:
- * - comments length must match draft length
- * - text MUST equal draft.text exactly (no edits)
- * - translation_text MUST be Persian-ish (but allow hashtags/mentions)
- * - hashtags and mentions must remain exactly the same in translation
+ * The runner already has the source English text.
+ * We validate:
+ * - non-empty
+ * - single-line
+ * - not JSON/wrapper
+ * - Persian-ish script (allow Latin inside hashtags/mentions)
+ * - mentions/hashtags unchanged (multiset)
  *
- * NOTE:
- * - If translation fails, runner will store empty translation_text.
- * - This validator is for "successful translation" responses.
+ * Returns: normalized translation text string.
  */
-export function validateTranslateOutput(args: {
+export function validateTranslationText(args: {
   raw: string;
-  draft: DraftOutput;
-}): FinalOutput {
-  const parsed = safeParseJson(args.raw);
+  source_text: string;
+  idx?: number;
+}): string {
+  const idxLabel = typeof args.idx === "number" ? String(args.idx) : "X";
 
-  const root =
-    parsed &&
-    typeof parsed === "object" &&
-    Array.isArray((parsed as any).comments)
-      ? (parsed as any)
-      : parsed &&
-          typeof parsed === "object" &&
-          (parsed as any).response &&
-          typeof (parsed as any).response === "object" &&
-          Array.isArray((parsed as any).response.comments)
-        ? (parsed as any).response
-        : null;
-
-  if (!root) {
-    throw new Error("INVALID_JSON_SHAPE");
+  if (looksLikeJsonOrWrappedOutput(args.raw)) {
+    throw new Error(`INVALID_TRANSLATION_WRAPPED_${idxLabel}`);
   }
 
-  if (root.comments.length !== args.draft.comments.length) {
-    throw new Error("INVALID_COMMENTS_COUNT");
+  const translation = normalizeTranslationText(args.raw);
+  if (!translation) throw new Error(`EMPTY_TRANSLATION_${idxLabel}`);
+
+  if (!isSingleLine(translation)) {
+    throw new Error(`INVALID_LINEBREAKS_${idxLabel}`);
   }
 
-  const comments = root.comments.map((c: any, idx: number) => {
-    const text = String(c?.text || "").trim();
-    const translation_text = String(c?.translation_text || "").trim();
+  // Ensure Persian-ish (heuristic): at least one Arabic-script char somewhere
+  // (excluding just hashtags/mentions)
+  const stripped = translation
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/@[\p{L}\p{N}_]+/gu, " ")
+    .trim();
 
-    const draftText = String(args.draft.comments[idx]?.text || "").trim();
+  if (stripped && !hasArabicScript(stripped)) {
+    // If user wrote a fully Latin translation, fail.
+    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idxLabel}`);
+  }
 
-    if (!text) throw new Error(`EMPTY_TEXT_${idx}`);
-    if (!translation_text) throw new Error(`EMPTY_TRANSLATION_${idx}`);
+  validatePersianScriptAllowingTagsAndMentions(translation, idxLabel);
+  ensureSameMentionsAndHashtags(args.source_text, translation, idxLabel);
 
-    if (!isSingleLine(text) || !isSingleLine(translation_text)) {
-      throw new Error("INVALID_LINEBREAKS");
-    }
-
-    if (text !== draftText) {
-      throw new Error(`TEXT_CHANGED_FROM_DRAFT_${idx}`);
-    }
-
-    validatePersianScriptAllowingTagsAndMentions(translation_text, idx);
-    ensureSameMentionsAndHashtags(draftText, translation_text, idx);
-
-    return { text, translation_text };
-  });
-
-  return { comments };
+  return translation;
 }
