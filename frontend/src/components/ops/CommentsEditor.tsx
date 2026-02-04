@@ -8,6 +8,9 @@ import {
   validateHashtags,
 } from "../../lib/hashtags";
 import HashtagInspector from "../ops/HashtagInspector";
+import BulkCommentImport from "../ops/BulkCommentImport";
+import CleanSinglePasteHint from "../ops/CleanSinglePasteHint";
+import { extractCommentsFromPastedText } from "../../lib/commentPaste";
 
 export type CommentDraft = {
   text: string;
@@ -196,7 +199,23 @@ export default function CommentsEditor({
     return collectIssuesForComments(value, whitelist);
   }, [value, whitelist]);
 
+  // Bulk extraction (list markers -> items)
+  const extracted = useMemo(() => {
+    return extractCommentsFromPastedText(draftText);
+  }, [draftText]);
+
+  const bulkCandidates = useMemo(() => {
+    return extracted.length >= 2 ? extracted : [];
+  }, [extracted]);
+
+  const singleCleaned = useMemo(() => {
+    return extracted.length === 1 ? extracted[0] : null;
+  }, [extracted]);
+
+  const hasBulkMode = bulkCandidates.length > 0;
+
   const canAddOrSave =
+    !hasBulkMode &&
     draftText.trim().length > 0 &&
     value.length < maxItems &&
     (editingIndex !== null || value.length < maxItems);
@@ -209,6 +228,7 @@ export default function CommentsEditor({
   }
 
   function addOrSave() {
+    if (hasBulkMode) return;
     if (!draftText.trim()) return;
 
     const t = normalizeComment(draftText, maxLen);
@@ -237,6 +257,31 @@ export default function CommentsEditor({
     if (value.length >= maxItems) return;
     onChange([...value, draft]);
     resetDraft();
+  }
+
+  function addBulk() {
+    if (bulkCandidates.length === 0) return;
+
+    const room = Math.max(0, maxItems - value.length);
+    if (room <= 0) return;
+
+    const picked = bulkCandidates.slice(0, room).map((t) => ({
+      text: normalizeComment(t, maxLen),
+      translation_text: null,
+    }));
+
+    // Optional: auto-fix/prune hashtags while importing
+    const next = picked.map((c) => ({
+      ...c,
+      text: pruneUnknownHashtags(autoFixComment(c.text, whitelist), whitelist),
+    }));
+
+    onChange([...value, ...next]);
+    resetDraft();
+  }
+
+  function applyCleanSingle(next: string) {
+    setDraftText(next);
   }
 
   function removeAt(idx: number) {
@@ -346,10 +391,29 @@ export default function CommentsEditor({
             placeholder="کامنت را بنویسید (Enter برای افزودن/ذخیره، Shift+Enter برای خط جدید)."
             onKeyDown={(e: any) => {
               if (e.key === "Enter" && !e.shiftKey) {
+                // Prevent accidental single-add when a bulk list is present
+                if (hasBulkMode) {
+                  e.preventDefault();
+                  return;
+                }
                 e.preventDefault();
                 addOrSave();
               }
             }}
+          />
+
+          {/* Bulk import UI */}
+          <BulkCommentImport
+            candidates={bulkCandidates}
+            onAddAll={addBulk}
+            onClear={resetDraft}
+          />
+
+          {/* Single paste cleanup hint */}
+          <CleanSinglePasteHint
+            cleaned={singleCleaned}
+            original={draftText}
+            onApply={applyCleanSingle}
           />
 
           {suggestions.length > 0 ? (
