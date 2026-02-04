@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
@@ -9,6 +9,7 @@ import Alert from "../ui/Alert";
 import CommentsEditor, { type CommentDraft } from "../ops/CommentsEditor";
 import type { Tone } from "../../lib/api";
 import { adminGenerateAIComments } from "../../lib/api";
+import Portal from "../ui/Portal";
 
 type Mode = "admin" | "public";
 
@@ -78,7 +79,9 @@ async function publicGenerateOneComment(payload: {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const msg =
-      data?.message || data?.error || `Request failed with status ${res.status}`;
+      data?.message ||
+      data?.error ||
+      `Request failed with status ${res.status}`;
     throw new Error(msg);
   }
 
@@ -104,17 +107,15 @@ export default function AICommentsModal(props: Props) {
   const [count, setCount] = useState<number>(10);
   const [saveToDb, setSaveToDb] = useState<boolean>(false);
 
-  const [examplesMode, setExamplesMode] = useState<ExamplesMode>(
-    "random_existing",
-  );
+  const [examplesMode, setExamplesMode] =
+    useState<ExamplesMode>("random_existing");
   const [manualExamples, setManualExamples] = useState<string[]>([]);
 
   const [drafts, setDrafts] = useState<CommentDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const canUseRandomExamples =
-    (props.existingCommentsPool?.length || 0) > 0;
+  const canUseRandomExamples = (props.existingCommentsPool?.length || 0) > 0;
 
   const effectiveExamplesMode = useMemo<ExamplesMode>(() => {
     if (!isAdmin) return "none";
@@ -131,6 +132,17 @@ export default function AICommentsModal(props: Props) {
       .map((c) => trimOrEmpty(c.text))
       .filter(Boolean);
   }, [props.existingCommentsPool]);
+
+  useEffect(() => {
+    if (!props.open) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [props.open]);
 
   function resetLocalState() {
     setErr(null);
@@ -202,7 +214,8 @@ export default function AICommentsModal(props: Props) {
     const description_fa = trimOrEmpty(props.descriptionFa);
 
     if (!props.itemId) throw new Error("MISSING_ITEM_ID");
-    if (!title_fa || !description_fa) throw new Error("MISSING_REQUIRED_FIELDS");
+    if (!title_fa || !description_fa)
+      throw new Error("MISSING_REQUIRED_FIELDS");
 
     const examples = buildExamples();
     if (effectiveExamplesMode === "manual" && examples.length === 0) {
@@ -237,7 +250,8 @@ export default function AICommentsModal(props: Props) {
     const description_fa = trimOrEmpty(props.descriptionFa);
 
     if (!props.itemId) throw new Error("MISSING_ITEM_ID");
-    if (!title_fa || !description_fa) throw new Error("MISSING_REQUIRED_FIELDS");
+    if (!title_fa || !description_fa)
+      throw new Error("MISSING_REQUIRED_FIELDS");
 
     const c = await publicGenerateOneComment({
       item_id: props.itemId,
@@ -318,286 +332,327 @@ export default function AICommentsModal(props: Props) {
   if (!props.open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3"
-      dir="rtl"
-      role="dialog"
-      aria-modal="true"
-    >
+    <Portal>
       <div
-        className="absolute inset-0 bg-black/40"
-        onClick={close}
-        aria-hidden="true"
-      />
-
-      <div
-        className="relative w-full max-w-3xl"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center p-3"
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
       >
-        <Card>
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-medium text-zinc-900">{modalTitle}</div>
+        <div
+          className="absolute inset-0 bg-black/40"
+          onClick={close}
+          aria-hidden="true"
+        />
 
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={close} disabled={loading}>
-                بستن
-              </Button>
-
-              <Button variant="info" onClick={handleGenerate} disabled={loading}>
-                {loading ? "در حال پردازش…" : "اجرا"}
-              </Button>
-            </div>
-          </div>
-
-          {err ? (
-            <div className="mt-3">
-              <Alert variant="error">{err}</Alert>
-            </div>
-          ) : null}
-
-          <div className="mt-4 grid gap-3">
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">لحن</div>
-              <Select value={tone} onChange={(v) => setTone(v as Tone)} disabled={loading}>
-                <option value="neutral">خنثی</option>
-                <option value="friendly">دوستانه</option>
-                <option value="formal">رسمی</option>
-                <option value="witty">باهوش/طعنه ملایم</option>
-                <option value="professional">حرفه‌ای</option>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
-              <Input
-                value={needFa}
-                onChange={setNeedFa}
-                disabled={loading}
-                placeholder="مثلاً: ریپلای کوتاه برای تعامل…"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">نوع کامنت (فارسی)</div>
-              <Input
-                value={commentTypeFa}
-                onChange={setCommentTypeFa}
-                disabled={loading}
-                placeholder="مثلاً: ریپلای کوتاه / سؤال‌محور…"
-              />
-            </div>
-
-            {isAdmin ? (
-              <div className="grid gap-2">
-                <div className="text-xs text-zinc-600">تعداد خروجی</div>
-                <Select
-                  value={String(count)}
-                  onChange={(v) => setCount(Number(v))}
-                  disabled={loading}
-                >
-                  <option value="1">1</option>
-                  <option value="3">3</option>
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="20">20</option>
-                </Select>
-                <div className="text-xs text-zinc-500">
-                  خروجی Draft داخل مودال قابل ویرایش است.
+        <div
+          className="relative w-full max-w-3xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Card className="p-0 overflow-hidden max-h-[95vh]">
+            {/* Header (sticky) */}
+            <div className="sticky top-0 z-10 bg-white border-b border-zinc-200 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-medium text-zinc-900">
+                  {modalTitle}
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={close}
+                    disabled={loading}
+                  >
+                    بستن
+                  </Button>
+
+                  <Button
+                    variant="info"
+                    onClick={handleGenerate}
+                    disabled={loading}
+                  >
+                    {loading ? "در حال پردازش…" : "اجرا"}
+                  </Button>
+                </div>
+              </div>
+
+              {err ? (
+                <div className="mt-3">
+                  <Alert variant="error">{err}</Alert>
+                </div>
+              ) : null}
+            </div>
+
+            {err ? (
+              <div className="mt-3">
+                <Alert variant="error">{err}</Alert>
               </div>
             ) : null}
 
-            {isAdmin ? (
-              <label className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-zinc-900">
-                    ذخیره مستقیم در دیتابیس
-                  </div>
-                  <div className="mt-0.5 text-xs text-zinc-600">
-                    اگر فعال باشد، خروجی بلافاصله ذخیره می‌شود و پنجره بسته خواهد شد.
-                  </div>
+            {/* Body (scrolls) */}
+            <div className="px-4 py-4 overflow-y-auto">
+              <div className="grid gap-3">
+                <div className="grid gap-2">
+                  <div className="text-xs text-zinc-600">لحن</div>
+                  <Select
+                    value={tone}
+                    onChange={(v) => setTone(v as Tone)}
+                    disabled={loading}
+                  >
+                    <option value="neutral">خنثی</option>
+                    <option value="friendly">دوستانه</option>
+                    <option value="formal">رسمی</option>
+                    <option value="witty">باهوش/طعنه ملایم</option>
+                    <option value="professional">حرفه‌ای</option>
+                  </Select>
                 </div>
 
-                <input
-                  type="checkbox"
-                  className="h-5 w-5 accent-zinc-900"
-                  checked={saveToDb}
-                  onChange={(e) => setSaveToDb(e.target.checked)}
-                  disabled={loading}
-                  aria-label="Save directly"
-                />
-              </label>
-            ) : null}
+                <div className="grid gap-2">
+                  <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
+                  <Input
+                    value={needFa}
+                    onChange={setNeedFa}
+                    disabled={loading}
+                    placeholder="مثلاً: ریپلای کوتاه برای تعامل…"
+                  />
+                </div>
 
-            {/* Examples (admin only) */}
-            {isAdmin ? (
-              <div className="grid gap-2">
-                <div className="text-xs text-zinc-600">مثال‌ها (برای هدایت سبک)</div>
+                <div className="grid gap-2">
+                  <div className="text-xs text-zinc-600">نوع کامنت (فارسی)</div>
+                  <Input
+                    value={commentTypeFa}
+                    onChange={setCommentTypeFa}
+                    disabled={loading}
+                    placeholder="مثلاً: ریپلای کوتاه / سؤال‌محور…"
+                  />
+                </div>
 
-                <Select
-                  value={effectiveExamplesMode}
-                  onChange={(v: any) => setExamplesMode(v as ExamplesMode)}
-                  disabled={loading}
-                >
-                  <option value="random_existing" disabled={!canUseRandomExamples}>
-                    انتخاب تصادفی ۵ کامنت از کامنت‌های موجود
-                  </option>
-                  <option value="manual">ورود مثال‌های دستی</option>
-                  <option value="none">بدون مثال</option>
-                </Select>
+                {isAdmin ? (
+                  <div className="grid gap-2">
+                    <div className="text-xs text-zinc-600">تعداد خروجی</div>
+                    <Select
+                      value={String(count)}
+                      onChange={(v) => setCount(Number(v))}
+                      disabled={loading}
+                    >
+                      <option value="1">1</option>
+                      <option value="3">3</option>
+                      <option value="5">5</option>
+                      <option value="10">10</option>
+                      <option value="15">15</option>
+                      <option value="20">20</option>
+                    </Select>
+                    <div className="text-xs text-zinc-500">
+                      خروجی Draft داخل مودال قابل ویرایش است.
+                    </div>
+                  </div>
+                ) : null}
 
-                {effectiveExamplesMode === "manual" ? (
-                  <div className="mt-2 grid gap-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-xs text-zinc-600">
-                        مثال‌های انگلیسی (حداکثر ۵ مورد، چندخطی مجاز)
+                {isAdmin ? (
+                  <label className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-zinc-900">
+                        ذخیره مستقیم در دیتابیس
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {canUseRandomExamples ? (
-                          <>
-                            <Button
-                              variant="secondary"
-                              onClick={addOneRandomIntoManual}
-                              disabled={loading || manualExamples.length >= 5}
-                              title="یک مثال تصادفی از کامنت‌های موجود اضافه می‌کند"
-                            >
-                              + مثال تصادفی
-                            </Button>
-
-                            <Button
-                              variant="secondary"
-                              onClick={fillManualWithFiveRandom}
-                              disabled={loading}
-                              title="۵ مثال را با انتخاب تصادفی پر می‌کند"
-                            >
-                              پر کردن ۵ مثال
-                            </Button>
-                          </>
-                        ) : null}
-
-                        <Button
-                          variant="secondary"
-                          onClick={() => addManualExample("")}
-                          disabled={loading || manualExamples.length >= 5}
-                        >
-                          + افزودن مثال
-                        </Button>
+                      <div className="mt-0.5 text-xs text-zinc-600">
+                        اگر فعال باشد، خروجی بلافاصله ذخیره می‌شود و پنجره بسته
+                        خواهد شد.
                       </div>
                     </div>
 
-                    {manualExamples.length === 0 ? (
-                      <div className="text-xs text-zinc-500">
-                        هنوز مثالی اضافه نشده. با «+ افزودن مثال» یا «+ مثال تصادفی» شروع کنید.
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-zinc-900"
+                      checked={saveToDb}
+                      onChange={(e) => setSaveToDb(e.target.checked)}
+                      disabled={loading}
+                      aria-label="Save directly"
+                    />
+                  </label>
+                ) : null}
+
+                {/* Examples (admin only) */}
+                {isAdmin ? (
+                  <div className="grid gap-2">
+                    <div className="text-xs text-zinc-600">
+                      مثال‌ها (برای هدایت سبک)
+                    </div>
+
+                    <Select
+                      value={effectiveExamplesMode}
+                      onChange={(v: any) => setExamplesMode(v as ExamplesMode)}
+                      disabled={loading}
+                    >
+                      <option
+                        value="random_existing"
+                        disabled={!canUseRandomExamples}
+                      >
+                        انتخاب تصادفی ۵ کامنت از کامنت‌های موجود
+                      </option>
+                      <option value="manual">ورود مثال‌های دستی</option>
+                      <option value="none">بدون مثال</option>
+                    </Select>
+
+                    {effectiveExamplesMode === "manual" ? (
+                      <div className="mt-2 grid gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs text-zinc-600">
+                            مثال‌های انگلیسی (حداکثر ۵ مورد، چندخطی مجاز)
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {canUseRandomExamples ? (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  onClick={addOneRandomIntoManual}
+                                  disabled={
+                                    loading || manualExamples.length >= 5
+                                  }
+                                  title="یک مثال تصادفی از کامنت‌های موجود اضافه می‌کند"
+                                >
+                                  + مثال تصادفی
+                                </Button>
+
+                                <Button
+                                  variant="secondary"
+                                  onClick={fillManualWithFiveRandom}
+                                  disabled={loading}
+                                  title="۵ مثال را با انتخاب تصادفی پر می‌کند"
+                                >
+                                  پر کردن ۵ مثال
+                                </Button>
+                              </>
+                            ) : null}
+
+                            <Button
+                              variant="secondary"
+                              onClick={() => addManualExample("")}
+                              disabled={loading || manualExamples.length >= 5}
+                            >
+                              + افزودن مثال
+                            </Button>
+                          </div>
+                        </div>
+
+                        {manualExamples.length === 0 ? (
+                          <div className="text-xs text-zinc-500">
+                            هنوز مثالی اضافه نشده. با «+ افزودن مثال» یا «+ مثال
+                            تصادفی» شروع کنید.
+                          </div>
+                        ) : null}
+
+                        <div className="grid gap-2">
+                          {manualExamples.map((ex, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
+                            >
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <div className="text-xs font-medium text-zinc-700">
+                                  مثال {idx + 1}
+                                </div>
+
+                                <Button
+                                  variant="danger"
+                                  onClick={() =>
+                                    setManualExamples((prev) =>
+                                      prev.filter((_, i) => i !== idx),
+                                    )
+                                  }
+                                  disabled={loading}
+                                >
+                                  حذف
+                                </Button>
+                              </div>
+
+                              <Textarea
+                                dir="ltr"
+                                className="w-full"
+                                value={ex}
+                                onChange={(v) => {
+                                  setManualExamples((prev) => {
+                                    const next = prev.slice();
+                                    next[idx] = v;
+                                    return next;
+                                  });
+                                }}
+                                placeholder="متن مثال انگلیسی (می‌تواند چندخطی باشد)..."
+                                disabled={loading}
+                              />
+
+                              <div className="mt-2 text-xs text-zinc-500">
+                                منشن (@...) و هشتگ (#...) داخل مثال مشکلی ندارد.
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="text-xs text-zinc-500">
+                          نکته: اگر مثال‌ها زیاد طولانی باشند، بهتر است ۳–۵ خطی
+                          و شبیه سبک مدنظر باشند.
+                        </div>
                       </div>
                     ) : null}
 
-                    <div className="grid gap-2">
-                      {manualExamples.map((ex, idx) => (
-                        <div
-                          key={idx}
-                          className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
+                    {!canUseRandomExamples &&
+                    examplesMode === "random_existing" ? (
+                      <div className="text-xs text-amber-700">
+                        کامنتی برای انتخاب تصادفی موجود نیست؛ بهتر است «مثال
+                        دستی» را انتخاب کنید.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Draft editor only for admin + saveToDb=false */}
+                {isAdmin && !saveToDb ? (
+                  <div className="mt-2">
+                    <CommentsEditor
+                      label="پیش‌نویس خروجی AI (قابل ویرایش)"
+                      value={drafts}
+                      onChange={setDrafts}
+                      whitelist={props.whitelist ?? new Set()}
+                      maxItems={50}
+                      maxLen={1000}
+                    />
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs text-zinc-500">
+                        این پیش‌نویس‌ها هنوز در دیتابیس ذخیره نشده‌اند.
+                      </div>
+
+                      {props.onApplyDrafts ? (
+                        <Button
+                          variant="success"
+                          onClick={handleApplyDrafts}
+                          disabled={loading || drafts.length === 0}
                         >
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <div className="text-xs font-medium text-zinc-700">
-                              مثال {idx + 1}
-                            </div>
-
-                            <Button
-                              variant="danger"
-                              onClick={() =>
-                                setManualExamples((prev) =>
-                                  prev.filter((_, i) => i !== idx),
-                                )
-                              }
-                              disabled={loading}
-                            >
-                              حذف
-                            </Button>
-                          </div>
-
-                          <Textarea
-                            dir="ltr"
-                            value={ex}
-                            onChange={(v) => {
-                              setManualExamples((prev) => {
-                                const next = prev.slice();
-                                next[idx] = v;
-                                return next;
-                              });
-                            }}
-                            placeholder="متن مثال انگلیسی (می‌تواند چندخطی باشد)..."
-                            disabled={loading}
-                          />
-
-                          <div className="mt-2 text-xs text-zinc-500">
-                            منشن (@...) و هشتگ (#...) داخل مثال مشکلی ندارد.
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="text-xs text-zinc-500">
-                      نکته: اگر مثال‌ها زیاد طولانی باشند، بهتر است ۳–۵ خطی و شبیه سبک مدنظر باشند.
+                          اعمال پیش‌نویس‌ها
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
 
-                {!canUseRandomExamples && examplesMode === "random_existing" ? (
-                  <div className="text-xs text-amber-700">
-                    کامنتی برای انتخاب تصادفی موجود نیست؛ بهتر است «مثال دستی» را انتخاب کنید.
+                {/* Public: show last generated (optional) */}
+                {!isAdmin && drafts.length > 0 ? (
+                  <div className="mt-2">
+                    <CommentsEditor
+                      label="خروجی تولید شده"
+                      value={drafts}
+                      onChange={setDrafts}
+                      whitelist={props.whitelist ?? new Set()}
+                      maxItems={5}
+                      maxLen={1000}
+                    />
                   </div>
                 ) : null}
               </div>
-            ) : null}
-
-            {/* Draft editor only for admin + saveToDb=false */}
-            {isAdmin && !saveToDb ? (
-              <div className="mt-2">
-                <CommentsEditor
-                  label="پیش‌نویس خروجی AI (قابل ویرایش)"
-                  value={drafts}
-                  onChange={setDrafts}
-                  whitelist={props.whitelist ?? new Set()}
-                  maxItems={50}
-                  maxLen={1000}
-                />
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-xs text-zinc-500">
-                    این پیش‌نویس‌ها هنوز در دیتابیس ذخیره نشده‌اند.
-                  </div>
-
-                  {props.onApplyDrafts ? (
-                    <Button
-                      variant="success"
-                      onClick={handleApplyDrafts}
-                      disabled={loading || drafts.length === 0}
-                    >
-                      اعمال پیش‌نویس‌ها
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            {/* Public: show last generated (optional) */}
-            {!isAdmin && drafts.length > 0 ? (
-              <div className="mt-2">
-                <CommentsEditor
-                  label="خروجی تولید شده"
-                  value={drafts}
-                  onChange={setDrafts}
-                  whitelist={props.whitelist ?? new Set()}
-                  maxItems={5}
-                  maxLen={1000}
-                />
-              </div>
-            ) : null}
-          </div>
-        </Card>
+            </div>
+          </Card>
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 }
