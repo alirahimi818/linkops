@@ -1,7 +1,9 @@
+import { useMemo, useState } from "react";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Badge from "../../ui/Badge";
 import { IconPin } from "../../ui/icons";
+import AICommentsModal from "../AICommentsModal"; // adjust path if needed
 
 function isGlobalItem(item: any): boolean {
   return item?.is_global === 1 || item?.is_global === true;
@@ -26,7 +28,6 @@ function normalizeComments(input: any): Array<{
 }> {
   if (!input) return [];
 
-  // old format: string[]
   if (Array.isArray(input) && input.length > 0 && typeof input[0] === "string") {
     return (input as string[]).map((t) => ({
       text: String(t ?? ""),
@@ -74,12 +75,55 @@ export default function AdminItemList(props: {
 
   onDelete: (id: string) => void;
   onStartEdit: (item: any) => void;
+
+  // parent should reload list on save-to-db
+  onRefresh: () => void;
+
+  // Needed for modal: hashtag whitelist
+  whitelist: Set<string>;
 }) {
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiItem, setAiItem] = useState<any | null>(null);
+
+  const aiExistingPool = useMemo(() => {
+    if (!aiItem) return [];
+    const comments = normalizeComments(aiItem.comments);
+    return comments.map((c) => ({ text: c.text }));
+  }, [aiItem]);
+
+  function openAIModal(item: any) {
+    setAiItem(item);
+    setAiOpen(true);
+  }
+
+  function closeAIModal() {
+    setAiOpen(false);
+    setAiItem(null);
+  }
+
   return (
     <section className="mt-6">
       <div className="mb-3 text-sm text-zinc-500">
         آیتم‌های تاریخ {props.date}
       </div>
+
+      {/* AI Modal mounted once */}
+      {aiOpen && aiItem ? (
+        <AICommentsModal
+          open={aiOpen}
+          mode="admin"
+          itemId={String(aiItem.id)}
+          titleFa={String(aiItem.title ?? "").trim()}
+          descriptionFa={String(aiItem.description ?? "").trim()}
+          whitelist={props.whitelist}
+          existingCommentsPool={aiExistingPool}
+          onSaved={() => {
+            closeAIModal();
+            props.onRefresh();
+          }}
+          onClose={closeAIModal}
+        />
+      ) : null}
 
       {props.loading ? (
         <div className="text-zinc-500">در حال بارگذاری…</div>
@@ -121,6 +165,14 @@ export default function AdminItemList(props: {
                       onClick={() => props.onStartEdit(i)}
                     >
                       ویرایش
+                    </Button>
+
+                    <Button
+                      className="w-full"
+                      variant="success"
+                      onClick={() => openAIModal(i)}
+                    >
+                      AI
                     </Button>
 
                     <Button
@@ -182,13 +234,7 @@ export default function AdminItemList(props: {
                                 className="rounded-lg border border-zinc-200 bg-white p-3 text-sm"
                               >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                  {label ? (
-                                    <Badge key={`${idx}:${c.text.slice(0, 16)}:badge`}>
-                                      {label}
-                                    </Badge>
-                                  ) : (
-                                    <span />
-                                  )}
+                                  {label ? <Badge>{label}</Badge> : <span />}
 
                                   {c.created_at ? (
                                     <span className="text-xs text-zinc-500">
@@ -197,7 +243,10 @@ export default function AdminItemList(props: {
                                   ) : null}
                                 </div>
 
-                                <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+                                <div
+                                  className="mt-2 whitespace-pre-wrap text-sm text-zinc-800"
+                                  dir="auto"
+                                >
                                   {c.text}
                                 </div>
 
@@ -206,7 +255,10 @@ export default function AdminItemList(props: {
                                     <div className="mb-1 text-xs font-medium text-zinc-700">
                                       ترجمه
                                     </div>
-                                    <div className="whitespace-pre-wrap text-sm text-zinc-700" dir="rtl">
+                                    <div
+                                      className="whitespace-pre-wrap text-sm text-zinc-700"
+                                      dir="rtl"
+                                    >
                                       {c.translation_text}
                                     </div>
                                   </div>

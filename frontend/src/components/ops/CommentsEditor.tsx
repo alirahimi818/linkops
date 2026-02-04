@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import Textarea from "../ui/Textarea";
 import Button from "../ui/Button";
-import Input from "../ui/Input";
-import Select from "../ui/Select";
 import Card from "../ui/Card";
 import {
   applySuggestedReplacements,
@@ -23,31 +21,6 @@ type Props = {
   whitelist: Set<string>; // normalized tags without '#'
   maxItems?: number;
   maxLen?: number;
-  ai?: {
-    enabled: boolean;
-    loading: boolean;
-    error: string | null;
-
-    tone: string;
-    setTone: (v: any) => void;
-
-    need_fa: string;
-    setNeedFa: (v: string) => void;
-
-    comment_type_fa: string;
-    setCommentTypeFa: (v: string) => void;
-
-    examplesMode: "random_existing" | "manual" | "none";
-    setExamplesMode: (v: "random_existing" | "manual" | "none") => void;
-
-    manualExamples: string[];
-    setManualExamples: (v: string[]) => void;
-
-    saveToDb: boolean;
-    setSaveToDb: (v: boolean) => void;
-
-    onGenerate: () => Promise<void>;
-  };
 };
 
 function normalizeComment(s: string, maxLen: number) {
@@ -195,7 +168,6 @@ export default function CommentsEditor({
   whitelist,
   maxItems = 50,
   maxLen = 400,
-  ai,
 }: Props) {
   // Draft editor (create/edit)
   const [draftText, setDraftText] = useState("");
@@ -340,199 +312,6 @@ export default function CommentsEditor({
           {value.length} / {maxItems}
         </div>
       </div>
-
-      {ai?.enabled ? (
-        <Card>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-medium text-zinc-800">تولید با AI</div>
-            <Button
-              variant="info"
-              onClick={ai.onGenerate}
-              disabled={ai.loading}
-            >
-              {ai.loading ? "در حال تولید…" : "تولید کامنت"}
-            </Button>
-          </div>
-
-          {ai.error ? (
-            <div className="mt-2 text-sm text-red-700">{ai.error}</div>
-          ) : null}
-
-          <div className="mt-3 grid gap-3">
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">لحن</div>
-              <Select value={ai.tone} onChange={ai.setTone}>
-                <option value="neutral">خنثی</option>
-                <option value="friendly">دوستانه</option>
-                <option value="formal">رسمی</option>
-                <option value="witty">باهوش/طعنه ملایم</option>
-                <option value="professional">حرفه‌ای</option>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
-              <Input
-                value={ai.need_fa}
-                onChange={ai.setNeedFa}
-                placeholder="مثلاً: ریپلای کوتاه برای تعامل…"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">نوع کامنت (فارسی)</div>
-              <Input
-                value={ai.comment_type_fa}
-                onChange={ai.setCommentTypeFa}
-                placeholder="مثلاً: ریپلای کوتاه / سؤال‌محور…"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">
-                هشتگ‌های مجاز (از دیتابیس)
-              </div>
-
-              <Textarea
-                dir="ltr"
-                value={
-                  whitelist.size
-                    ? Array.from(whitelist)
-                        .slice(0, 200)
-                        .map((t) => `#${t}`)
-                        .join(" ")
-                    : ""
-                }
-                onChange={() => {}}
-                placeholder="(خالی)"
-                readOnly
-              />
-
-              <div className="text-xs text-zinc-500">
-                این لیست از سرور می‌آید و در تولید AI مبنا قرار می‌گیرد. (در
-                اینجا فقط نمایش داده می‌شود)
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">
-                مثال‌ها برای هدایت سبک خروجی
-              </div>
-
-              <Select
-                value={ai.examplesMode}
-                onChange={(v) =>
-                  ai.setExamplesMode(v as "random_existing" | "manual" | "none")
-                }
-              >
-                <option value="random_existing">
-                  انتخاب تصادفی ۵ کامنت از کامنت‌های همین آیتم
-                </option>
-                <option value="manual">ورود دستی ۵ مثال مخصوص AI</option>
-                <option value="none">بدون مثال</option>
-              </Select>
-
-              {ai.examplesMode === "manual" ? (
-                <div className="mt-2 grid gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-zinc-600">
-                      مثال‌های انگلیسی (حداکثر ۵ مورد)
-                    </div>
-
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        const cur = ai.manualExamples.slice();
-                        if (cur.length >= 5) return;
-                        ai.setManualExamples([...cur, ""]);
-                      }}
-                      disabled={ai.manualExamples.length >= 5}
-                    >
-                      + افزودن مثال
-                    </Button>
-                  </div>
-
-                  {ai.manualExamples.length === 0 ? (
-                    <div className="text-xs text-zinc-500">
-                      هنوز مثالی اضافه نشده. برای افزودن روی «+ افزودن مثال»
-                      بزنید.
-                    </div>
-                  ) : null}
-
-                  <div className="grid gap-2">
-                    {ai.manualExamples.map((ex, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
-                      >
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="text-xs font-medium text-zinc-700">
-                            مثال {idx + 1}
-                          </div>
-
-                          <Button
-                            variant="danger"
-                            onClick={() => {
-                              ai.setManualExamples(
-                                ai.manualExamples.filter((_, i) => i !== idx),
-                              );
-                            }}
-                          >
-                            حذف
-                          </Button>
-                        </div>
-
-                        <Textarea
-                          dir="ltr"
-                          value={ex}
-                          onChange={(v) => {
-                            const next = ai.manualExamples.slice();
-                            next[idx] = v;
-                            ai.setManualExamples(next);
-                          }}
-                          placeholder="متن مثال انگلیسی (می‌تواند چندخطی باشد)..."
-                        />
-
-                        <div className="mt-2 text-xs text-zinc-500">
-                          می‌توانید منشن (@...) و هشتگ (#...) هم داخل مثال داشته
-                          باشید.
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-zinc-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-zinc-900"
-                checked={ai.saveToDb}
-                onChange={(e) => ai.setSaveToDb(e.target.checked)}
-              />
-              ذخیره مستقیم در دیتابیس (بدون نیاز به ذخیره آیتم)
-            </label>
-
-            {ai.saveToDb ? (
-              <div className="text-xs text-amber-700">
-                در این حالت، خروجی AI همان لحظه به دیتابیس اضافه می‌شود.
-              </div>
-            ) : (
-              <div className="text-xs text-zinc-500">
-                پیش‌فرض: فقط به‌صورت پیش‌نویس اضافه می‌شود تا بازبینی کنید؛ سپس
-                با ذخیره آیتم ثبت می‌شود.
-              </div>
-            )}
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <div className="text-sm text-zinc-700">
-            برای تولید با AI، ابتدا آیتم را ذخیره کنید تا وارد حالت ویرایش شوید.
-          </div>
-        </Card>
-      )}
 
       {/* Draft editor */}
       <Card>

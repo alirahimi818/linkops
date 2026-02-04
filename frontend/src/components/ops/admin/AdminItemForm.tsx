@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { Action, Category, Tone } from "../../../lib/api";
+import type { Action, Category } from "../../../lib/api";
 
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
@@ -17,8 +16,6 @@ import {
   autoFixUrl,
   isValidAbsoluteHttpUrl,
 } from "../../../lib/adminItemUtils";
-
-import { adminGenerateAIComments } from "../../../lib/api";
 
 export type EditState = { id: string; originalDate: string } | null;
 
@@ -121,112 +118,6 @@ export default function AdminItemForm(props: {
     !props.description.trim() ||
     props.saving ||
     !isValidAbsoluteHttpUrl(autoFixUrl(props.url));
-
-  // AI section
-
-  const [aiTone, setAiTone] = useState<Tone>("neutral");
-  const [aiNeedFa, setAiNeedFa] = useState(
-    "تولید ریپلای‌های کوتاه برای تعامل و ادامه گفتگو",
-  );
-  const [aiCommentTypeFa, setAiCommentTypeFa] = useState("ریپلای کوتاه");
-
-  const [aiExamplesMode, setAiExamplesMode] = useState<
-    "random_existing" | "manual" | "none"
-  >("random_existing");
-
-  const [aiManualExamples, setAiManualExamples] = useState<string[]>([]);
-
-  // Save directly or only preview
-  const [aiSaveToDb, setAiSaveToDb] = useState(false);
-
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
-  async function handleAIGenerate() {
-    props.setError(null);
-    setAiError(null);
-
-    if (!props.itemId) {
-      setAiError(
-        "برای تولید با AI، ابتدا آیتم را ذخیره کنید (بعد وارد حالت ویرایش شوید).",
-      );
-      return;
-    }
-
-    if (!props.title.trim() || !props.description.trim()) {
-      setAiError("برای تولید با AI، عنوان و توضیح را وارد کنید.");
-      return;
-    }
-
-    function pickRandom<T>(arr: T[], count: number): T[] {
-      const a = arr.slice();
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a.slice(0, count);
-    }
-
-    let examples: Array<{ text: string }> = [];
-
-    if (aiExamplesMode === "random_existing") {
-      const pool = props.comments
-        .map((c) => String(c.text || "").trim())
-        .filter((t) => t.length > 0);
-
-      examples = pickRandom(pool, 5).map((t) => ({ text: t }));
-    } else if (aiExamplesMode === "manual") {
-      examples = aiManualExamples
-        .map((t) => String(t || "").trim())
-        .filter((t) => t.length > 0)
-        .slice(0, 5)
-        .map((t) => ({ text: t }));
-
-      if (examples.length === 0) {
-        setAiError("برای حالت مثال دستی، حداقل یک مثال وارد کنید.");
-        return;
-      }
-    } else {
-      examples = [];
-    }
-
-    setAiLoading(true);
-    try {
-      const res = await adminGenerateAIComments({
-        item_id: props.itemId,
-        title_fa: props.title.trim(),
-        description_fa: props.description.trim(),
-        need_fa: aiNeedFa.trim(),
-        comment_type_fa: aiCommentTypeFa.trim(),
-        tone: aiTone,
-        examples,
-        save: aiSaveToDb,
-        count: 10,
-      });
-
-      // Append to local draft list (max 50)
-      const incoming = (res.comments || []).map((c) => ({
-        text: c.text,
-        translation_text: c.translation_text,
-      }));
-
-      const maxItems = 50;
-      const space = Math.max(0, maxItems - props.comments.length);
-      const toAdd = incoming.slice(0, space);
-
-      if (toAdd.length > 0) {
-        props.setComments([...props.comments, ...toAdd]);
-      } else {
-        setAiError(
-          "لیست کامنت‌ها پر است (حداکثر ۵۰). ابتدا چند مورد را حذف کنید.",
-        );
-      }
-    } catch (e: any) {
-      setAiError(e?.message ?? "تولید کامنت با AI ناموفق بود.");
-    } finally {
-      setAiLoading(false);
-    }
-  }
 
   return (
     <>
@@ -340,30 +231,6 @@ export default function AdminItemForm(props: {
             whitelist={props.whitelist}
             maxItems={50}
             maxLen={1000}
-            ai={{
-              enabled: !!props.itemId,
-              loading: aiLoading,
-              error: aiError,
-
-              tone: aiTone,
-              setTone: setAiTone,
-
-              need_fa: aiNeedFa,
-              setNeedFa: setAiNeedFa,
-
-              comment_type_fa: aiCommentTypeFa,
-              setCommentTypeFa: setAiCommentTypeFa,
-
-              examplesMode: aiExamplesMode,
-              setExamplesMode: setAiExamplesMode,
-              manualExamples: aiManualExamples,
-              setManualExamples: setAiManualExamples,
-
-              saveToDb: aiSaveToDb,
-              setSaveToDb: setAiSaveToDb,
-
-              onGenerate: handleAIGenerate,
-            }}
           />
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">

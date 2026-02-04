@@ -180,7 +180,6 @@ export default function Admin() {
         .filter((c) => c.text.length > 0);
 
       const payload = {
-        // date is required for POST; PUT ignores date in your API
         title: title.trim(),
         url: fixedUrl,
         description: description.trim(),
@@ -298,6 +297,8 @@ export default function Admin() {
         toggleComments={toggleComments}
         onDelete={onDelete}
         onStartEdit={startEdit}
+        onRefresh={load}
+        whitelist={whitelist}
       />
     </PageShell>
   );
