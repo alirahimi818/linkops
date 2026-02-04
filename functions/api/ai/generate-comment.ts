@@ -6,14 +6,20 @@ import {
 } from "../../_lib/ai/runner";
 import type { GenerateInput, Tone } from "../../_lib/ai/types";
 
-function normalizeTone(v: any): Tone {
-  const t = String(v || "").trim();
-  if (t === "friendly") return "friendly";
-  if (t === "formal") return "formal";
+export function normalizeTone(v: any): Tone {
+  const t = String(v || "").trim().toLowerCase();
+  if (t === "angry") return "angry";
+  if (t === "outraged") return "outraged";
+  if (t === "demanding") return "demanding";
+  if (t === "urgent") return "urgent";
+  if (t === "sad") return "sad";
+  if (t === "hopeful") return "hopeful";
+  if (t === "defiant") return "defiant";
+  if (t === "sarcastic") return "sarcastic";
+  if (t === "calm_firm") return "calm_firm";
   if (t === "neutral") return "neutral";
-  if (t === "witty") return "witty";
-  if (t === "professional") return "professional";
-  return "neutral";
+  // Fallback (never default to empty emotion)
+  return "demanding";
 }
 
 async function getAllowedHashtagsFromDb(env: Env): Promise<string[]> {

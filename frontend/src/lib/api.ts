@@ -6,7 +6,17 @@ import { loadingStart, loadingStop } from "./loadingStore";
    AI Types
    ========================= */
 
-export type Tone = "friendly" | "formal" | "neutral" | "witty" | "professional";
+export type Tone =
+  | "angry"        // خشم، اعتراض، فریاد
+  | "outraged"     // شوکه، خشم اخلاقی، افشا
+  | "demanding"    // مطالبه‌گر، فشار مستقیم
+  | "urgent"       // فوری، هشداردهنده
+  | "sad"          // سوگ، اندوه، داغ
+  | "hopeful"      // امید محتاطانه
+  | "defiant"      // سرسخت، نافرمان
+  | "sarcastic"    // طعنه‌دار، کنایه
+  | "calm_firm"    // آرام ولی محکم
+  | "neutral";     // خنثی، بی‌طرف
 
 export type AdminAIGenerateExample = {
   text: string; // English example

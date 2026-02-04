@@ -38,14 +38,22 @@ type Props = {
   onClose: () => void;
 };
 
-function normalizeTone(v: any): Tone {
-  const t = String(v || "").trim();
-  if (t === "friendly") return "friendly";
-  if (t === "formal") return "formal";
+export function normalizeTone(v: any): Tone {
+  const t = String(v || "")
+    .trim()
+    .toLowerCase();
+  if (t === "angry") return "angry";
+  if (t === "outraged") return "outraged";
+  if (t === "demanding") return "demanding";
+  if (t === "urgent") return "urgent";
+  if (t === "sad") return "sad";
+  if (t === "hopeful") return "hopeful";
+  if (t === "defiant") return "defiant";
+  if (t === "sarcastic") return "sarcastic";
+  if (t === "calm_firm") return "calm_firm";
   if (t === "neutral") return "neutral";
-  if (t === "witty") return "witty";
-  if (t === "professional") return "professional";
-  return "neutral";
+  // Fallback (never default to empty emotion)
+  return "demanding";
 }
 
 function pickRandom<T>(arr: T[], count: number): T[] {
@@ -98,11 +106,17 @@ type ExamplesMode = "random_existing" | "manual" | "none";
 export default function AICommentsModal(props: Props) {
   const isAdmin = props.mode === "admin";
 
-  const [tone, setTone] = useState<Tone>("neutral");
+  const defaultTone: Tone =
+    props.descriptionFa.includes("قتل") ||
+    props.descriptionFa.includes("massacre")
+      ? "outraged"
+      : "demanding";
+
+  const [tone, setTone] = useState<Tone>(defaultTone);
   const [needFa, setNeedFa] = useState(
-    "تولید ریپلای‌های کوتاه برای تعامل و ادامه گفتگو",
+    "ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری",
   );
-  const [commentTypeFa, setCommentTypeFa] = useState("ریپلای کوتاه");
+  const [commentTypeFa, setCommentTypeFa] = useState("ریپلای کوتاه (مطالبه‌گر/حمایتی)");
 
   const [count, setCount] = useState<number>(10);
   const [saveToDb, setSaveToDb] = useState<boolean>(false);
@@ -393,16 +407,30 @@ export default function AICommentsModal(props: Props) {
                     onChange={(v) => setTone(v as Tone)}
                     disabled={loading}
                   >
-                    <option value="neutral">خنثی</option>
-                    <option value="friendly">دوستانه</option>
-                    <option value="formal">رسمی</option>
-                    <option value="witty">باهوش/طعنه ملایم</option>
-                    <option value="professional">حرفه‌ای</option>
+                    <option value="demanding">مطالبه‌گر / قاطع</option>
+                    <option value="outraged">خشمگین / معترض</option>
+                    <option value="angry">عصبانی</option>
+                    <option value="urgent">فوری / هشداردهنده</option>
+                    <option value="defiant">مقاوم / ایستاده</option>
+                    <option value="hopeful">امیدوار اما جدی</option>
+                    <option value="sad">غمگین / دلسوزانه</option>
+                    <option value="sarcastic">طعنه‌آمیز</option>
+                    <option value="calm_firm">آرام اما محکم</option>
+                    <option value="neutral">خنثی (حداقلی)</option>
                   </Select>
                 </div>
 
                 <div className="grid gap-2">
                   <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
+                  <Select
+                    value={needFa}
+                    onChange={(v) => setNeedFa(v as string)}
+                    disabled={loading}
+                  >
+                    <option value="ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری">ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری</option>
+                    <option value="ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن">ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن</option>
+                    <option value="ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X">ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X</option>
+                  </Select>
                   <Input
                     value={needFa}
                     onChange={setNeedFa}
@@ -413,12 +441,18 @@ export default function AICommentsModal(props: Props) {
 
                 <div className="grid gap-2">
                   <div className="text-xs text-zinc-600">نوع کامنت (فارسی)</div>
-                  <Input
+                  <Select
                     value={commentTypeFa}
-                    onChange={setCommentTypeFa}
+                    onChange={(v) => setCommentTypeFa(v as string)}
                     disabled={loading}
-                    placeholder="مثلاً: ریپلای کوتاه / سؤال‌محور…"
-                  />
+                  >
+                    <option value="ریپلای کوتاه (مطالبه‌گر/حمایتی)">ریپلای کوتاه (مطالبه‌گر/حمایتی)</option>
+                    <option value="ریپلای تند/اعتراضی">ریپلای تند/اعتراضی</option>
+                    <option value="سؤال کوتاه برای تحریک بحث">سؤال کوتاه برای تحریک بحث</option>
+                    <option value="ریپلای حمایتی/همدلانه">ریپلای حمایتی/همدلانه</option>
+                    <option value="ریپلای کنش‌گرا (دعوت به اقدام)">ریپلای کنش‌گرا (دعوت به اقدام)</option>
+                    <option value="ریپلای کوتاه">ریپلای کوتاه</option>
+                  </Select>
                 </div>
 
                 {isAdmin ? (
