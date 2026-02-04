@@ -349,9 +349,9 @@ export default function AICommentsModal(props: Props) {
           className="relative w-full max-w-3xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <Card className="p-0 overflow-hidden max-h-[95vh]">
+          <Card className="p-0 overflow-hidden max-h-[95vh] flex flex-col">
             {/* Header (sticky) */}
-            <div className="sticky top-0 z-10 bg-white border-b border-zinc-200 px-4 py-3">
+            <div className="sticky top-0 z-10 bg-white border-b px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-medium text-zinc-900">
                   {modalTitle}
@@ -383,14 +383,8 @@ export default function AICommentsModal(props: Props) {
               ) : null}
             </div>
 
-            {err ? (
-              <div className="mt-3">
-                <Alert variant="error">{err}</Alert>
-              </div>
-            ) : null}
-
             {/* Body (scrolls) */}
-            <div className="px-4 py-4 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               <div className="grid gap-3">
                 <div className="grid gap-2">
                   <div className="text-xs text-zinc-600">لحن</div>
