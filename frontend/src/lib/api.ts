@@ -415,8 +415,25 @@ export async function adminFetchItemComments(
 }
 
 /**
+ * Admin: add bulk comments for an item (bulk up to 20)
+ * Expected endpoint: POST /api/admin/item-comments?item_id=...
+ */
+export async function adminBulkSaveItemComments(
+  itemId: string,
+  comments: Array<string | CommentInput>,
+) {
+  return requestJSON<{ ok: boolean; saved_comment_ids?: string[]  }>(
+    `/api/admin/item-comments?item_id=${encodeURIComponent(itemId)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ comments }),
+    },
+    { auth: true },
+  );
+}
+
+/**
  * Admin: replace comments for an item (bulk up to 20)
- * NOTE: Now supports new schema: {text, translation_text}
  * Expected endpoint: PUT /api/admin/item-comments?item_id=...
  */
 export async function adminReplaceItemComments(

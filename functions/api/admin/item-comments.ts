@@ -13,7 +13,10 @@ function clampInt(v: any, min: number, max: number, fallback: number) {
 }
 
 function normText(v: any, maxLen: number) {
-  return String(v ?? "").replace(/\r\n/g, "\n").trim().slice(0, maxLen);
+  return String(v ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .slice(0, maxLen);
 }
 
 type IncomingComment = {
@@ -26,7 +29,6 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const user = await requireAuth(env, request);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Allow admin/editor/superadmin
     if (!requireRole(user, ["superadmin", "admin", "editor"])) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -43,13 +45,11 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ error: "Missing item_id" }, { status: 400 });
     }
 
-    const body = (await request.json().catch(() => null)) as
-      | null
-      | {
-          comments?: IncomingComment[];
-          author_type?: "ai" | "admin";
-          limit?: number;
-        };
+    const body = (await request.json().catch(() => null)) as null | {
+      comments?: IncomingComment[];
+      author_type?: "ai" | "admin" | "user";
+      limit?: number;
+    };
 
     const commentsRaw = Array.isArray(body?.comments) ? body?.comments : null;
     if (!commentsRaw || commentsRaw.length === 0) {
@@ -59,11 +59,16 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const limit = clampInt(body?.limit, 1, 50, 50);
     const maxTextLen = 1000;
 
-    const author_type: "ai" | "admin" =
-      body?.author_type === "admin" ? "admin" : "ai";
+    const author_type: "ai" | "admin" | "user" =
+      body?.author_type === "admin"
+        ? "admin"
+        : body?.author_type === "user"
+          ? "user"
+          : "ai";
 
     const createdAt = nowIso();
     const saved_comment_ids: string[] = [];
+
 
     const itemExists = await env.DB.prepare(
       `SELECT id FROM items WHERE id = ? LIMIT 1`,
@@ -94,15 +99,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         `INSERT INTO item_comments (id, item_id, text, translation_text, author_type, author_id, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind(
-          id,
-          itemId,
-          text,
-          tr,
-          author_type,
-          user?.id ?? null,
-          createdAt,
-        )
+        .bind(id, itemId, text, tr, author_type, user?.id ?? null, createdAt)
         .run();
     }
 

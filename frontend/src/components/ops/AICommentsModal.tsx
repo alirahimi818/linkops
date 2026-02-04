@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
-import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
 import Select from "../ui/Select";
 import Alert from "../ui/Alert";
 
 import CommentsEditor, { type CommentDraft } from "../ops/CommentsEditor";
 import type { Tone } from "../../lib/api";
-import { adminGenerateAIComments } from "../../lib/api";
+import {
+  adminGenerateAIComments,
+  adminBulkSaveItemComments,
+} from "../../lib/api";
 import Portal from "../ui/Portal";
 
 type Mode = "admin" | "public";
@@ -28,9 +30,6 @@ type Props = {
 
   // Optional: existing comments pool for random/manual helpers
   existingCommentsPool?: Array<{ text: string }>;
-
-  // When draft is produced and edited, you can apply it outside (optional)
-  onApplyDrafts?: (drafts: CommentDraft[]) => void;
 
   // When save-to-db succeeds, close modal and refresh list outside
   onSaved?: () => void;
@@ -116,7 +115,9 @@ export default function AICommentsModal(props: Props) {
   const [needFa, setNeedFa] = useState(
     "ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری",
   );
-  const [commentTypeFa, setCommentTypeFa] = useState("ریپلای کوتاه (مطالبه‌گر/حمایتی)");
+  const [commentTypeFa, setCommentTypeFa] = useState(
+    "ریپلای کوتاه (مطالبه‌گر/حمایتی)",
+  );
 
   const [count, setCount] = useState<number>(10);
   const [saveToDb, setSaveToDb] = useState<boolean>(false);
@@ -157,6 +158,41 @@ export default function AICommentsModal(props: Props) {
       document.body.style.overflow = prev;
     };
   }, [props.open]);
+
+  async function handleSaveDraftsToDb() {
+    if (!isAdmin) return;
+    if (!props.itemId) return;
+    if (drafts.length === 0) return;
+
+    setErr(null);
+    setLoading(true);
+    try {
+      // Send as objects (multiline allowed)
+      const payload = drafts
+        .map((d) => ({
+          text: String(d.text ?? "").trim(),
+          translation_text:
+            typeof d.translation_text === "string" && d.translation_text.trim()
+              ? d.translation_text
+              : null,
+        }))
+        .filter((d) => d.text.length > 0);
+
+      if (payload.length === 0) {
+        setErr("هیچ کامنت معتبری برای ذخیره وجود ندارد.");
+        return;
+      }
+
+      await adminBulkSaveItemComments(props.itemId, payload);
+
+      props.onSaved?.();
+      close();
+    } catch (e: any) {
+      setErr(e?.message ?? "ذخیره کامنت‌ها ناموفق بود.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function resetLocalState() {
     setErr(null);
@@ -334,15 +370,6 @@ export default function AICommentsModal(props: Props) {
     }
   }
 
-  function handleApplyDrafts() {
-    if (!isAdmin) return;
-    if (!props.onApplyDrafts) return;
-    if (drafts.length === 0) return;
-
-    props.onApplyDrafts(drafts);
-    close();
-  }
-
   if (!props.open) return null;
 
   return (
@@ -428,9 +455,18 @@ export default function AICommentsModal(props: Props) {
                     onChange={(v) => setNeedFa(v as string)}
                     disabled={loading}
                   >
-                    <option value="ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری">ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری</option>
-                    <option value="ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن">ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن</option>
-                    <option value="ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X">ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X</option>
+                    <option value="ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری">
+                      ریپلای‌های کوتاه و کنش‌گرا: دعوت به اقدام، فشار
+                      حداکثری/عدم مذاکره (در صورت مرتبط بودن)، بدون شعار تکراری
+                    </option>
+                    <option value="ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن">
+                      ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر،
+                      با جزئیات مشخص از متن
+                    </option>
+                    <option value="ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X">
+                      ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص،
+                      غیرکلیشه‌ای، مناسب X
+                    </option>
                   </Select>
                 </div>
 
@@ -441,11 +477,21 @@ export default function AICommentsModal(props: Props) {
                     onChange={(v) => setCommentTypeFa(v as string)}
                     disabled={loading}
                   >
-                    <option value="ریپلای کوتاه (مطالبه‌گر/حمایتی)">ریپلای کوتاه (مطالبه‌گر/حمایتی)</option>
-                    <option value="ریپلای تند/اعتراضی">ریپلای تند/اعتراضی</option>
-                    <option value="سؤال کوتاه برای تحریک بحث">سؤال کوتاه برای تحریک بحث</option>
-                    <option value="ریپلای حمایتی/همدلانه">ریپلای حمایتی/همدلانه</option>
-                    <option value="ریپلای کنش‌گرا (دعوت به اقدام)">ریپلای کنش‌گرا (دعوت به اقدام)</option>
+                    <option value="ریپلای کوتاه (مطالبه‌گر/حمایتی)">
+                      ریپلای کوتاه (مطالبه‌گر/حمایتی)
+                    </option>
+                    <option value="ریپلای تند/اعتراضی">
+                      ریپلای تند/اعتراضی
+                    </option>
+                    <option value="سؤال کوتاه برای تحریک بحث">
+                      سؤال کوتاه برای تحریک بحث
+                    </option>
+                    <option value="ریپلای حمایتی/همدلانه">
+                      ریپلای حمایتی/همدلانه
+                    </option>
+                    <option value="ریپلای کنش‌گرا (دعوت به اقدام)">
+                      ریپلای کنش‌گرا (دعوت به اقدام)
+                    </option>
                     <option value="ریپلای کوتاه">ریپلای کوتاه</option>
                   </Select>
                 </div>
@@ -645,15 +691,16 @@ export default function AICommentsModal(props: Props) {
                         این پیش‌نویس‌ها هنوز در دیتابیس ذخیره نشده‌اند.
                       </div>
 
-                      {props.onApplyDrafts ? (
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           variant="success"
-                          onClick={handleApplyDrafts}
+                          onClick={handleSaveDraftsToDb}
                           disabled={loading || drafts.length === 0}
+                          title="کامنت‌های ویرایش‌شده را مستقیم به دیتابیس اضافه می‌کند"
                         >
-                          اعمال پیش‌نویس‌ها
+                          ذخیره در دیتابیس
                         </Button>
-                      ) : null}
+                      </div>
                     </div>
                   </div>
                 ) : null}
