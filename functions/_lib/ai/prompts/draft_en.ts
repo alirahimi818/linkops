@@ -27,87 +27,76 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const examplesBlock = formatExamples(input);
 
   const outputRules = [
-    "Output rules (STRICT):",
-    `- Return ONLY valid JSON: {"comments":[{"text":string}, ...]}`,
-    `- Exactly ${input.count} comments`,
-    `- Top-level key MUST be only "comments"`,
-    `- Each "text": single line English, no \\n, 40–220 chars`,
-    `- No extra text, no markdown, no fences, no explanation`,
+    "Output rules – strict:",
+    `- ONLY return valid JSON: {"comments":[{"text":string}, ...]}`,
+    `- Exactly ${input.count} comments – no more, no less`,
+    `- Each "text" must be single-line English, no line breaks, no markdown`,
+    `- Each comment length: 100–280 characters (aim for 140–220 like examples)`,
+    `- Comments shorter than 100 chars are NOT acceptable`,
+    `- No extra text outside the JSON`,
   ].join("\n");
 
   const qualityRules = [
-    "Quality rules (highest priority):",
-    "- Write realistic English replies like Iranian users on X: casual, emotional, factual, supportive of freedom movement",
-    "- Match the pro-freedom, pro-action spirit of the EXAMPLES — even if tone is described as neutral/measured",
-    "- EVERY comment MUST include at least ONE specific detail from the input:",
-    "  → death toll (36,500–50,000+ killed),",
-    "  → 'help is on the way' broken promise,",
-    "  → @TrumpDailyPosts poll,",
-    "  → need to recognize Crown Prince / Reza Pahlavi as leader,",
-    "  → call for no negotiation / maximum pressure / real support",
-    "- Generic phrases like 'support the people' or 'enough is enough' alone are NOT sufficient",
-    "- Paraphrase — never copy input text word-for-word",
-    "- Vary openings, structures, lengths, emotions",
+    "Quality & style rules (highest priority):",
+    "- Write like real Iranian pro-freedom users on X: emotional, resolute, factual, urgent",
+    "- Match the ENERGY, tone and structure of the provided EXAMPLES (strong support for YES, outrage at massacre, broken promises, call for recognition of Reza Pahlavi, maximum pressure, no negotiation)",
+    "- EVERY comment MUST reference at least 1–2 specific details from description:",
+    "  • death toll (36,500–50,000+ killed / slaughtered / massacred)",
+    "  • broken promise 'help is on the way'",
+    "  • @TrumpDailyPosts poll",
+    "  • need to recognize Crown Prince / Reza Pahlavi / @PahlaviReza as legitimate leader",
+    "  • no negotiation / maximum pressure / real action / regime change",
+    "- Use strong, emotional language when appropriate: slaughtered, massacred, blood of our youth, broken promises, demands justice, etc.",
+    "- Vary sentence structure, openings, length and emotional intensity",
+    "- Paraphrase – NEVER copy input or examples verbatim",
+  ].join("\n");
+
+  const engagementRules = [
+    "Engagement rules (natural usage):",
+    "- Use 1–3 relevant hashtags in 5–8 comments (ONLY from allowed list)",
+    "- Use 1–3 natural @mentions in 4–7 comments (e.g. @PahlaviReza, @TrumpDailyPosts, @realDonaldTrump, @POTUS, @SecRubio, @LindseyGrahamSC)",
+    "- At least 2–3 comments without hashtag",
+    "- At least 3 comments without any @mention",
   ].join("\n");
 
   const varietyRules = [
-    "Anti-repetition rules:",
-    "- ≤ 2 comments starting with same word/phrase",
-    "- No adjective repeated > 3 times across all comments",
-    "- ≤ 4 questions total",
-    "- Exclamation marks in ≤ 50% of comments",
-    "- No repeated slogans or templates",
+    "Variety & anti-repetition rules:",
+    "- Maximum 2 comments starting with the same word or phrase",
+    "- No adjective or strong verb repeated more than 3 times across all comments",
+    "- At most 3–4 questions in total",
+    "- Exclamation marks in at most 60% of comments",
+    "- Avoid repetitive templates or slogans",
   ].join("\n");
 
   const antiSpamRules = [
-    "Anti-spam rules:",
-    "- NO emojis",
-    "- No ALL CAPS except 1–2 words max",
-    "- At least 4 comments with ZERO hashtags",
-    "- At least 5 comments with ZERO @mentions",
-    "- Avoid boilerplate justice/accountability phrases (max once)",
+    "Anti-spam / anti-bot rules:",
+    "- NO emojis at all",
+    "- No ALL CAPS except 1–2 words maximum",
+    "- Avoid generic boilerplate phrases like 'justice must prevail' (max once)",
   ].join("\n");
-
-  const mentionRules = [
-    "Mention rules:",
-    "- Optional, natural — max 2–3 @ per comment",
-    "- Prefer relevant ones: @PahlaviReza, @realDonaldTrump, @POTUS, @SecRubio, @LindseyGrahamSC, @TrumpDailyPosts etc.",
-  ].join("\n");
-
-  const hashtagRules =
-    allowed.length > 0
-      ? [
-          "Hashtag rules:",
-          "- Optional, max 2–3 per comment",
-          "- ONLY from allowed list: " + allowed.join(", "),
-          "- At least 4 comments MUST have zero hashtags",
-        ].join("\n")
-      : "No hashtags allowed (empty list)";
 
   const finalGuard = [
-    "Final priority:",
-    "Naturalness + specificity + variety > everything else (except JSON format).",
-    "If in doubt, make it more human-like and reference a concrete detail from the description.",
+    "Final instruction:",
+    "Prioritize: specificity → natural emotional energy of examples → length (140–220 chars) → variety → natural hashtag/mention usage",
+    "If a comment feels too short, generic or safe → rewrite it to be longer, stronger and more detailed.",
   ].join("\n");
 
   return [
     {
       role: "system",
       content: [
-        "You generate short, realistic X replies in English from perspective of Iranian pro-freedom users.",
-        "Return ONLY the JSON — nothing else.",
+        "You are generating realistic, high-engagement X/Twitter replies in English from the perspective of Iranian pro-freedom / pro-revolution users.",
+        "Return ONLY valid JSON – nothing else, no explanation, no markdown.",
         "",
         outputRules,
         "",
         qualityRules,
         "",
+        engagementRules,
+        "",
         varietyRules,
         "",
         antiSpamRules,
-        "",
-        mentionRules,
-        "",
-        hashtagRules,
         "",
         finalGuard,
       ].join("\n"),
@@ -115,22 +104,26 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
     {
       role: "user",
       content: [
-        "Input:",
+        "Current input:",
         `Title (FA): ${input.title_fa || "(none)"}`,
         `Description (FA): ${input.description_fa || "(none)"}`,
         `Need (FA): ${input.need_fa || "(none)"}`,
         `Comment type (FA): ${input.comment_type_fa || "(none)"}`,
-        `Desired tone: supportive yet measured (pro-freedom, factual, call for real action)`,
+        `Desired tone: supportive and resolute (pro-freedom, factual but urgent, match examples' energy)`,
         "",
         `Stream/Topic: ${input.stream || ""} – ${input.topic || ""}`,
         "",
         `Allowed hashtags: ${allowed.length ? allowed.join(", ") : "NONE"}`,
         "",
-        "Style examples (match tone/format/spirit):",
-        examplesBlock || "No examples.",
+        "Style examples – match tone, energy, length, use of mentions & hashtags:",
+        examplesBlock || "No examples provided.",
         "",
-        `Generate exactly ${input.count} natural, varied comments.`,
-        "All should support YES vote in the poll, reference at least one specific detail, and feel authentic.",
+        `Generate exactly ${input.count} varied, authentic replies.`,
+        "All must:",
+        "- Strongly support YES in the @TrumpDailyPosts poll",
+        "- Include at least 1–2 specific details from description (death toll, broken promise, Reza Pahlavi recognition, etc.)",
+        "- Aim for 140–220 characters each (like examples)",
+        "- Use hashtags and mentions naturally where it makes sense",
         "Output JSON only.",
       ].join("\n"),
     },
