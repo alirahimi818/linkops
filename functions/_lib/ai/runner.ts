@@ -1,6 +1,9 @@
 import { getAIProvider } from "./provider";
 import type { DraftOutput, FinalOutput, GenerateInput } from "./types";
-import { buildDraftPrompt, buildTranslatePrompt } from "./prompts/generate_comments";
+import {
+  buildDraftPrompt,
+  buildTranslatePrompt,
+} from "./prompts/generate_comments";
 import { validateDraftOutput, validateTranslateOutput } from "./validate";
 
 export async function getRandomItemCommentExamples(
@@ -121,13 +124,26 @@ export async function runGenerateCommentsJob(
     mode: "admin" | "public";
   },
 ): Promise<FinalOutput> {
-  await env.DB.prepare(
-    "UPDATE ai_jobs SET status='running', started_at=?1 WHERE id=?2",
-  )
-    .bind(new Date().toISOString(), args.job_id)
-    .run();
-
   const provider = getAIProvider(env);
+
+  const temperature = args.mode === "admin" ? 0.6 : 0.7;
+
+  // Representative job max_tokens (Stage1). Stage2 will reuse same unless you later decide otherwise.
+  const max_tokens = args.mode === "admin" ? 2200 : 900;
+
+  // Single update: mark running + store provider/model/config
+  await env.DB.prepare(
+    "UPDATE ai_jobs SET status='running', started_at=?1, provider=?2, model=?3, temperature=?4, max_tokens=?5 WHERE id=?6",
+  )
+    .bind(
+      new Date().toISOString(),
+      provider.name,
+      provider.model ?? null,
+      temperature,
+      max_tokens,
+      args.job_id,
+    )
+    .run();
 
   function shouldRetry(errMsg: string) {
     const m = String(errMsg || "");
@@ -162,8 +178,8 @@ export async function runGenerateCommentsJob(
   async function runChatOnce(messages: any[]) {
     const resp = await provider.chat({
       messages,
-      temperature: args.mode === "admin" ? 0.6 : 0.7,
-      max_tokens: args.mode === "admin" ? 2200 : 900,
+      temperature,
+      max_tokens,
       mode: args.mode,
     });
 
@@ -210,6 +226,8 @@ export async function runGenerateCommentsJob(
     const draftRetryNudge =
       "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
       `Schema: {"comments":[{"text":string}]}. ` +
+      "Top-level JSON must contain ONLY the key 'comments'. " +
+      "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
       `comments.length MUST equal ${args.input.count}. ` +
       "Each text must be English and single-line. " +
       "Hashtags, if used, must be ONLY from the allowed list. Do NOT invent hashtags. " +
@@ -238,6 +256,8 @@ export async function runGenerateCommentsJob(
     const translateRetryNudge =
       "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
       `Schema: {"comments":[{"text":string,"translation_text":string}]}. ` +
+      "Top-level JSON must contain ONLY the key 'comments'. " +
+      "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
       `comments.length MUST equal ${draft.comments.length}. ` +
       "text must be EXACTLY the same as the provided English text (no edits). " +
       "translation_text must be Persian. " +

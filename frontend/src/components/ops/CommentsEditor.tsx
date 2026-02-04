@@ -37,8 +37,11 @@ type Props = {
     comment_type_fa: string;
     setCommentTypeFa: (v: string) => void;
 
-    useExamples: boolean;
-    setUseExamples: (v: boolean) => void;
+    examplesMode: "random_existing" | "manual" | "none";
+    setExamplesMode: (v: "random_existing" | "manual" | "none") => void;
+
+    manualExamplesText: string;
+    setManualExamplesText: (v: string) => void;
 
     saveToDb: boolean;
     setSaveToDb: (v: boolean) => void;
@@ -411,15 +414,38 @@ export default function CommentsEditor({
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-zinc-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-zinc-900"
-                checked={ai.useExamples}
-                onChange={(e) => ai.setUseExamples(e.target.checked)}
-              />
-              استفاده از ۵ کامنت فعلی به عنوان مثال
-            </label>
+            <div className="grid gap-2">
+              <div className="text-xs text-zinc-600">
+                مثال‌ها برای هدایت سبک خروجی
+              </div>
+
+              <Select value={ai.examplesMode} onChange={(v) => ai.setExamplesMode(v as "random_existing" | "manual" | "none")}>
+                <option value="random_existing">
+                  انتخاب تصادفی ۵ کامنت از کامنت‌های همین آیتم
+                </option>
+                <option value="manual">ورود دستی ۵ مثال مخصوص AI</option>
+                <option value="none">بدون مثال</option>
+              </Select>
+
+              {ai.examplesMode === "manual" ? (
+                <div className="mt-2 grid gap-2">
+                  <div className="text-xs text-zinc-600">
+                    مثال‌های انگلیسی (هر خط یک کامنت)
+                  </div>
+                  <Textarea
+                    dir="ltr"
+                    value={ai.manualExamplesText}
+                    onChange={ai.setManualExamplesText}
+                    placeholder={
+                      "Example 1...\nExample 2...\nExample 3...\nExample 4...\nExample 5..."
+                    }
+                  />
+                  <div className="text-xs text-zinc-500">
+                    حداکثر ۵ خط خوانده می‌شود. خطوط خالی نادیده گرفته می‌شوند.
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <label className="flex items-center gap-2 text-sm text-zinc-700">
               <input

@@ -63,5 +63,6 @@ export type AIProviderName = "cloudflare" | "openai";
 
 export interface AIProvider {
   name: AIProviderName;
+  model?: string;
   chat(req: AIChatRequest): Promise<AIChatResponse>;
 }

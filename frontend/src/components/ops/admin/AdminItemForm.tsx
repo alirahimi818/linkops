@@ -130,8 +130,11 @@ export default function AdminItemForm(props: {
   );
   const [aiCommentTypeFa, setAiCommentTypeFa] = useState("ریپلای کوتاه");
 
-  // Use existing drafts as examples
-  const [aiUseExamples, setAiUseExamples] = useState(true);
+  const [aiExamplesMode, setAiExamplesMode] = useState<
+    "random_existing" | "manual" | "none"
+  >("random_existing");
+
+  const [aiManualExamplesText, setAiManualExamplesText] = useState("");
 
   // Save directly or only preview
   const [aiSaveToDb, setAiSaveToDb] = useState(false);
@@ -155,12 +158,42 @@ export default function AdminItemForm(props: {
       return;
     }
 
-    const examples = aiUseExamples
-      ? props.comments
-          .slice(0, 5)
-          .map((c) => ({ text: String(c.text || "").trim() }))
-          .filter((x) => x.text.length > 0)
-      : [];
+    let examples: Array<{ text: string }> = [];
+
+    if (aiExamplesMode === "random_existing") {
+      const pool = props.comments
+        .map((c) => String(c.text || "").trim())
+        .filter((t) => t.length > 0);
+
+      examples = pickRandom(pool, 5).map((t) => ({ text: t }));
+    } else if (aiExamplesMode === "manual") {
+      examples = parseManualExamples(aiManualExamplesText);
+
+      if (examples.length === 0) {
+        setAiError(
+          "برای حالت مثال دستی، لطفاً حداقل ۱ خط مثال انگلیسی وارد کنید.",
+        );
+        return;
+      }
+    }
+
+    function pickRandom<T>(arr: T[], count: number): T[] {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a.slice(0, count);
+    }
+
+    function parseManualExamples(text: string): Array<{ text: string }> {
+      return String(text || "")
+        .split(/\r?\n/g)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((t) => ({ text: t }));
+    }
 
     setAiLoading(true);
     try {
@@ -316,16 +349,24 @@ export default function AdminItemForm(props: {
               enabled: !!props.itemId,
               loading: aiLoading,
               error: aiError,
+
               tone: aiTone,
               setTone: setAiTone,
+
               need_fa: aiNeedFa,
               setNeedFa: setAiNeedFa,
+
               comment_type_fa: aiCommentTypeFa,
               setCommentTypeFa: setAiCommentTypeFa,
-              useExamples: aiUseExamples,
-              setUseExamples: setAiUseExamples,
+
+              examplesMode: aiExamplesMode,
+              setExamplesMode: setAiExamplesMode,
+              manualExamplesText: aiManualExamplesText,
+              setManualExamplesText: setAiManualExamplesText,
+
               saveToDb: aiSaveToDb,
               setSaveToDb: setAiSaveToDb,
+
               onGenerate: handleAIGenerate,
             }}
           />

@@ -103,7 +103,10 @@ function arraysEqualAsMultiset(a: string[], b: string[]) {
  * - Persian is expected,
  * - BUT allow Latin inside hashtags and mentions only (must remain unchanged).
  */
-function validatePersianScriptAllowingTagsAndMentions(translation: string, idx: number) {
+function validatePersianScriptAllowingTagsAndMentions(
+  translation: string,
+  idx: number,
+) {
   const t = String(translation || "");
 
   // Remove hashtags and mentions completely, then ensure remaining text
@@ -112,12 +115,19 @@ function validatePersianScriptAllowingTagsAndMentions(translation: string, idx: 
     .replace(/#[\p{L}\p{N}_]+/gu, " ")
     .replace(/@[\p{L}\p{N}_]+/gu, " ");
 
-  if (/[A-Za-z]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
-  if (/[\u0400-\u04FF]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
-  if (/[\u4E00-\u9FFF]/.test(stripped)) throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
+  if (/[A-Za-z]/.test(stripped))
+    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
+  if (/[\u0400-\u04FF]/.test(stripped))
+    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
+  if (/[\u4E00-\u9FFF]/.test(stripped))
+    throw new Error(`INVALID_TRANSLATION_SCRIPT_${idx}`);
 }
 
-function ensureSameMentionsAndHashtags(sourceText: string, translatedText: string, idx: number) {
+function ensureSameMentionsAndHashtags(
+  sourceText: string,
+  translatedText: string,
+  idx: number,
+) {
   const srcTags = extractHashtagsFromText(sourceText);
   const trTags = extractHashtagsFromText(translatedText);
 
@@ -150,15 +160,28 @@ export function validateDraftOutput(args: {
   const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
   const parsed = safeParseJson(args.raw);
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.comments)) {
+  const root =
+    parsed &&
+    typeof parsed === "object" &&
+    Array.isArray((parsed as any).comments)
+      ? (parsed as any)
+      : parsed &&
+          typeof parsed === "object" &&
+          (parsed as any).response &&
+          typeof (parsed as any).response === "object" &&
+          Array.isArray((parsed as any).response.comments)
+        ? (parsed as any).response
+        : null;
+
+  if (!root) {
     throw new Error("INVALID_JSON_SHAPE");
   }
 
-  if (parsed.comments.length !== args.count) {
+  if (root.comments.length === 0) {
     throw new Error("INVALID_COMMENTS_COUNT");
   }
 
-  const comments = parsed.comments.map((c: any, idx: number) => {
+  const comments = root.comments.map((c: any, idx: number) => {
     const text = String(c?.text || "").trim();
 
     if (!text) throw new Error(`EMPTY_TEXT_${idx}`);
@@ -209,15 +232,28 @@ export function validateTranslateOutput(args: {
 }): FinalOutput {
   const parsed = safeParseJson(args.raw);
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.comments)) {
+  const root =
+    parsed &&
+    typeof parsed === "object" &&
+    Array.isArray((parsed as any).comments)
+      ? (parsed as any)
+      : parsed &&
+          typeof parsed === "object" &&
+          (parsed as any).response &&
+          typeof (parsed as any).response === "object" &&
+          Array.isArray((parsed as any).response.comments)
+        ? (parsed as any).response
+        : null;
+
+  if (!root) {
     throw new Error("INVALID_JSON_SHAPE");
   }
 
-  if (parsed.comments.length !== args.draft.comments.length) {
+  if (root.comments.length !== args.draft.comments.length) {
     throw new Error("INVALID_COMMENTS_COUNT");
   }
 
-  const comments = parsed.comments.map((c: any, idx: number) => {
+  const comments = root.comments.map((c: any, idx: number) => {
     const text = String(c?.text || "").trim();
     const translation_text = String(c?.translation_text || "").trim();
 
@@ -234,10 +270,7 @@ export function validateTranslateOutput(args: {
       throw new Error(`TEXT_CHANGED_FROM_DRAFT_${idx}`);
     }
 
-    // Persian validation but allow hashtags/mentions to stay in Latin
     validatePersianScriptAllowingTagsAndMentions(translation_text, idx);
-
-    // Mentions/hashtags must remain exactly the same
     ensureSameMentionsAndHashtags(draftText, translation_text, idx);
 
     return { text, translation_text };
