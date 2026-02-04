@@ -1,4 +1,27 @@
-import { cleanPastedCommentText } from "./commentPaste"; // اگر جداست، در غیر این صورت حذف کن
+export function cleanPastedCommentText(raw: string) {
+  let s = String(raw ?? "");
+
+  // Normalize newlines
+  s = s.replace(/\r\n?/g, "\n");
+
+  // Remove zero-widths
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+
+  // Join line breaks before mentions: "\n @POTUS" -> " @POTUS"
+  s = s.replace(/\n\s*@/g, " @");
+
+  // Join line breaks around em dash / en dash
+  s = s.replace(/\s*\n\s*—\s*/g, " — ");
+  s = s.replace(/\s*\n\s*–\s*/g, " – ");
+
+  // Single newlines -> spaces
+  s = s.replace(/[ \t]*\n[ \t]*/g, " ");
+
+  // Collapse spaces
+  s = s.replace(/[ \t]{2,}/g, " ").trim();
+
+  return s;
+}
 
 function findNumberedStart(line: string) {
   const m = line.trim().match(/^(\d{1,3})\s*[.)-]\s+/);
@@ -174,3 +197,4 @@ function cutTrailingNonCommentText(s: string) {
   text = text.replace(/[ \t]{2,}/g, " ").trim();
   return text;
 }
+
