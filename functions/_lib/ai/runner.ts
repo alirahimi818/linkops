@@ -1,7 +1,7 @@
 import { getAIProvider } from "./provider";
-import { buildGeneratePrompt } from "./prompts/generate_comments";
-import { validateGenerateOutput } from "./validate";
-import type { GenerateInput, GenerateOutput } from "./types";
+import type { DraftOutput, FinalOutput, GenerateInput } from "./types";
+import { buildDraftPrompt, buildTranslatePrompt } from "./prompts/generate_comments";
+import { validateDraftOutput, validateTranslateOutput } from "./validate";
 
 export async function getRandomItemCommentExamples(
   env: Env,
@@ -120,7 +120,7 @@ export async function runGenerateCommentsJob(
     input: GenerateInput;
     mode: "admin" | "public";
   },
-): Promise<GenerateOutput> {
+): Promise<FinalOutput> {
   await env.DB.prepare(
     "UPDATE ai_jobs SET status='running', started_at=?1 WHERE id=?2",
   )
@@ -134,11 +134,20 @@ export async function runGenerateCommentsJob(
     return (
       m.includes("INVALID_JSON_OUTPUT") ||
       m.includes("INVALID_JSON") ||
-      m.includes("INVALID_TRANSLATION_SCRIPT") ||
+      m.includes("INVALID_JSON_SHAPE") ||
       m.includes("INVALID_LINEBREAKS") ||
       m.includes("INVALID_COMMENTS_COUNT") ||
-      m.includes("Expected ',' or '}'") || // JSON parse message
-      m.includes("Unterminated string in JSON") // JSON parse message
+      m.includes("Expected ',' or '}'") ||
+      m.includes("Unterminated string in JSON") ||
+      // Stage 1
+      m.includes("ILLEGAL_HASHTAG_IN_TEXT") ||
+      m.includes("HASHTAGS_NOT_ALLOWED") ||
+      m.includes("INVALID_TEXT_NOT_ENGLISH") ||
+      // Stage 2
+      m.includes("INVALID_TRANSLATION_SCRIPT") ||
+      m.includes("TRANSLATION_HASHTAGS_CHANGED") ||
+      m.includes("TRANSLATION_MENTIONS_CHANGED") ||
+      m.includes("TEXT_CHANGED_FROM_DRAFT")
     );
   }
 
@@ -150,7 +159,7 @@ export async function runGenerateCommentsJob(
       .run();
   }
 
-  async function runOnce(messages: any[]) {
+  async function runChatOnce(messages: any[]) {
     const resp = await provider.chat({
       messages,
       temperature: args.mode === "admin" ? 0.6 : 0.7,
@@ -159,70 +168,115 @@ export async function runGenerateCommentsJob(
     });
 
     await storeAssistant(resp.content);
-
-    return validateGenerateOutput({
-      raw: resp.content,
-      count: args.input.count,
-      allowed_hashtags: args.input.allowed_hashtags,
-    });
+    return resp.content;
   }
 
-  try {
-    // Build base prompt
-    const messages = buildGeneratePrompt(args.input);
+  async function runStageWithOneRetry<T>(params: {
+    stageLabel: string;
+    baseMessages: any[];
+    retrySchemaNudge: string;
+    validate: (raw: string) => T;
+  }): Promise<T> {
+    const { stageLabel, baseMessages, retrySchemaNudge, validate } = params;
 
-    // Store prompt messages
-    await addJobMessages(env, args.job_id, messages);
+    await addJobMessages(env, args.job_id, baseMessages);
 
-    // First attempt
     try {
-      const output = await runOnce(messages);
-
-      await env.DB.prepare(
-        "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
-      )
-        .bind(new Date().toISOString(), args.job_id)
-        .run();
-
-      return output;
+      const raw1 = await runChatOnce(baseMessages);
+      return validate(raw1);
     } catch (e1: any) {
       const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
-
-      if (!shouldRetry(msg1)) {
-        throw e1;
-      }
-
-      // Log retry instruction as a job message
-      const retryNudge = {
-        role: "user",
-        content:
-          "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
-          'Schema: {"comments":[{"text":string,"translation_text":string,"hashtags_used":string[]}]}. ' +
-          `comments.length MUST equal ${args.input.count}. ` +
-          "All strings must be single-line. " +
-          "translation_text must be Persian (Arabic script) only—no Latin/Cyrillic/CJK characters. " +
-          "No markdown, no code fences, no commentary.",
-      };
+      if (!shouldRetry(msg1)) throw e1;
 
       await addJobMessages(env, args.job_id, [
         {
           role: "user",
-          content: "[RETRY] previous output invalid. Forcing strict JSON only.",
+          content: `[RETRY:${stageLabel}] previous output invalid. Forcing strict JSON only.`,
         },
       ]);
 
-      // Second attempt (retry once)
-      const retryMessages = [...messages, retryNudge];
-      const output2 = await runOnce(retryMessages);
+      const retryNudge = { role: "user", content: retrySchemaNudge };
+      const retryMessages = [...baseMessages, retryNudge];
 
-      await env.DB.prepare(
-        "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
-      )
-        .bind(new Date().toISOString(), args.job_id)
-        .run();
-
-      return output2;
+      const raw2 = await runChatOnce(retryMessages);
+      return validate(raw2);
     }
+  }
+
+  try {
+    /* ------------------------------ Stage 1: Draft (EN) ------------------------------ */
+    const draftMessages = buildDraftPrompt(args.input);
+
+    const draftRetryNudge =
+      "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
+      `Schema: {"comments":[{"text":string}]}. ` +
+      `comments.length MUST equal ${args.input.count}. ` +
+      "Each text must be English and single-line. " +
+      "Hashtags, if used, must be ONLY from the allowed list. Do NOT invent hashtags. " +
+      "No markdown, no code fences, no commentary.";
+
+    const draft: DraftOutput = await runStageWithOneRetry<DraftOutput>({
+      stageLabel: "DRAFT_EN",
+      baseMessages: draftMessages,
+      retrySchemaNudge: draftRetryNudge,
+      validate: (raw) =>
+        validateDraftOutput({
+          raw,
+          count: args.input.count,
+          allowed_hashtags: args.input.allowed_hashtags,
+        }),
+    });
+
+    /* ------------------------------ Stage 2: Translate (FA) ------------------------------ */
+    const translateMessages = buildTranslatePrompt({
+      draft,
+      tone: args.input.tone,
+      stream: args.input.stream,
+      topic: args.input.topic,
+    });
+
+    const translateRetryNudge =
+      "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
+      `Schema: {"comments":[{"text":string,"translation_text":string}]}. ` +
+      `comments.length MUST equal ${draft.comments.length}. ` +
+      "text must be EXACTLY the same as the provided English text (no edits). " +
+      "translation_text must be Persian. " +
+      "IMPORTANT: Do NOT translate or change hashtags (#...) and mentions (@...). Keep them exactly unchanged. " +
+      "All strings must be single-line. " +
+      "No markdown, no code fences, no commentary.";
+
+    let finalOut: FinalOutput;
+
+    try {
+      finalOut = await runStageWithOneRetry<FinalOutput>({
+        stageLabel: "TRANSLATE_FA",
+        baseMessages: translateMessages,
+        retrySchemaNudge: translateRetryNudge,
+        validate: (raw) =>
+          validateTranslateOutput({
+            raw,
+            draft,
+          }),
+      });
+    } catch (e2: any) {
+      const msg2 = e2?.message ? String(e2.message) : "UNKNOWN_ERROR";
+      if (!shouldRetry(msg2)) throw e2;
+
+      finalOut = {
+        comments: draft.comments.map((c) => ({
+          text: c.text,
+          translation_text: "",
+        })),
+      };
+    }
+
+    await env.DB.prepare(
+      "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
+    )
+      .bind(new Date().toISOString(), args.job_id)
+      .run();
+
+    return finalOut;
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
 

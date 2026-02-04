@@ -123,28 +123,12 @@ export default function AdminItemForm(props: {
     !isValidAbsoluteHttpUrl(autoFixUrl(props.url));
 
   // AI section
-  function parseHashtags(text: string): string[] {
-    return String(text || "")
-      .split(/[\s,\n]+/g)
-      .map((x) => x.trim())
-      .filter(Boolean)
-      .map((x) => (x.startsWith("#") ? x.slice(1) : x)); // backend normalizes
-  }
 
   const [aiTone, setAiTone] = useState<Tone>("neutral");
   const [aiNeedFa, setAiNeedFa] = useState(
     "تولید ریپلای‌های کوتاه برای تعامل و ادامه گفتگو",
   );
   const [aiCommentTypeFa, setAiCommentTypeFa] = useState("ریپلای کوتاه");
-
-  // Text box for hashtags (admin can edit)
-  const [aiHashtagsText, setAiHashtagsText] = useState(
-    props.whitelist.size
-      ? Array.from(props.whitelist)
-          .map((t) => `#${t}`)
-          .join(" ")
-      : "",
-  );
 
   // Use existing drafts as examples
   const [aiUseExamples, setAiUseExamples] = useState(true);
@@ -171,19 +155,10 @@ export default function AdminItemForm(props: {
       return;
     }
 
-    const allowed = parseHashtags(aiHashtagsText);
-
     const examples = aiUseExamples
       ? props.comments
           .slice(0, 5)
-          .map((c) => ({
-            text: String(c.text || "").trim(),
-            translation_text:
-              typeof c.translation_text === "string" &&
-              c.translation_text.trim()
-                ? c.translation_text.trim()
-                : null,
-          }))
+          .map((c) => ({ text: String(c.text || "").trim() }))
           .filter((x) => x.text.length > 0)
       : [];
 
@@ -196,9 +171,9 @@ export default function AdminItemForm(props: {
         need_fa: aiNeedFa.trim(),
         comment_type_fa: aiCommentTypeFa.trim(),
         tone: aiTone,
-        allowed_hashtags: allowed,
         examples,
         save: aiSaveToDb,
+        count: 10,
       });
 
       // Append to local draft list (max 50)
@@ -347,8 +322,6 @@ export default function AdminItemForm(props: {
               setNeedFa: setAiNeedFa,
               comment_type_fa: aiCommentTypeFa,
               setCommentTypeFa: setAiCommentTypeFa,
-              hashtagsText: aiHashtagsText,
-              setHashtagsText: setAiHashtagsText,
               useExamples: aiUseExamples,
               setUseExamples: setAiUseExamples,
               saveToDb: aiSaveToDb,

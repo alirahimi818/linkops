@@ -37,9 +37,6 @@ type Props = {
     comment_type_fa: string;
     setCommentTypeFa: (v: string) => void;
 
-    hashtagsText: string;
-    setHashtagsText: (v: string) => void;
-
     useExamples: boolean;
     setUseExamples: (v: boolean) => void;
 
@@ -389,15 +386,28 @@ export default function CommentsEditor({
             </div>
 
             <div className="grid gap-2">
-              <div className="text-xs text-zinc-600">هشتگ‌های مجاز</div>
+              <div className="text-xs text-zinc-600">
+                هشتگ‌های مجاز (از دیتابیس)
+              </div>
+
               <Textarea
                 dir="ltr"
-                value={ai.hashtagsText}
-                onChange={ai.setHashtagsText}
-                placeholder="#tag1 #tag2 ..."
+                value={
+                  whitelist.size
+                    ? Array.from(whitelist)
+                        .slice(0, 200)
+                        .map((t) => `#${t}`)
+                        .join(" ")
+                    : ""
+                }
+                onChange={() => {}}
+                placeholder="(خالی)"
+                readOnly
               />
+
               <div className="text-xs text-zinc-500">
-                فقط از این هشتگ‌ها استفاده می‌شود. (می‌توانید خالی بگذارید)
+                این لیست از سرور می‌آید و در تولید AI مبنا قرار می‌گیرد. (در
+                اینجا فقط نمایش داده می‌شود)
               </div>
             </div>
 

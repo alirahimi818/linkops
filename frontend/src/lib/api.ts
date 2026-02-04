@@ -2,11 +2,14 @@
 
 import { loadingStart, loadingStop } from "./loadingStore";
 
+/* =========================
+   AI Types
+   ========================= */
+
 export type Tone = "friendly" | "formal" | "neutral" | "witty" | "professional";
 
 export type AdminAIGenerateExample = {
   text: string; // English example
-  translation_text?: string | null; // Optional Persian translation
 };
 
 export type AdminAIGenerateCommentsPayload = {
@@ -19,18 +22,19 @@ export type AdminAIGenerateCommentsPayload = {
 
   tone: Tone;
 
-  allowed_hashtags: string[];
-
   // Optional: admin can provide examples
   examples?: AdminAIGenerateExample[];
 
+  // Optional: save generated comments into DB
   save?: boolean;
+
+  // Optional: allow overriding count (backend clamps it anyway)
+  count?: number;
 };
 
 export type AIGeneratedComment = {
   text: string;
-  translation_text: string;
-  hashtags_used: string[];
+  translation_text: string; // Persian, may be empty string
 };
 
 export type AdminAIGenerateCommentsResponse = {

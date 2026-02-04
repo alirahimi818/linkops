@@ -13,24 +13,32 @@ export type GenerateInput = {
   stream: "political";
   topic: "iran_revolution_jan_2026";
 
+  // whitelist hashtags (with or without leading #)
   allowed_hashtags: string[];
+
   count: number;
 
   // Examples to steer style
   examples?: Array<{
     text: string; // English sample
-    translation_text?: string;
   }>;
 };
 
-export type GeneratedComment = {
-  text: string; // English
-  translation_text: string; // Persian
-  hashtags_used: string[];
+export type DraftComment = {
+  text: string; // English, may include #hashtags and @mentions
 };
 
-export type GenerateOutput = {
-  comments: GeneratedComment[];
+export type DraftOutput = {
+  comments: DraftComment[];
+};
+
+export type FinalComment = {
+  text: string; // English (same as draft)
+  translation_text: string; // Persian translation, can be empty string if translation failed after retries
+};
+
+export type FinalOutput = {
+  comments: FinalComment[];
 };
 
 // Provider chat types
