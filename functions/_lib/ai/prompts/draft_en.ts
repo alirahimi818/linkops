@@ -32,33 +32,59 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const allowed = normalizeHashtags(input.allowed_hashtags);
   const examplesBlock = formatExamples(input);
 
-  const mustUseHashtags = allowed.length > 0;
+  const outputRules = [
+    "Output rules:",
+    `- Output MUST match this JSON schema exactly: {"comments":[{"text":string}]}`,
+    `- comments.length MUST equal ${input.count}`,
+    "- Top-level JSON must contain ONLY the key 'comments' (no wrapper keys like 'response', 'usage', 'tool_calls').",
+    "- Each text MUST be English (en).",
+    "- Each text MUST be a single line (no line breaks).",
+    "- Each text MUST be non-empty and under 220 characters.",
+    "- No markdown, no code fences, no commentary.",
+  ].join("\n");
 
   const qualityRules = [
     "Quality rules (VERY IMPORTANT):",
-    "- Write like X/Twitter replies: concise, punchy, natural.",
-    "- Each comment should feel specific to the given title/description (avoid generic filler).",
-    "- Avoid bland templates like 'must be held accountable' repeated across many items.",
-    "- Ensure diversity: do not reuse the same opening phrase or sentence structure across comments.",
-    "- Prefer 1–2 short clauses over long paragraphs.",
-    "- Keep each comment under 220 characters (hard limit).",
-    "",
-    "Content hooks (include at least ONE in every comment):",
-    "- 'peace through strength' / 'no deals' / 'no negotiations'",
-    "- 'maximum pressure'",
-    "- 'stand with the Iranian people'",
-    "- recognition/support phrasing for @PahlaviReza (only if it fits naturally)",
+    "- Write like real X/Twitter replies: concise, punchy, natural.",
+    "- Each comment must clearly relate to the given Title/Description (no generic filler).",
+    "- Be specific: reference at least ONE concrete detail or entity from the input (a person/role, organization, event, claim, place, concept, or quoted idea).",
+    "- Do NOT copy the Title/Description verbatim. Paraphrase.",
+    "- Enforce variety: different openings, different verbs, different structure. No repetitive templates.",
+    "- Avoid boilerplate phrases repeated across many items (e.g., do not repeat the same slogan in multiple comments).",
+    "- Prefer one strong sentence or two short clauses; avoid essay tone.",
   ].join("\n");
 
-  const hashtagRules = [
-    "Hashtag & mention rules:",
-    "- You MAY include @mentions if they fit the style (learn from examples).",
-    mustUseHashtags
-      ? "- Include 1 to 3 hashtags in EACH comment, chosen ONLY from the allowed list."
-      : "- Do NOT include any hashtags (allowed list is empty).",
-    "- Do NOT invent new hashtags.",
-    "- Do NOT translate hashtags.",
+  const antiSpamRules = [
+    "Anti-spam constraints:",
+    "- Hashtags are optional. Do NOT hashtag-stuff.",
+    "- Mentions are optional. Do NOT mention-stuff.",
+    "- At least 3 comments must have NO hashtags (if hashtags are allowed).",
+    "- At least 3 comments must have NO @mentions.",
+    "- No emojis.",
+    "- No numbered lists.",
+    "- Avoid legal/boilerplate phrasing like 'must be held accountable' unless used at most once.",
   ].join("\n");
+
+  const mentionRules = [
+    "Mention rules:",
+    "- You MAY include @mentions if they fit naturally (learn from examples).",
+    "- At most 0–3 mentions per comment.",
+    "- Use mentions only when they make sense in the sentence (no random tagging).",
+  ].join("\n");
+
+  const hashtagRules =
+    allowed.length > 0
+      ? [
+          "Hashtag rules:",
+          "- You MAY include hashtags, but at most 0–2 per comment.",
+          "- If you include hashtags, they MUST be ONLY from the allowed list (exact match).",
+          "- Do NOT invent new hashtags.",
+          "- Do NOT translate hashtags.",
+        ].join("\n")
+      : [
+          "Hashtag rules:",
+          "- Allowed list is empty: do NOT include any hashtags.",
+        ].join("\n");
 
   return [
     {
@@ -67,21 +93,15 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
         "You generate short social media reply comments in English.",
         "Return ONLY valid JSON. No markdown. No extra text.",
         "",
-        "Output rules:",
-        `- Output MUST match this JSON schema exactly: {"comments":[{"text":string}]}`,
-        `- comments.length MUST equal ${input.count}`,
-        "- Each text MUST be English (en).",
-        "- Each text MUST be a single line (no line breaks).",
-        "- Each text MUST be non-empty and under 220 characters.",
+        outputRules,
         "",
         qualityRules,
         "",
-        hashtagRules,
+        antiSpamRules,
         "",
-        "Hard constraints:",
-        "- No numbering (no '1)', '2)', etc.).",
-        "- No emojis.",
-        "- No quotes longer than 12 words.",
+        mentionRules,
+        "",
+        hashtagRules,
       ].join("\n"),
     },
     {
