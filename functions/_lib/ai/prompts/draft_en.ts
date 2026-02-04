@@ -17,7 +17,6 @@ function formatExamples(input: GenerateInput): string {
   return examples
     .map((e, i) => {
       const t = String(e.text || "").trim();
-      // Examples may be multi-line. Keep as-is for style learning.
       return [`Example ${i + 1}:`, `- text (EN): ${t}`].join("\n");
     })
     .join("\n\n");
@@ -26,31 +25,30 @@ function formatExamples(input: GenerateInput): string {
 function describeTone(tone: string): string {
   switch (tone) {
     case "angry":
-      return "Angry, raw, confrontational. Short sentences. Direct blame. No politeness.";
+      return "Angry, raw, confrontational. Short punches. Direct blame. No politeness.";
     case "outraged":
-      return "Morally outraged. Emphasize injustice, shock, and betrayal. Sharp verbs, moral clarity, controlled intensity.";
+      return "Morally outraged. Injustice, shock, betrayal. Sharp verbs, moral clarity, controlled intensity.";
     case "demanding":
-      return "Demanding and assertive. Clear calls for action. No hedging language. Imperatives and accountability framing.";
+      return "Demanding and assertive. Clear asks. Imperatives. No hedging.";
     case "urgent":
-      return "Urgent and time-sensitive. Emphasize consequences of delay. Fast pacing, 'now/today' energy.";
+      return "Urgent and time-sensitive. Pressure now. Consequences of delay.";
     case "sad":
-      return "Grieving and heavy. Focus on loss, pain, and human cost. Human-first language, not slogans.";
+      return "Grieving and heavy. Human cost. Loss, pain, names/numbers. No slogans.";
     case "hopeful":
-      return "Cautiously hopeful. Acknowledge pain but point to possible change. Measured optimism.";
+      return "Cautiously hopeful. Acknowledge pain but point to possible change.";
     case "defiant":
-      return "Defiant and unyielding. Emphasize resistance and refusal to submit. Strong, steady voice.";
+      return "Defiant and unyielding. Refusal to submit. Strong spine, steady voice.";
     case "sarcastic":
-      return "Dry, sarcastic, biting. Controlled irony, not jokes. Subtle ridicule and contrast.";
+      return "Dry, biting sarcasm. Controlled irony. Not jokes, not memes.";
     case "calm_firm":
-      return "Calm but firm. Serious, controlled, and resolute. No melodrama; clear stance.";
+      return "Calm but firm. Serious, controlled, resolute. Minimal emotion words, maximum clarity.";
     case "neutral":
     default:
-      return "Emotionally neutral but still human. Informative, specific, no strong emotional language.";
+      return "Neutral but human. Specific, not emotional. No heavy moral language.";
   }
 }
 
 function buildCoreContext(input: GenerateInput): string {
-  // Soft background only for this topic; do not force names/slogans.
   if (
     input.stream !== "political" ||
     input.topic !== "iran_revolution_jan_2026"
@@ -59,14 +57,14 @@ function buildCoreContext(input: GenerateInput): string {
   }
 
   return [
-    "Background context for Iran-related political content (do NOT quote directly; do NOT force names/slogans):",
-    "- In early 2026, Iran has faced intense nationwide unrest following major protests that began in late December 2025.",
-    "- Initial protests over economic hardship evolved into widespread calls for fundamental regime change.",
-    "- The state response involved severe repression, including lethal force, mass arrests, and internet blackouts.",
-    "- Protest activity declined by mid-January 2026, but anger, trauma, and distrust toward the regime remain high.",
-    "- Online discourse spans anger, grief, cynicism, urgency, fatigue, and cautious hope.",
+    "Background context for Iran-related political content (use ONLY for subtext; do NOT quote; do NOT force names/slogans):",
+    "- In early 2026, Iran has faced intense nationwide unrest after major protests starting late Dec 2025.",
+    "- Protests expanded into calls for fundamental regime change.",
+    "- State response included lethal force, mass arrests, and internet blackouts.",
+    "- Protest activity declined by mid-Jan 2026, but anger/trauma/distrust remain.",
+    "- Online discourse includes anger, grief, cynicism, urgency, fatigue, cautious hope.",
     "",
-    "Use this background ONLY to understand tone/subtext. Do NOT mention specific people/accounts/phrases unless they naturally arise from the user input or provided examples.",
+    "Do NOT mention specific people/accounts/phrases unless they naturally arise from the user input or provided examples.",
   ].join("\n");
 }
 
@@ -79,133 +77,137 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const examplesBlock = formatExamples(input);
   const coreContext = buildCoreContext(input);
 
-  // IMPORTANT: keep these bounds aligned with your validator (and downstream UX).
-  // 120–220 is typically best for X replies, but the user-provided spec currently says 180–280.
-  // If you switch to 120–220, update validator + prompt together.
+  const count = input.count;
+
+  // Keep aligned with validator
   const minChars = 120;
   const maxChars = 220;
+
+  // Distribution plan to avoid botty outputs but still match example vibe
+  const hashtagTarget = allowed.length > 0 ? Math.min(7, count) : 0; // aim 6–8; use 7 by default
+  const mentionTarget = Math.min(6, count); // mentions are common in examples but not in all items
 
   const outputRules = [
     "Output format (STRICT):",
     `- Return ONLY valid JSON exactly matching: {"comments":[{"text":string}]}`,
-    `- comments.length MUST equal ${input.count}`,
+    `- comments.length MUST equal ${count}`,
     `- Top-level object MUST have ONLY the key "comments"`,
-    "- No wrapper keys (no 'response', 'usage', 'tool_calls')",
+    "- ABSOLUTELY NO wrapper keys (no 'response', 'usage', 'tool_calls', etc.)",
     "- No markdown, no code fences, no extra text",
     "- Each text MUST be English",
     "- Each text MUST be a single line (no \\n or \\r)",
     `- Each text MUST be ${minChars}-${maxChars} characters (hard bounds)`,
   ].join("\n");
 
-  const toneDescription = [
+  const toneBlock = [
     "Tone directive:",
     `- Selected tone: ${input.tone}`,
     `- Writing style: ${describeTone(input.tone)}`,
-    "- Tone must be clearly felt in wording, pacing, and verb choice.",
-    "- Do NOT default to generic neutral activist language unless tone is explicitly 'neutral'.",
+    "- Tone must be clearly felt in verb choice, pacing, and moral framing.",
+    "- Do NOT default to generic NGO/activist boilerplate unless tone is neutral.",
   ].join("\n");
 
-  const rolePerspective = [
-    "Role perspective (CRITICAL):",
-    "- Write as a real Iranian user active on X in early 2026.",
-    "- These are replies, not press releases, not NGO statements, not policy memos.",
-    "- Natural, human, sometimes bitter/urgent/grieving depending on tone, but coherent.",
-    "- Use the provided examples as the DEFAULT style template.",
-    "- Do NOT mention specific people/accounts/phrases unless they naturally arise from the user input or provided examples.",
+  const styleBlock = [
+    "Style to imitate (IMPORTANT):",
+    "- Copy the RHYTHM of the examples: short punch + em dash (—) clause + direct ask/call.",
+    "- Use '—' naturally when it helps (not required every time).",
+    "- Replies should sound like a real person reacting to THIS post, not a template.",
   ].join("\n");
 
-  const qualityRules = [
-    "Quality rules (VERY IMPORTANT):",
-    "- Write like real X/Twitter replies: punchy, human, readable.",
-    "- Every comment MUST feel tied to the specific Title/Description (no generic filler).",
-    "- Each comment MUST include at least ONE concrete hook from the input:",
-    "  e.g., a number/range, a quoted phrase, an action requested, a claim/accusation, a stated outcome, or a call to action that fits the prompt.",
-    "- Paraphrase; do NOT copy long phrases from the input verbatim (max 10-word overlap).",
-    "- Strong diversity: vary openings, sentence structure, verbs, pacing, and emotional angle.",
-    "- Avoid activist-bot boilerplate (e.g., repeating 'must be held accountable' across comments).",
-    "- If examples show a pattern (mentions/hashtags cadence, rhetoric), follow it unless a rule forbids it.",
+  const specificityRules = [
+    "Specificity rules (VERY IMPORTANT):",
+    "- Every comment MUST include at least ONE concrete hook from Title/Description:",
+    "  examples of hooks: the poll, 'YES' instruction, 'comment with photo', the quoted question, the number range 36,500–50,000, 'help is on its way', 'no negotiations', demands for real action/recognition.",
+    "- Paraphrase; do NOT copy long phrases verbatim (max 10-word overlap).",
+    "- Avoid repeating the same hook across many comments; spread hooks across items.",
   ].join("\n");
 
-  const antiSpamRules = [
-    "Anti-spam / anti-bot constraints:",
+  const antiBotRules = [
+    "Anti-bot rules (STRICT):",
     "- NO emojis.",
     "- No numbered lists.",
     "- No ALL CAPS shouting (max 1–2 words if needed).",
-    "- At most 2 exclamation marks across all comments total.",
-    "- At most 3 questions total across all comments.",
-    "- Avoid repeated template starts (do not reuse the same opening phrase more than twice).",
-    "- Avoid repeating the same key sentence structure across many comments.",
+    "- Across all comments total: max 2 exclamation marks.",
+    "- Across all comments total: max 3 questions.",
+    "- Do not reuse the same opening phrase more than twice.",
+    "- Avoid repeating the same structure (e.g., 'Yes, ...' in many items). Mix openings.",
+    "- Avoid bland filler like 'must be held accountable' (max once).",
   ].join("\n");
 
-  const mentionAndHashtagGuidance =
+  const distributionRules =
     allowed.length > 0
       ? [
-          "Hashtag & mention usage (IMPORTANT):",
-          "- Follow the STYLE of the provided examples by DEFAULT.",
-          "- Hashtags are OPTIONAL but COMMON in this discourse when examples include them.",
-          "- If you use hashtags: max 2 per comment, ONLY from the allowed list.",
-          "- Across the 10 comments: include hashtags in about 6–8 comments (not all 10).",
-          "- Mentions are OPTIONAL but also COMMON when addressing responsibility or action.",
-          "- Use mentions only when they naturally fit the content; do NOT force random tagging.",
+          "Hashtag & mention distribution plan (FOLLOW EXACTLY):",
+          `- Exactly ${hashtagTarget} comments MUST include 1–2 hashtags (ONLY from allowed list).`,
+          `- The remaining ${count - hashtagTarget} comments MUST include ZERO hashtags.`,
+          `- Exactly ${mentionTarget} comments MUST include 1–2 @mentions (only if natural; prefer ones appearing in input/examples).`,
+          `- The remaining ${count - mentionTarget} comments MUST include ZERO @mentions.`,
+          "- Never exceed 2 hashtags per comment.",
+          "- Never exceed 2 mentions per comment.",
           "- Do NOT invent/modify/translate hashtags.",
         ].join("\n")
       : [
-          "Hashtag & mention usage:",
+          "Hashtag & mention rules:",
           "- Allowed hashtag list is empty → ZERO hashtags allowed in any comment.",
-          "- Mentions are optional and must be natural; do NOT force tagging.",
+          `- Exactly ${mentionTarget} comments MUST include 1–2 @mentions (only if natural; prefer ones in input/examples).`,
+          `- The remaining ${count - mentionTarget} comments MUST include ZERO @mentions.`,
         ].join("\n");
 
   const finalGuard = [
-    "Final check before responding:",
-    "- If any comment sounds generic, templated, or repetitive → rewrite it to be more specific and human.",
-    "- Ensure each comment has a distinct hook and distinct wording.",
-    "- Ensure the output is ONLY JSON with key 'comments'.",
-  ].join("\n");
-
-  const systemContent = [
-    "You generate realistic English reply comments for social media posts.",
-    "Return ONLY valid JSON. No extra text.",
-    "",
-    coreContext ? coreContext : "",
-    coreContext ? "" : "",
-    toneDescription,
-    "",
-    rolePerspective,
-    "",
-    outputRules,
-    "",
-    qualityRules,
-    "",
-    antiSpamRules,
-    "",
-    mentionAndHashtagGuidance,
-    "",
-    finalGuard,
-  ]
-    .filter((x) => String(x).trim().length > 0)
-    .join("\n");
-
-  const userContent = [
-    "User inputs (Persian):",
-    `- Title (FA): ${String(input.title_fa || "").trim()}`,
-    `- Description (FA): ${String(input.description_fa || "").trim()}`,
-    `- Need (FA): ${String(input.need_fa || "").trim()}`,
-    `- Comment type (FA): ${String(input.comment_type_fa || "").trim()}`,
-    `- Tone: ${String(input.tone || "").trim()}`,
-    "",
-    `- Stream: ${String(input.stream || "").trim()}`,
-    `- Topic: ${String(input.topic || "").trim()}`,
-    "",
-    `Allowed hashtags: ${JSON.stringify(allowed)}`,
-    "",
-    "Style examples (learn tone/format; examples may contain mentions/hashtags):",
-    examplesBlock,
-    "",
-    `Now generate exactly ${input.count} comments and return JSON only.`,
+    "Final silent self-check (do NOT output this checklist):",
+    "- Count correct? JSON only? No wrapper keys?",
+    `- Each text ${minChars}-${maxChars} chars and single-line?`,
+    `- Exactly ${hashtagTarget} with hashtags and ${count - hashtagTarget} without? (if hashtags allowed)`,
+    `- Exactly ${mentionTarget} with mentions and ${count - mentionTarget} without?`,
+    "- Each comment has a different hook and feels human, not templated?",
   ].join("\n");
 
   return [
-    { role: "system", content: systemContent },
-    { role: "user", content: userContent },
+    {
+      role: "system",
+      content: [
+        "You generate realistic English reply comments for social media posts.",
+        "Return ONLY valid JSON. No extra text.",
+        "",
+        coreContext ? coreContext : "",
+        coreContext ? "" : "",
+        toneBlock,
+        "",
+        styleBlock,
+        "",
+        outputRules,
+        "",
+        specificityRules,
+        "",
+        antiBotRules,
+        "",
+        distributionRules,
+        "",
+        finalGuard,
+      ]
+        .filter((x) => String(x).trim().length > 0)
+        .join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        "User inputs (Persian):",
+        `- Title (FA): ${String(input.title_fa || "").trim()}`,
+        `- Description (FA): ${String(input.description_fa || "").trim()}`,
+        `- Need (FA): ${String(input.need_fa || "").trim()}`,
+        `- Comment type (FA): ${String(input.comment_type_fa || "").trim()}`,
+        `- Tone: ${String(input.tone || "").trim()}`,
+        "",
+        `- Stream: ${String(input.stream || "").trim()}`,
+        `- Topic: ${String(input.topic || "").trim()}`,
+        "",
+        `Allowed hashtags: ${JSON.stringify(allowed)}`,
+        "",
+        "Style examples (learn tone/format; examples may contain mentions/hashtags):",
+        examplesBlock,
+        "",
+        `Now generate exactly ${count} comments and return JSON only.`,
+      ].join("\n"),
+    },
   ];
 }
