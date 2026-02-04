@@ -423,6 +423,7 @@ export default function AICommentsModal(props: Props) {
                 <div className="grid gap-2">
                   <div className="text-xs text-zinc-600">نیاز (فارسی)</div>
                   <Select
+                    className="w-full"
                     value={needFa}
                     onChange={(v) => setNeedFa(v as string)}
                     disabled={loading}
@@ -431,12 +432,6 @@ export default function AICommentsModal(props: Props) {
                     <option value="ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن">ریپلای‌های کوتاه برای افزایش تعامل: سؤال‌محور، مطالبه‌گر، با جزئیات مشخص از متن</option>
                     <option value="ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X">ریپلای‌های کوتاه و انسانی برای حمایت/مطالبه‌گری؛ مشخص، غیرکلیشه‌ای، مناسب X</option>
                   </Select>
-                  <Input
-                    value={needFa}
-                    onChange={setNeedFa}
-                    disabled={loading}
-                    placeholder="مثلاً: ریپلای کوتاه برای تعامل…"
-                  />
                 </div>
 
                 <div className="grid gap-2">
