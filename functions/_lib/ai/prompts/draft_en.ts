@@ -22,86 +22,80 @@ function formatExamples(input: GenerateInput): string {
     .join("\n\n");
 }
 
-/**
- * Stage 1: Generate English comments only.
- * Output schema: {"comments":[{"text":string}]}
- */
 export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const allowed = normalizeHashtags(input.allowed_hashtags);
   const examplesBlock = formatExamples(input);
 
   const outputRules = [
-    "Output rules (MUST follow exactly):",
+    "Output rules (STRICT):",
     `- Return ONLY valid JSON: {"comments":[{"text":string}, ...]}`,
-    `- Exactly ${input.count} comments (no more, no less)`,
-    `- Top-level object MUST have ONLY the key "comments"`,
-    `- Each "text" MUST be plain English, single line, no \\n, no markdown`,
-    `- Each text: 40–220 characters, non-empty`,
-    `- No extra text, no explanation, no code fences`,
+    `- Exactly ${input.count} comments`,
+    `- Top-level key MUST be only "comments"`,
+    `- Each "text": single line English, no \\n, 40–220 chars`,
+    `- No extra text, no markdown, no fences, no explanation`,
   ].join("\n");
 
   const qualityRules = [
-    "Quality & Naturalness rules (highest priority):",
-    "- Sound like real Iranian/Persian users writing English replies on X (casual, emotional, sometimes code-switch vibe but English only)",
-    "- Use common Iranian X-style phrases when natural: 'shame on...', 'how dare you', 'blood on their hands', 'enough is enough', 'same old lies', 'wake up', 'they don't care about people', 'disgusting', 'criminal regime', etc.",
-    "- MUST include at least ONE specific detail from Title/Description in EVERY comment (name, date, number, place, action, quote, institution, symbol – generic rants NOT allowed)",
-    "- Paraphrase – never copy input text verbatim",
-    "- Maximize variety: different openings, lengths, structures, emotions, verbs",
-    "- Vary sentence length: very short (5–15 words), medium, one or two slightly longer",
-    "- Tone MUST match input.tone but with natural emotional range",
+    "Quality rules (highest priority):",
+    "- Write realistic English replies like Iranian users on X: casual, emotional, factual, supportive of freedom movement",
+    "- Match the pro-freedom, pro-action spirit of the EXAMPLES — even if tone is described as neutral/measured",
+    "- EVERY comment MUST include at least ONE specific detail from the input:",
+    "  → death toll (36,500–50,000+ killed),",
+    "  → 'help is on the way' broken promise,",
+    "  → @TrumpDailyPosts poll,",
+    "  → need to recognize Crown Prince / Reza Pahlavi as leader,",
+    "  → call for no negotiation / maximum pressure / real support",
+    "- Generic phrases like 'support the people' or 'enough is enough' alone are NOT sufficient",
+    "- Paraphrase — never copy input text word-for-word",
+    "- Vary openings, structures, lengths, emotions",
   ].join("\n");
 
   const varietyRules = [
-    "Strict anti-repetition rules:",
-    "- No more than 2 comments can start with the same word/phrase",
-    "- No adjective/adverb used more than twice across all comments",
-    "- At most 3–4 questions in total",
-    "- Exclamation marks in ≤ 45% of comments",
-    "- No repeated slogans, templates or structures (e.g. avoid many 'This is X. We must Y.')",
+    "Anti-repetition rules:",
+    "- ≤ 2 comments starting with same word/phrase",
+    "- No adjective repeated > 3 times across all comments",
+    "- ≤ 4 questions total",
+    "- Exclamation marks in ≤ 50% of comments",
+    "- No repeated slogans or templates",
   ].join("\n");
 
   const antiSpamRules = [
-    "Anti-spam / anti-bot rules – very strict:",
-    "- NO emojis at all",
-    "- No numbered lists, no ALL CAPS shouting (except 1–2 words max)",
-    "- At least 5 comments with ZERO hashtags",
-    "- At least 6 comments with ZERO @mentions",
-    "- Avoid repetitive boilerplate like 'must be held accountable', 'justice will prevail' (max once)",
+    "Anti-spam rules:",
+    "- NO emojis",
+    "- No ALL CAPS except 1–2 words max",
+    "- At least 4 comments with ZERO hashtags",
+    "- At least 5 comments with ZERO @mentions",
+    "- Avoid boilerplate justice/accountability phrases (max once)",
   ].join("\n");
 
   const mentionRules = [
     "Mention rules:",
-    "- Optional, natural only – at most 2 @ per comment",
-    "- Only relevant real accounts an angry/sarcastic Iranian user would tag",
-    "- Never random or forced tagging",
+    "- Optional, natural — max 2–3 @ per comment",
+    "- Prefer relevant ones: @PahlaviReza, @realDonaldTrump, @POTUS, @SecRubio, @LindseyGrahamSC, @TrumpDailyPosts etc.",
   ].join("\n");
 
   const hashtagRules =
     allowed.length > 0
       ? [
-          "Hashtag rules – strict:",
-          "- Optional, max 2 per comment",
-          "- ONLY from this exact allowed list: " + allowed.join(", "),
-          "- Do NOT invent, translate or modify hashtags",
-          "- At least 5 comments MUST have zero hashtags",
-        ].join("\n")
-      : [
           "Hashtag rules:",
-          "- Allowed list is empty → ZERO hashtags allowed in any comment",
-        ].join("\n");
+          "- Optional, max 2–3 per comment",
+          "- ONLY from allowed list: " + allowed.join(", "),
+          "- At least 4 comments MUST have zero hashtags",
+        ].join("\n")
+      : "No hashtags allowed (empty list)";
 
   const finalGuard = [
-    "Final instruction:",
-    "Prioritize naturalness, variety and specificity above everything else (except JSON format).",
-    "If something feels repetitive/spammy/generic → rewrite it to be more varied/human.",
+    "Final priority:",
+    "Naturalness + specificity + variety > everything else (except JSON format).",
+    "If in doubt, make it more human-like and reference a concrete detail from the description.",
   ].join("\n");
 
   return [
     {
       role: "system",
       content: [
-        "You generate short, realistic X/Twitter-style English replies from the perspective of Iranian users.",
-        "Return ONLY the JSON array – nothing else.",
+        "You generate short, realistic X replies in English from perspective of Iranian pro-freedom users.",
+        "Return ONLY the JSON — nothing else.",
         "",
         outputRules,
         "",
@@ -121,21 +115,22 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
     {
       role: "user",
       content: [
-        "Input (Persian):",
+        "Input:",
         `Title (FA): ${input.title_fa || "(none)"}`,
         `Description (FA): ${input.description_fa || "(none)"}`,
-        `Need/Context (FA): ${input.need_fa || "(none)"}`,
+        `Need (FA): ${input.need_fa || "(none)"}`,
         `Comment type (FA): ${input.comment_type_fa || "(none)"}`,
-        `Desired tone: ${input.tone || "angry/outraged"}`,
+        `Desired tone: supportive yet measured (pro-freedom, factual, call for real action)`,
         "",
         `Stream/Topic: ${input.stream || ""} – ${input.topic || ""}`,
         "",
         `Allowed hashtags: ${allowed.length ? allowed.join(", ") : "NONE"}`,
         "",
-        "Style examples (match tone, format, natural feel):",
-        examplesBlock || "No examples provided.",
+        "Style examples (match tone/format/spirit):",
+        examplesBlock || "No examples.",
         "",
-        `Generate exactly ${input.count} unique, natural-sounding comments.`,
+        `Generate exactly ${input.count} natural, varied comments.`,
+        "All should support YES vote in the poll, reference at least one specific detail, and feel authentic.",
         "Output JSON only.",
       ].join("\n"),
     },
