@@ -17,7 +17,6 @@ function formatExamples(input: GenerateInput): string {
   return examples
     .map((e, i) => {
       const t = String(e.text || "").trim();
-      // Examples may be multi-line. Keep as-is.
       return [`Example ${i + 1}:`, `- text (EN): ${t}`].join("\n");
     })
     .join("\n\n");
@@ -25,104 +24,119 @@ function formatExamples(input: GenerateInput): string {
 
 /**
  * Stage 1: Generate English comments only.
- * Output schema:
- * {"comments":[{"text":string}]}
+ * Output schema: {"comments":[{"text":string}]}
  */
 export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const allowed = normalizeHashtags(input.allowed_hashtags);
   const examplesBlock = formatExamples(input);
 
   const outputRules = [
-    "Output rules:",
-    `- Output MUST match this JSON schema exactly: {"comments":[{"text":string}]}`,
-    `- comments.length MUST equal ${input.count}`,
-    "- Top-level JSON must contain ONLY the key 'comments' (no wrapper keys like 'response', 'usage', 'tool_calls').",
-    "- Each text MUST be English (en).",
-    "- Each text MUST be a single line (no line breaks).",
-    "- Each text MUST be non-empty and under 220 characters.",
-    "- No markdown, no code fences, no commentary.",
+    "Output rules (MUST follow exactly):",
+    `- Return ONLY valid JSON: {"comments":[{"text":string}, ...]}`,
+    `- Exactly ${input.count} comments (no more, no less)`,
+    `- Top-level object MUST have ONLY the key "comments"`,
+    `- Each "text" MUST be plain English, single line, no \\n, no markdown`,
+    `- Each text: 40–220 characters, non-empty`,
+    `- No extra text, no explanation, no code fences`,
   ].join("\n");
 
   const qualityRules = [
-    "Quality rules (VERY IMPORTANT):",
-    "- Write like real X/Twitter replies: concise, punchy, natural.",
-    "- Each comment must clearly relate to the given Title/Description (no generic filler).",
-    "- Be specific: reference at least ONE concrete detail or entity from the input (a person/role, organization, event, claim, place, concept, or quoted idea).",
-    "- Do NOT copy the Title/Description verbatim. Paraphrase.",
-    "- Enforce variety: different openings, different verbs, different structure. No repetitive templates.",
-    "- Avoid boilerplate phrases repeated across many items (e.g., do not repeat the same slogan in multiple comments).",
-    "- Prefer one strong sentence or two short clauses; avoid essay tone.",
+    "Quality & Naturalness rules (highest priority):",
+    "- Sound like real Iranian/Persian users writing English replies on X (casual, emotional, sometimes code-switch vibe but English only)",
+    "- Use common Iranian X-style phrases when natural: 'shame on...', 'how dare you', 'blood on their hands', 'enough is enough', 'same old lies', 'wake up', 'they don't care about people', 'disgusting', 'criminal regime', etc.",
+    "- MUST include at least ONE specific detail from Title/Description in EVERY comment (name, date, number, place, action, quote, institution, symbol – generic rants NOT allowed)",
+    "- Paraphrase – never copy input text verbatim",
+    "- Maximize variety: different openings, lengths, structures, emotions, verbs",
+    "- Vary sentence length: very short (5–15 words), medium, one or two slightly longer",
+    "- Tone MUST match input.tone but with natural emotional range",
+  ].join("\n");
+
+  const varietyRules = [
+    "Strict anti-repetition rules:",
+    "- No more than 2 comments can start with the same word/phrase",
+    "- No adjective/adverb used more than twice across all comments",
+    "- At most 3–4 questions in total",
+    "- Exclamation marks in ≤ 45% of comments",
+    "- No repeated slogans, templates or structures (e.g. avoid many 'This is X. We must Y.')",
   ].join("\n");
 
   const antiSpamRules = [
-    "Anti-spam constraints:",
-    "- Hashtags are optional. Do NOT hashtag-stuff.",
-    "- Mentions are optional. Do NOT mention-stuff.",
-    "- At least 3 comments must have NO hashtags (if hashtags are allowed).",
-    "- At least 3 comments must have NO @mentions.",
-    "- No emojis.",
-    "- No numbered lists.",
-    "- Avoid legal/boilerplate phrasing like 'must be held accountable' unless used at most once.",
+    "Anti-spam / anti-bot rules – very strict:",
+    "- NO emojis at all",
+    "- No numbered lists, no ALL CAPS shouting (except 1–2 words max)",
+    "- At least 5 comments with ZERO hashtags",
+    "- At least 6 comments with ZERO @mentions",
+    "- Avoid repetitive boilerplate like 'must be held accountable', 'justice will prevail' (max once)",
   ].join("\n");
 
   const mentionRules = [
     "Mention rules:",
-    "- You MAY include @mentions if they fit naturally (learn from examples).",
-    "- At most 0–3 mentions per comment.",
-    "- Use mentions only when they make sense in the sentence (no random tagging).",
+    "- Optional, natural only – at most 2 @ per comment",
+    "- Only relevant real accounts an angry/sarcastic Iranian user would tag",
+    "- Never random or forced tagging",
   ].join("\n");
 
   const hashtagRules =
     allowed.length > 0
       ? [
-          "Hashtag rules:",
-          "- You MAY include hashtags, but at most 0–2 per comment.",
-          "- If you include hashtags, they MUST be ONLY from the allowed list (exact match).",
-          "- Do NOT invent new hashtags.",
-          "- Do NOT translate hashtags.",
+          "Hashtag rules – strict:",
+          "- Optional, max 2 per comment",
+          "- ONLY from this exact allowed list: " + allowed.join(", "),
+          "- Do NOT invent, translate or modify hashtags",
+          "- At least 5 comments MUST have zero hashtags",
         ].join("\n")
       : [
           "Hashtag rules:",
-          "- Allowed list is empty: do NOT include any hashtags.",
+          "- Allowed list is empty → ZERO hashtags allowed in any comment",
         ].join("\n");
+
+  const finalGuard = [
+    "Final instruction:",
+    "Prioritize naturalness, variety and specificity above everything else (except JSON format).",
+    "If something feels repetitive/spammy/generic → rewrite it to be more varied/human.",
+  ].join("\n");
 
   return [
     {
       role: "system",
       content: [
-        "You generate short social media reply comments in English.",
-        "Return ONLY valid JSON. No markdown. No extra text.",
+        "You generate short, realistic X/Twitter-style English replies from the perspective of Iranian users.",
+        "Return ONLY the JSON array – nothing else.",
         "",
         outputRules,
         "",
         qualityRules,
+        "",
+        varietyRules,
         "",
         antiSpamRules,
         "",
         mentionRules,
         "",
         hashtagRules,
+        "",
+        finalGuard,
       ].join("\n"),
     },
     {
       role: "user",
       content: [
-        "User inputs (Persian):",
-        `- Title (FA): ${input.title_fa}`,
-        `- Description (FA): ${input.description_fa}`,
-        `- Need (FA): ${input.need_fa}`,
-        `- Comment type (FA): ${input.comment_type_fa}`,
-        `- Tone: ${input.tone}`,
+        "Input (Persian):",
+        `Title (FA): ${input.title_fa || "(none)"}`,
+        `Description (FA): ${input.description_fa || "(none)"}`,
+        `Need/Context (FA): ${input.need_fa || "(none)"}`,
+        `Comment type (FA): ${input.comment_type_fa || "(none)"}`,
+        `Desired tone: ${input.tone || "angry/outraged"}`,
         "",
-        `- Stream: ${input.stream}`,
-        `- Topic: ${input.topic}`,
+        `Stream/Topic: ${input.stream || ""} – ${input.topic || ""}`,
         "",
-        `Allowed hashtags: ${JSON.stringify(allowed)}`,
+        `Allowed hashtags: ${allowed.length ? allowed.join(", ") : "NONE"}`,
         "",
-        "Style examples (match tone/format; mentions/hashtags may appear):",
-        examplesBlock,
+        "Style examples (match tone, format, natural feel):",
+        examplesBlock || "No examples provided.",
         "",
-        `Now generate exactly ${input.count} comments and return JSON only.`,
+        `Generate exactly ${input.count} unique, natural-sounding comments.`,
+        "Output JSON only.",
       ].join("\n"),
     },
   ];
