@@ -54,7 +54,7 @@ function buildCoreContext(input: GenerateInput): string {
 
   return [
     "Background context (subtext only; do NOT quote; do NOT force names/slogans):",
-    "- Early 2026 Iran discourse: anger, grief, distrust, urgency, fatigue; calls for real action.",
+    "- Early 2026 Iran discourse: anger, grief, distrust, urgency; people demand real action.",
     "- State violence, arrests, internet disruptions were widely discussed.",
     "Use this only to sound natural. Do NOT inject specific names/phrases unless present in input/examples.",
   ].join("\n");
@@ -75,48 +75,50 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
 
   const system = [
     "You write realistic English reply comments for X/Twitter posts.",
-    "Return ONLY valid JSON. No extra keys, no extra text.",
+    "Return ONLY valid JSON exactly: {\"comments\":[{\"text\":\"...\"}]} with NO extra keys.",
     "",
     coreContext ? coreContext : "",
     "",
     `Tone: ${input.tone}`,
     `Style: ${describeTone(input.tone)}`,
     "",
-    "Hard requirements:",
-    `- Output JSON only: {"comments":[{"text":string}]}`,
-    `- comments.length = ${count}`,
-    '- Top-level keys: ONLY "comments"',
-    "- Each comment is ONE line (no \\n).",
-    `- Each comment is ${minChars}-${maxChars} characters.`,
-    "- English only (no Arabic/Persian script).",
-    "",
-    "Quality requirements (most important):",
-    "- Each comment must clearly react to THIS post: reference at least one concrete detail from the Title/Description (e.g., vote YES, poll, casualty numbers, broken promises, blackouts, no-deal, photo in replies) if present.",
+    "Rules:",
+    `- Generate exactly ${count} comments.`,
+    `- Each comment: one line, English only, ${minChars}-${maxChars} characters.`,
+    "- Each comment must reference at least ONE concrete detail from the post (title/description).",
+    "- Keep the same stance across all comments, but avoid spam: do NOT reuse the same opening (first ~8 words) more than once.",
     "- Write like a real person: punchy opening + optional em dash (—) + direct ask/action.",
-    "- Avoid NGO/press-release phrases. Avoid generic filler.",
-    "- Strong variety: different openings, verbs, and angles across comments.",
+    "- No emojis. No markdown.",
     "",
     "Mentions/hashtags:",
-    "- Optional. Use only if it fits naturally.",
-    "- If you use hashtags, pick from the allowed list only, max 1–2.",
-    "- Do not invent hashtags.",
+    "- Optional and natural.",
+    "- If you use hashtags: only from the allowed list, max 1–2 per comment.",
+    "- Do NOT invent hashtags.",
   ]
     .filter((x) => String(x).trim().length > 0)
     .join("\n");
 
+  const titleFa = String(input.title_fa || "").trim();
+  const descFa = String(input.description_fa || "").trim();
+
+  // Keep this short. It helps the model anchor on the post meaning without long constraints.
   const user = [
     "Post inputs (FA):",
-    `Title: ${String(input.title_fa || "").trim()}`,
-    `Description: ${String(input.description_fa || "").trim()}`,
+    `Title: ${titleFa}`,
+    `Description: ${descFa}`,
     `Need: ${String(input.need_fa || "").trim()}`,
     `Comment type: ${String(input.comment_type_fa || "").trim()}`,
+    `Tone: ${String(input.tone || "").trim()}`,
+    "",
+    // Simple anchor. Even if it's imperfect, it improves specificity a lot.
+    "One-line post summary (EN): Reply to the post above. React to its main claim and push your stance clearly.",
     "",
     `Allowed hashtags (ASCII only): ${JSON.stringify(allowed)}`,
     "",
     "Examples to imitate (rhythm/tone only):",
     examplesBlock,
     "",
-    `Generate exactly ${count} comments now. Return JSON only.`,
+    `Now generate ${count} comments and return JSON only.`,
   ].join("\n");
 
   return [
