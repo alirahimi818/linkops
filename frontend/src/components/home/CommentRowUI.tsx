@@ -15,7 +15,10 @@ export default function CommentRowUI(props: {
   return (
     <div className="flex flex-col gap-3">
       {/* Original text */}
-      <div className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800" dir="auto">
+      <div
+        className="min-w-0 whitespace-pre-wrap text-sm text-zinc-800"
+        dir="auto"
+      >
         {props.text}
       </div>
 
@@ -32,7 +35,10 @@ export default function CommentRowUI(props: {
 
           {open ? (
             <div className="px-3 pb-3">
-              <div className="whitespace-pre-wrap text-sm text-zinc-700" dir="rtl">
+              <div
+                className="whitespace-pre-wrap text-sm text-zinc-700"
+                dir="rtl"
+              >
                 {props.translation}
               </div>
             </div>
@@ -49,27 +55,31 @@ export default function CommentRowUI(props: {
           className="rounded-xl py-2 text-sm"
         />
 
-        <Button
-          className="text-xs"
-          variant="secondary"
-          onClick={() => props.onOpenTweet(props.text)}
-          title="ساخت توییت با این متن"
-        >
-          توییت
-        </Button>
+        {props.xEnabled ? (
+          <>
+            <Button
+              className="text-xs"
+              variant="secondary"
+              onClick={() => props.onOpenTweet(props.text)}
+              title="ساخت توییت با این متن"
+            >
+              توییت
+            </Button>
 
-        <Button
-          className="text-xs"
-          variant="secondary"
-          onClick={() => props.onOpenReply(props.url, props.text)}
-          title={
-            props.xEnabled
-              ? "ریپلای به همان توییت"
-              : "این لینک استتوس نیست، به توییت معمولی می‌رود"
-          }
-        >
-          ریپلای
-        </Button>
+            <Button
+              className="text-xs"
+              variant="secondary"
+              onClick={() => props.onOpenReply(props.url, props.text)}
+              title={
+                props.xEnabled
+                  ? "ریپلای به همان توییت"
+                  : "این لینک استتوس نیست، به توییت معمولی می‌رود"
+              }
+            >
+              ریپلای
+            </Button>
+          </>
+        ) : null}
       </div>
     </div>
   );
