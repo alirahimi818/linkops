@@ -92,7 +92,9 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
     "",
     "Mentions/hashtags:",
     "- Optional and natural.",
-    "- If you use hashtags: only from the allowed list, max 1–2 per comment.",
+    "- Many real replies include a hashtag when making a strong point.",
+    "- If it fits, include 1 hashtag (rarely 2) from the allowed list.",
+    "- Prefer hashtags seen in the examples.",
     "- Do NOT invent hashtags.",
   ]
     .filter((x) => String(x).trim().length > 0)
