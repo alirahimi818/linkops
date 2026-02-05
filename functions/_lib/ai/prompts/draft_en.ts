@@ -73,9 +73,13 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const minChars = 180;
   const maxChars = 280;
 
+  // Soft targets: avoids "zero hashtag" behavior without forcing all comments.
+  const minHashtagComments = Math.min(4, count); // e.g., 4 of 10 include hashtags
+  const minMentionComments = Math.min(2, count); // e.g., 2 of 10 include mentions
+
   const system = [
     "You write realistic English reply comments for X/Twitter posts.",
-    "Return ONLY valid JSON exactly: {\"comments\":[{\"text\":\"...\"}]} with NO extra keys.",
+    'Return ONLY valid JSON exactly: {"comments":[{"text":"..."}]} with NO extra keys.',
     "",
     coreContext ? coreContext : "",
     "",
@@ -90,12 +94,13 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
     "- Write like a real person: punchy opening + optional em dash (—) + direct ask/action.",
     "- No emojis. No markdown.",
     "",
-    "Mentions/hashtags:",
-    "- Optional and natural.",
-    "- Many real replies include a hashtag when making a strong point.",
-    "- If it fits, include 1 hashtag (rarely 2) from the allowed list.",
-    "- Prefer hashtags seen in the examples.",
-    "- Do NOT invent hashtags.",
+    "Mentions/hashtags (IMPORTANT):",
+    "- Use them like real X replies: not in every comment, but not zero either.",
+    `- Across the ${count} comments: at least ${minHashtagComments} comments MUST include 1–2 hashtags from the allowed list.`,
+    `- Across the ${count} comments: at least ${minMentionComments} comments MUST include 1 mention IF mentions appear in the examples/input; otherwise use 0 mentions.`,
+    "- Prefer hashtags and mentions that appear in the examples when relevant.",
+    "- Max per comment: 2 hashtags, 2 mentions.",
+    "- Do NOT invent new hashtags or mentions.",
   ]
     .filter((x) => String(x).trim().length > 0)
     .join("\n");
@@ -103,7 +108,9 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
   const titleFa = String(input.title_fa || "").trim();
   const descFa = String(input.description_fa || "").trim();
 
-  // Keep this short. It helps the model anchor on the post meaning without long constraints.
+  // Provide a short prioritized subset to make selection easier for the model.
+  const preferredHashtags = allowed.slice(0, 8);
+
   const user = [
     "Post inputs (FA):",
     `Title: ${titleFa}`,
@@ -112,10 +119,10 @@ export function buildDraftPrompt(input: GenerateInput): AIChatMessage[] {
     `Comment type: ${String(input.comment_type_fa || "").trim()}`,
     `Tone: ${String(input.tone || "").trim()}`,
     "",
-    // Simple anchor. Even if it's imperfect, it improves specificity a lot.
     "One-line post summary (EN): Reply to the post above. React to its main claim and push your stance clearly.",
     "",
     `Allowed hashtags (ASCII only): ${JSON.stringify(allowed)}`,
+    `Preferred picks (use these first if relevant): ${JSON.stringify(preferredHashtags)}`,
     "",
     "Examples to imitate (rhythm/tone only):",
     examplesBlock,
