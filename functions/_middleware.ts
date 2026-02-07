@@ -1,10 +1,25 @@
 export const onRequest: PagesFunction = async (ctx) => {
-  const { request } = ctx;
+  const { request, env } = ctx;
 
-  const origin = new URL(request.url).origin;
+  const origin = request.headers.get("Origin"); // Note: can be null for same-origin or non-browser
 
-  // CORS: same-origin only (site + API are same host)
+  // Configure allowed origins via env (recommended)
+  const allowed = String((env as any).ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const isAllowedOrigin = origin ? allowed.includes(origin) : false;
+
+  // Handle CORS preflight
   if (request.method === "OPTIONS") {
+    // If no Origin header, it's not a browser CORS preflight; reply minimally
+    if (!origin) return new Response(null, { status: 204 });
+
+    if (!isAllowedOrigin) {
+      return new Response(null, { status: 403 });
+    }
+
     return new Response(null, {
       status: 204,
       headers: {
@@ -20,27 +35,29 @@ export const onRequest: PagesFunction = async (ctx) => {
   const res = await ctx.next();
   const headers = new Headers(res.headers);
 
-  // CORS headers
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set("Vary", "Origin");
-  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  // Only attach CORS headers when it is a cross-origin browser request AND allowed
+  if (origin && isAllowedOrigin) {
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.set("Vary", "Origin");
+    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  }
 
   // Security headers
-  // >= 6 months: 15768000 seconds
-  // Use 1 year to satisfy scanners and be future-proof.
-  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-
+  headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains"
+  );
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
-  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  );
 
-  // CSP: allow only self + Cloudflare Insights beacon
-  // - script-src allows the beacon JS
-  // - connect-src allows sending analytics beacons
-  // - img-src may be used by some beacon mechanisms (safe to allow)
+  // CSP (keep yours, but consider dev needs if you load from localhost)
   headers.set(
     "Content-Security-Policy",
     [
@@ -56,7 +73,7 @@ export const onRequest: PagesFunction = async (ctx) => {
       "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com",
       "manifest-src 'self'",
       "upgrade-insecure-requests",
-    ].join("; "),
+    ].join("; ")
   );
 
   return new Response(res.body, {
