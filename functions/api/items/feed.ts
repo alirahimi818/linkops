@@ -1,4 +1,5 @@
 // functions/api/items/feed.ts
+import { rateLimitByDevice, rateLimitResponse } from "../_rate_limit";
 import type { EnvAuth } from "../admin/_auth";
 
 type FeedTab = "todo" | "later" | "done" | "hidden";
@@ -16,7 +17,9 @@ function encodeCursor(payload: { created_at: string; id: string }) {
   return btoa(JSON.stringify(payload));
 }
 
-function decodeCursor(raw: string | null): { created_at: string; id: string } | null {
+function decodeCursor(
+  raw: string | null,
+): { created_at: string; id: string } | null {
   if (!raw) return null;
   try {
     const txt = atob(raw);
@@ -47,8 +50,20 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     const deviceId = getDeviceId(request);
     if (!deviceId) {
-      return Response.json({ error: "Missing X-Device-Id header" }, { status: 400 });
+      return Response.json(
+        { error: "Missing X-Device-Id header" },
+        { status: 400 },
+      );
     }
+
+    const rl = await rateLimitByDevice({
+      db: env.DB,
+      deviceId,
+      action: "items_feed",
+      rule: { windowSec: 60, limit: 300 },
+    });
+
+    if (!rl.ok) return rateLimitResponse(rl.retry_after);
 
     const url = new URL(request.url);
 
@@ -63,7 +78,10 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const cursor = decodeCursor(url.searchParams.get("cursor"));
 
     if (!isValidDate(from) || !isValidDate(to)) {
-      return Response.json({ error: "Invalid date range. Use YYYY-MM-DD" }, { status: 400 });
+      return Response.json(
+        { error: "Invalid date range. Use YYYY-MM-DD" },
+        { status: 400 },
+      );
     }
 
     const validTab: FeedTab =
@@ -262,7 +280,10 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const last = enriched[enriched.length - 1];
     const next_cursor =
       last?.created_at && last?.id
-        ? encodeCursor({ created_at: String(last.created_at), id: String(last.id) })
+        ? encodeCursor({
+            created_at: String(last.created_at),
+            id: String(last.id),
+          })
         : null;
 
     return Response.json({

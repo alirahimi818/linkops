@@ -8,7 +8,7 @@ import {
   fetchCategories,
   fetchHashtagWhitelist,
 } from "../lib/api";
-import type { Action, Category, HashtagWhitelistRow } from "../lib/api";
+import type { Action, Category, HashtagWhitelistRow, ItemSuggestion } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
@@ -24,6 +24,7 @@ import {
   mapItemCommentsToDrafts,
 } from "../lib/adminItemUtils";
 import type { CommentDraft } from "../components/ops/CommentsEditor";
+import AdminSuggestionsButton from "../components/ops/admin/AdminSuggestionsButton";
 
 const TOKEN_KEY = "admin:jwt";
 
@@ -71,6 +72,33 @@ export default function Admin() {
 
   function toggleComments(id: string) {
     setOpenComments((p) => ({ ...p, [id]: !p[id] }));
+  }
+
+  function useSuggestionInForm(s: ItemSuggestion) {
+    setError(null);
+
+    setTitle((s.title ?? "").trim() || "");
+    const fixedUrl = autoFixUrl(s.url ?? "");
+    setUrl(fixedUrl);
+
+    setDescription((s.description ?? "").trim() || "");
+
+    // new item mode (not editing)
+    setEditing(null);
+    setIsGlobal(false);
+
+    // reset optional fields (or keep current if you prefer)
+    setSelectedActionIds([]);
+    setComments([]);
+
+    // Auto category if user didn't touch it
+    setCategoryId("");
+    setCategoryTouched(false);
+
+    const id = autoCategoryIdFromUrl(categories, fixedUrl);
+    if (id) setCategoryIdProgrammatically(id);
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetForm() {
@@ -254,6 +282,8 @@ export default function Admin() {
           <AdminProfilePanel onClose={() => setShowProfile(false)} />
         </div>
       ) : null}
+
+      <AdminSuggestionsButton onUseSuggestion={useSuggestionInForm} />
 
       <AdminItemForm
         itemId={editing?.id ?? null}

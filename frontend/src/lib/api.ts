@@ -741,6 +741,117 @@ export async function adminValidateHashtags(text: string) {
 }
 
 /* =========================
+   Suggestions (Public + Admin)
+   ========================= */
+
+export type SuggestionStatus = "pending" | "approved" | "rejected" | "deleted";
+
+export type ItemSuggestion = {
+  id: string;
+
+  title: string | null;
+  url: string;
+  url_norm?: string; // optional (server may return it)
+  description: string | null;
+
+  device_id: string | null;
+
+  status: SuggestionStatus;
+
+  created_at: string;
+
+  reviewed_at: string | null;
+  reviewed_by_user_id: string | null;
+  review_note: string | null;
+
+  approved_item_id: string | null;
+};
+
+export type CreateSuggestionPayload = {
+  url: string;
+  title?: string;
+  description?: string;
+};
+
+export async function createSuggestion(payload: CreateSuggestionPayload) {
+  return requestJSON<{ ok: boolean; id: string }>(
+    `/api/suggestions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        url: String(payload?.url ?? ""),
+        title: payload?.title ?? null,
+        description: payload?.description ?? null,
+      }),
+    },
+    { auth: false },
+  );
+}
+
+/* =========================
+   Admin Suggestions
+   ========================= */
+
+export async function adminSuggestionsCount(params?: {
+  status?: SuggestionStatus;
+}): Promise<{ ok: boolean; count: number }> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+
+  return requestJSON<{ ok: boolean; count: number }>(
+    `/api/admin/suggestions/count?${qs.toString()}`,
+    undefined,
+    { auth: true },
+  );
+}
+
+export async function adminFetchSuggestions(params?: {
+  status?: SuggestionStatus;
+  limit?: number;
+}): Promise<ItemSuggestion[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.limit != null) qs.set("limit", String(params.limit));
+
+  const data = await requestJSON<{ suggestions: ItemSuggestion[] }>(
+    `/api/admin/suggestions?${qs.toString()}`,
+    undefined,
+    { auth: true },
+  );
+
+  return data.suggestions ?? [];
+}
+
+export async function adminApproveSuggestion(id: string): Promise<ItemSuggestion> {
+  const data = await requestJSON<{ ok: boolean; suggestion: ItemSuggestion }>(
+    `/api/admin/suggestions?action=approve&id=${encodeURIComponent(id)}`,
+    { method: "POST" },
+    { auth: true },
+  );
+  return data.suggestion;
+}
+
+export async function adminRejectSuggestion(id: string, note?: string | null) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/suggestions?action=reject&id=${encodeURIComponent(id)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ note: (note ?? "").trim() || null }),
+    },
+    { auth: true },
+  );
+}
+
+export async function adminDeleteSuggestion(id: string) {
+  return requestJSON<{ ok: boolean }>(
+    `/api/admin/suggestions?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    { auth: true },
+  );
+}
+
+
+/* =========================
    Admin AI
    ========================= */
 

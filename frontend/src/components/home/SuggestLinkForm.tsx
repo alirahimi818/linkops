@@ -1,0 +1,119 @@
+// frontend/src/components/home/SuggestLinkForm.tsx
+import { useMemo, useState } from "react";
+
+import Button from "../ui/Button";
+import Input from "../ui/Input";
+import Textarea from "../ui/Textarea";
+import Alert from "../ui/Alert";
+
+import { createSuggestion } from "../../lib/api";
+
+// Keep consistent with admin utils (simple copy for public side)
+function autoFixUrl(input: string): string {
+  const s = String(input ?? "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  return `https://${s}`;
+}
+
+function isValidAbsoluteHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export default function SuggestLinkForm(props: {
+  defaultUrl?: string;
+  onSuccess?: () => void;
+}) {
+  const [url, setUrl] = useState(props.defaultUrl ?? "");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fixedUrl = useMemo(() => autoFixUrl(url), [url]);
+  const urlOk = useMemo(() => isValidAbsoluteHttpUrl(fixedUrl), [fixedUrl]);
+
+  async function submit() {
+    setError(null);
+
+    const u = autoFixUrl(url);
+    if (u !== url) setUrl(u);
+
+    if (!u.trim() || !isValidAbsoluteHttpUrl(u)) {
+      setError("لطفاً لینک را کامل وارد کنید (با http:// یا https://).");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createSuggestion({
+        url: u.trim(),
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+      });
+
+      // reset fields
+      setTitle("");
+      setDescription("");
+
+      props.onSuccess?.();
+    } catch (e: any) {
+      // Match your backend error pattern
+      if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
+        setError("این لینک قبلاً در سیستم ثبت شده است.");
+      } else if (e?.status === 409 && e?.data?.code === "DUPLICATE_SUGGESTION") {
+        setError("این لینک همین الان در صف بررسی است. 🙏");
+      } else if (e?.status === 400 && e?.data?.code === "INVALID_URL") {
+        setError("لینک نامعتبر است. لطفاً یک لینک کامل وارد کنید.");
+      } else {
+        setError(e?.message ?? "ثبت پیشنهاد ناموفق بود.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const disabled = saving || !url.trim() || !urlOk;
+
+  return (
+    <div className="grid gap-3">
+      {error ? (
+        <Alert variant="error" className="mb-1">
+          {error}
+        </Alert>
+      ) : null}
+
+      <Input
+        dir="ltr"
+        value={url}
+        onChange={setUrl}
+        placeholder="لینک (URL)"
+      />
+
+      <Input value={title} onChange={setTitle} placeholder="عنوان (اختیاری)" />
+
+      <Textarea
+        dir="auto"
+        value={description}
+        onChange={setDescription}
+        placeholder="توضیح کوتاه (اختیاری)"
+      />
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-zinc-500">
+          {url.trim() && !urlOk ? "فرمت لینک درست نیست." : " "}
+        </div>
+
+        <Button variant="success" onClick={submit} disabled={disabled}>
+          {saving ? "در حال ارسال…" : "ارسال پیشنهاد"}
+        </Button>
+      </div>
+    </div>
+  );
+}

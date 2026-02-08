@@ -33,6 +33,7 @@ import {
   shouldRunLegacyMigration,
 } from "../lib/statusMigration";
 import DateRangePicker from "../components/ui/DateRangePicker";
+import SuggestLinkButton from "../components/home/SuggestLinkButton";
 
 type View =
   | { kind: "categories" }
@@ -435,6 +436,7 @@ export default function Todos() {
                 : "یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
             }
             right={headerRight}
+            left={<SuggestLinkButton />}
           />
 
           <div className="mt-4">
