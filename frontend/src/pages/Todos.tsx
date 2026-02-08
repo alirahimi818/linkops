@@ -342,36 +342,11 @@ export default function Todos() {
     });
   }
 
-  function diffDaysInclusive(from: string, to: string) {
-    const a = new Date(from + "T00:00:00Z").getTime();
-    const b = new Date(to + "T00:00:00Z").getTime();
-    const ms = 24 * 60 * 60 * 1000;
-    const diff = Math.floor((b - a) / ms);
-    return Math.max(1, diff + 1); // inclusive
-  }
-
-  function shiftRange(r: { from: string; to: string }, deltaDays: number) {
-    return {
-      from: addDaysYYYYMMDD(r.from, deltaDays),
-      to: addDaysYYYYMMDD(r.to, deltaDays),
-    };
-  }
-
   function setTab(next: ListTab) {
     setSp((p) => {
       p.set("tab", next);
       return p;
     });
-  }
-
-  function goPrevRange() {
-    const len = diffDaysInclusive(range.from, range.to);
-    setRange(shiftRange(range, -len));
-  }
-
-  function goNextRange() {
-    const len = diffDaysInclusive(range.from, range.to);
-    setRange(shiftRange(range, +len));
   }
 
   function openCategory(c: CategoryCard) {
