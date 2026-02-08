@@ -20,18 +20,19 @@ import { addDaysYYYYMMDD, todayYYYYMMDD } from "../lib/date";
 
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
-import DatePicker from "../components/ui/DatePicker";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 
-import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
+import CategoryGrid, {
+  type CategoryCard,
+} from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
-import { IconChevronLeft, IconChevronRight } from "../components/ui/icons";
 import {
   migrateLegacyStatusToServer,
   shouldRunLegacyMigration,
 } from "../lib/statusMigration";
+import DateRangePicker from "../components/ui/DateRangePicker";
 
 type View =
   | { kind: "categories" }
@@ -48,7 +49,12 @@ function statusOf(i: any): ItemUserStatus {
   return "todo";
 }
 
-function sumCounts(c: { todo: number; later: number; done: number; hidden: number }) {
+function sumCounts(c: {
+  todo: number;
+  later: number;
+  done: number;
+  hidden: number;
+}) {
   return (c?.todo ?? 0) + (c?.later ?? 0) + (c?.done ?? 0) + (c?.hidden ?? 0);
 }
 
@@ -59,7 +65,12 @@ export default function Todos() {
   const itemId = sp.get("item") ?? undefined;
   const isItemView = !!itemId;
 
-  const date = sp.get("date") ?? today;
+  const DEFAULT_DAYS = 7;
+  const to = sp.get("to") ?? today;
+  const from = sp.get("from") ?? addDaysYYYYMMDD(to, -(DEFAULT_DAYS - 1));
+
+  const range = useMemo(() => ({ from, to }), [from, to]);
+
   const tab = safeTab(sp.get("tab"));
   const cat = sp.get("cat");
 
@@ -68,20 +79,14 @@ export default function Todos() {
       return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
     }
     if (!cat) return { kind: "categories" };
-    if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
+    if (cat === "all")
+      return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
     return {
       kind: "list",
       categoryId: cat,
       categoryName: sp.get("catName") ?? "دسته",
     };
   }, [cat, sp, itemId]);
-
-  // 7-day window anchored by selected date
-  const range = useMemo(() => {
-    const to = date;
-    const from = addDaysYYYYMMDD(to, -6);
-    return { from, to };
-  }, [date]);
 
   const [loading, setLoading] = useState(true);
 
@@ -93,16 +98,27 @@ export default function Todos() {
 
   // Feed list (infinite)
   const [feedItems, setFeedItems] = useState<Item[]>([]);
-  const [feedCounts, setFeedCounts] = useState({ todo: 0, later: 0, done: 0, hidden: 0 });
+  const [feedCounts, setFeedCounts] = useState({
+    todo: 0,
+    later: 0,
+    done: 0,
+    hidden: 0,
+  });
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Keep date valid format
   useEffect(() => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const ok = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+    if (!ok(from) || !ok(to)) {
+      const fallbackTo = today;
+      const fallbackFrom = addDaysYYYYMMDD(fallbackTo, -(DEFAULT_DAYS - 1));
+
       setSp((p) => {
-        p.set("date", today);
+        p.set("from", fallbackFrom);
+        p.set("to", fallbackTo);
         p.delete("cat");
         p.delete("catName");
         p.set("tab", "todo");
@@ -158,11 +174,13 @@ export default function Todos() {
         setLoadingMore(false);
 
         if (isItemView) {
-          const it = await fetchItems(date, itemId);
+          const it = await fetchItems(range.to, itemId);
           if (!alive) return;
 
           setSingleItems(it ?? []);
           setFeedItems([]);
+          setCursor(null);
+          setHasMore(false);
           setFeedCounts({ todo: 0, later: 0, done: 0, hidden: 0 });
           return;
         }
@@ -201,7 +219,7 @@ export default function Todos() {
     return () => {
       alive = false;
     };
-  }, [isItemView, itemId, date, view.kind, tab, activeCat, range.from, range.to]);
+  }, [isItemView, itemId, view.kind, tab, activeCat, range.from, range.to]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -246,22 +264,30 @@ export default function Todos() {
     if (isItemView) {
       setSingleItems((prev) =>
         prev.map((it: any) =>
-          String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it,
+          String(it.id) === String(id)
+            ? { ...it, user_status: nextStatus }
+            : it,
         ),
       );
     } else {
       // update items
       setFeedItems((prev) =>
         prev.map((it: any) =>
-          String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it,
+          String(it.id) === String(id)
+            ? { ...it, user_status: nextStatus }
+            : it,
         ),
       );
 
       // adjust counts using prev snapshot (avoid stale closure on feedItems)
       setFeedCounts((prevCounts) => {
         // find old status from current list snapshot (best effort)
-        const oldItem = feedItems.find((x: any) => String(x.id) === String(id)) as any;
-        const oldStatus: ItemUserStatus = oldItem ? statusOf(oldItem) : (tab as any);
+        const oldItem = feedItems.find(
+          (x: any) => String(x.id) === String(id),
+        ) as any;
+        const oldStatus: ItemUserStatus = oldItem
+          ? statusOf(oldItem)
+          : (tab as any);
 
         const out: any = { ...prevCounts };
         out[oldStatus] = Math.max(0, (out[oldStatus] ?? 0) - 1);
@@ -272,7 +298,9 @@ export default function Todos() {
       // remove from current tab list if not matching
       const currentTab = tab as ItemUserStatus;
       if (currentTab !== nextStatus) {
-        setFeedItems((prev) => prev.filter((it: any) => String(it.id) !== String(id)));
+        setFeedItems((prev) =>
+          prev.filter((it: any) => String(it.id) !== String(id)),
+        );
       }
     }
 
@@ -281,7 +309,7 @@ export default function Todos() {
     } catch (e) {
       // rollback via refetch current view
       if (isItemView) {
-        const it = await fetchItems(date, itemId);
+        const it = await fetchItems(range.to, itemId);
         setSingleItems(it ?? []);
       } else if (view.kind === "list") {
         const res: ItemsFeedResponse = await fetchItemsFeed({
@@ -301,15 +329,32 @@ export default function Todos() {
     }
   }
 
-  function setDate(next: string) {
+  function setRange(next: { from: string; to: string }) {
     setSp((p) => {
-      p.set("date", next);
+      p.set("from", next.from);
+      p.set("to", next.to);
+
       p.delete("cat");
-      p.delete("item");
       p.delete("catName");
+      p.delete("item");
       p.set("tab", "todo");
       return p;
     });
+  }
+
+  function diffDaysInclusive(from: string, to: string) {
+    const a = new Date(from + "T00:00:00Z").getTime();
+    const b = new Date(to + "T00:00:00Z").getTime();
+    const ms = 24 * 60 * 60 * 1000;
+    const diff = Math.floor((b - a) / ms);
+    return Math.max(1, diff + 1); // inclusive
+  }
+
+  function shiftRange(r: { from: string; to: string }, deltaDays: number) {
+    return {
+      from: addDaysYYYYMMDD(r.from, deltaDays),
+      to: addDaysYYYYMMDD(r.to, deltaDays),
+    };
   }
 
   function setTab(next: ListTab) {
@@ -319,12 +364,14 @@ export default function Todos() {
     });
   }
 
-  function goPrev() {
-    setDate(addDaysYYYYMMDD(date, -1));
+  function goPrevRange() {
+    const len = diffDaysInclusive(range.from, range.to);
+    setRange(shiftRange(range, -len));
   }
 
-  function goNext() {
-    setDate(addDaysYYYYMMDD(date, +1));
+  function goNextRange() {
+    const len = diffDaysInclusive(range.from, range.to);
+    setRange(shiftRange(range, +len));
   }
 
   function openCategory(c: CategoryCard) {
@@ -368,14 +415,29 @@ export default function Todos() {
         </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <Button className="px-2!" variant="secondary" onClick={goNext} title="روز بعد">
-            <IconChevronRight className="h-6 w-6" />
+          <Button
+            className="px-2!"
+            variant="secondary"
+            onClick={goNextRange}
+            title="جلو به اندازه بازه"
+          >
+            +بازه
           </Button>
 
-          <DatePicker value={date} onChange={setDate} />
+          <DateRangePicker
+            value={range}
+            onChange={setRange}
+            titleFrom="از تاریخ"
+            titleTo="تا تاریخ"
+          />
 
-          <Button className="px-2!" variant="secondary" onClick={goPrev} title="روز قبل">
-            <IconChevronLeft className="h-6 w-6" />
+          <Button
+            className="px-2!"
+            variant="secondary"
+            onClick={goPrevRange}
+            title="عقب به اندازه بازه"
+          >
+            -بازه
           </Button>
         </div>
       )}
@@ -413,7 +475,7 @@ export default function Todos() {
             subtitle={
               itemId
                 ? "شما در حال مشاهده یک فعالیت خاص هستید."
-                : "یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
+                : `فیلتر بازه: ${range.from} تا ${range.to}`
             }
             right={headerRight}
           />
@@ -442,7 +504,9 @@ export default function Todos() {
         <div className="text-zinc-500">در حال بارگذاری…</div>
       ) : view.kind === "categories" ? (
         categories.length <= 1 ? (
-          <Card className="p-6 text-zinc-600">برای این بازه آیتمی وجود ندارد.</Card>
+          <Card className="p-6 text-zinc-600">
+            برای این بازه آیتمی وجود ندارد.
+          </Card>
         ) : (
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )
@@ -457,8 +521,12 @@ export default function Todos() {
           onMark={mark}
           onBack={backToCategories}
           hasMore={!isItemView && view.kind === "list" ? hasMore : false}
-          loadingMore={!isItemView && view.kind === "list" ? loadingMore : false}
-          onLoadMore={!isItemView && view.kind === "list" ? loadMore : undefined}
+          loadingMore={
+            !isItemView && view.kind === "list" ? loadingMore : false
+          }
+          onLoadMore={
+            !isItemView && view.kind === "list" ? loadMore : undefined
+          }
         />
       )}
 
