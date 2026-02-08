@@ -249,13 +249,17 @@ export default function ItemList(props: {
                         {item.description}
                       </div>
 
-                      {Array.isArray(item.actions) && item.actions.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {item.actions.map((a: any) => (
-                            <Badge key={a.id}>{a.label ?? a.name}</Badge>
-                          ))}
-                        </div>
-                      ) : null}
+                      <div className="flex flex-wrap justify-between items-center gap-2 mt-2">
+                        {Array.isArray(item.actions) &&
+                        item.actions.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {item.actions.map((a: any) => (
+                              <Badge key={a.id}>{a.label ?? a.name}</Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="text-zinc-400 text-sm">{item.date}</div>
+                      </div>
 
                       {hasComments ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
