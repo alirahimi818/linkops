@@ -57,7 +57,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const tab = (url.searchParams.get("tab") ?? "todo") as FeedTab;
     const cat = url.searchParams.get("cat") ?? "all";
 
-    const limitRaw = Number(url.searchParams.get("limit") ?? "20");
+    const limitRaw = Number(url.searchParams.get("limit") ?? "10");
     const limit = clampInt(limitRaw, 1, 50);
 
     const cursor = decodeCursor(url.searchParams.get("cursor"));

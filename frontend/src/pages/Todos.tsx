@@ -199,7 +199,7 @@ export default function Todos() {
           to: range.to,
           tab: tab as FeedTab,
           cat: activeCat,
-          limit: 20,
+          limit: 10,
           cursor: null,
         });
 
@@ -233,7 +233,7 @@ export default function Todos() {
         to: range.to,
         tab: tab as FeedTab,
         cat: activeCat,
-        limit: 20,
+        limit: 10,
         cursor,
       });
 
@@ -317,7 +317,7 @@ export default function Todos() {
           to: range.to,
           tab: tab as FeedTab,
           cat: activeCat,
-          limit: 20,
+          limit: 10,
           cursor: null,
         });
         setFeedItems(res.items ?? []);

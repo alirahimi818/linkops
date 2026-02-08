@@ -362,7 +362,7 @@ export async function fetchItemsFeed(params: {
     from: params.from,
     to: params.to,
     tab: params.tab,
-    limit: String(params.limit ?? 20),
+    limit: String(params.limit ?? 10),
   });
 
   // IMPORTANT: If cat is NOT provided, do not send it (means no category filter)
