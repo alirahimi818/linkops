@@ -73,7 +73,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     // ----------------------------
     // 1) Counts for tabs (range + cat)
-    // NOTE: We assume "todo" is represented by NO ROW in item_user_status.
+    // NOTE: We assume "todo" is represented by NO ROW in item_status.
     // ----------------------------
     let countsWhere = `
       (
@@ -93,7 +93,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     }
 
     // Table name assumption:
-    // item_user_status(device_id TEXT, item_id TEXT, status TEXT, updated_at TEXT, PRIMARY KEY(device_id,item_id))
+    // item_status(device_id TEXT, item_id TEXT, status TEXT, updated_at TEXT, PRIMARY KEY(device_id,item_id))
     // If your table name differs, replace it here and in the feed query below.
     const countsSql = `
       SELECT
@@ -102,7 +102,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         SUM(CASE WHEN s.status = 'done' THEN 1 ELSE 0 END) AS done,
         SUM(CASE WHEN s.status = 'hidden' THEN 1 ELSE 0 END) AS hidden
       FROM items i
-      LEFT JOIN item_user_status s
+      LEFT JOIN item_status s
         ON s.item_id = i.id AND s.device_id = ?
       WHERE ${countsWhere}
     `;
@@ -165,7 +165,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         COALESCE(s.status, 'todo') AS user_status
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id
-      LEFT JOIN item_user_status s
+      LEFT JOIN item_status s
         ON s.item_id = i.id AND s.device_id = ?
       WHERE ${where}
       ORDER BY i.created_at DESC, i.id DESC
