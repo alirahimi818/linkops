@@ -52,14 +52,6 @@ function sumCounts(c: { todo: number; later: number; done: number; hidden: numbe
   return (c?.todo ?? 0) + (c?.later ?? 0) + (c?.done ?? 0) + (c?.hidden ?? 0);
 }
 
-function lastNDaysYYYYMMDD(to: string, n: number): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < n; i++) {
-    out.push(addDaysYYYYMMDD(to, -i));
-  }
-  return out;
-}
-
 export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);
   const [sp, setSp] = useSearchParams();
