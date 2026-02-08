@@ -1,86 +1,141 @@
 // frontend/src/lib/statusMigration.ts
+import { getDeviceId } from "./device";
 
-import { setItemStatusRemote } from "./api";
-import { addDaysYYYYMMDD, todayYYYYMMDD } from "./date";
+type LegacyStatus = "later" | "done" | "hidden";
+type LegacyMap = Record<string, LegacyStatus>;
 
-type LegacyItemStatus = "done" | "later" | "hidden";
-type LegacyStatusMap = Record<string, LegacyItemStatus>;
+const MIGRATION_FLAG_KEY = "status:migrated:v1";
 
-function safeParseMap(raw: string | null): LegacyStatusMap | null {
-  if (!raw) return null;
+function isDateKey(k: string): boolean {
+  return /^status:\d{4}-\d{2}-\d{2}$/.test(k);
+}
+
+function isValidStatus(v: any): v is LegacyStatus {
+  return v === "later" || v === "done" || v === "hidden";
+}
+
+function getAllLegacyKeys(): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    if (k === "status:global" || isDateKey(k)) keys.push(k);
+  }
+  // Prefer migrating global first (not required, but nice)
+  keys.sort((a, b) => {
+    if (a === "status:global") return -1;
+    if (b === "status:global") return 1;
+    return a.localeCompare(b);
+  });
+  return keys;
+}
+
+function readLegacyMap(key: string): LegacyMap {
   try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const out: LegacyStatusMap = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      if (v === "done" || v === "later" || v === "hidden") {
-        out[String(k)] = v;
-      }
-    }
-    return out;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as LegacyMap;
   } catch {
-    return null;
+    return {};
   }
 }
 
-function buildDefaultLastDays(count: number): string[] {
-  const to = todayYYYYMMDD();
-  const days: string[] = [];
-  for (let i = 0; i < count; i++) {
-    days.push(addDaysYYYYMMDD(to, -i));
-  }
-  return days;
-}
-
-async function migrateOneMap(map: LegacyStatusMap) {
-  const entries = Object.entries(map);
-  if (!entries.length) return;
-
-  // Sequential to reduce burst; you can parallelize later if needed
-  for (const [itemId, status] of entries) {
-    try {
-      await setItemStatusRemote(String(itemId), status);
-    } catch {
-      // ignore individual failures; migration is best-effort
-    }
-  }
+function remainingLegacyKeysCount(): number {
+  return getAllLegacyKeys().filter((k) => {
+    const m = readLegacyMap(k);
+    return Object.keys(m).length > 0;
+  }).length;
 }
 
 /**
- * Migrate legacy localStorage status maps into the server.
- * - If lastDays is omitted, it migrates last 7 days automatically.
- * - After a successful attempt, it removes legacy keys so old method is not kept.
- */
-export async function migrateLegacyStatusToServer(lastDays?: string[]) {
-  const days = (lastDays && lastDays.length ? lastDays : buildDefaultLastDays(7))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-
-  // Global
-  const globalKey = "status:global";
-  const globalMap = safeParseMap(localStorage.getItem(globalKey));
-  if (globalMap) {
-    await migrateOneMap(globalMap);
-    localStorage.removeItem(globalKey);
-  }
-
-  // Per-day
-  for (const d of days) {
-    const key = `status:${d}`;
-    const dayMap = safeParseMap(localStorage.getItem(key));
-    if (!dayMap) continue;
-
-    await migrateOneMap(dayMap);
-    localStorage.removeItem(key);
-  }
-
-  // Optional: you can mark migration done (prevents re-running)
-  localStorage.setItem("status:migrated:v1", "1");
-}
-
-/**
- * Optional helper to avoid calling migration multiple times.
+ * If there are any legacy status keys left, migration should run
+ * even if the global flag is already set (self-healing).
  */
 export function shouldRunLegacyMigration(): boolean {
-  return localStorage.getItem("status:migrated:v1") !== "1";
+  const hasLegacyLeft = remainingLegacyKeysCount() > 0;
+  return hasLegacyLeft;
+}
+
+async function postStatus(itemId: string, status: LegacyStatus | null): Promise<void> {
+  const res = await fetch("/api/status/set", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      "X-Device-Id": getDeviceId(),
+    },
+    body: JSON.stringify({ item_id: itemId, status }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Migration POST failed (${res.status}): ${txt.slice(0, 200)}`);
+  }
+}
+
+/**
+ * Migrates ALL legacy status keys from localStorage to server.
+ * - Sends one request per item_id.
+ * - Deletes a localStorage key only when fully migrated.
+ * - Sets migration flag only when no legacy keys remain.
+ */
+export async function migrateLegacyStatusToServer(): Promise<{
+  ok: boolean;
+  migratedKeys: number;
+  migratedItems: number;
+  remainingKeys: number;
+}> {
+  const keys = getAllLegacyKeys();
+
+  let migratedKeys = 0;
+  let migratedItems = 0;
+
+  for (const key of keys) {
+    const map = readLegacyMap(key);
+    const entries = Object.entries(map);
+
+    if (entries.length === 0) continue;
+
+    // Try migrate this key completely.
+    // If any item fails, we keep the key (and keep remaining items)
+    // so it can retry later.
+    const remaining: LegacyMap = {};
+
+    for (const [itemId, st] of entries) {
+      if (!itemId) continue;
+      if (!isValidStatus(st)) continue;
+
+      try {
+        await postStatus(itemId, st);
+        migratedItems++;
+      } catch {
+        // Keep for retry
+        remaining[itemId] = st;
+      }
+    }
+
+    if (Object.keys(remaining).length === 0) {
+      // fully migrated => remove this key
+      localStorage.removeItem(key);
+      migratedKeys++;
+    } else {
+      // partially migrated => keep remaining
+      localStorage.setItem(key, JSON.stringify(remaining));
+    }
+  }
+
+  const remainingKeys = remainingLegacyKeysCount();
+
+  // Only set global flag when fully clean
+  if (remainingKeys === 0) {
+    localStorage.setItem(MIGRATION_FLAG_KEY, "1");
+  } else {
+    // Keep flag unset OR remove it to ensure retries
+    // (If it was already set in production, we still self-heal via shouldRunLegacyMigration)
+    // You can also choose to keep it set; self-heal logic above ignores it.
+  }
+
+  return { ok: remainingKeys === 0, migratedKeys, migratedItems, remainingKeys };
 }

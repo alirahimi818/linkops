@@ -123,9 +123,7 @@ export default function Todos() {
   // One-time legacy migration
   useEffect(() => {
     if (!shouldRunLegacyMigration()) return;
-
-    const days = lastNDaysYYYYMMDD(date, 7);
-    migrateLegacyStatusToServer(days).catch(() => null);
+    migrateLegacyStatusToServer().catch(() => null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
