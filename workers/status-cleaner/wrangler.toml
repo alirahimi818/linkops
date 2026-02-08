@@ -1,0 +1,14 @@
+name = "status-cleaner"
+main = "src/index.ts"
+compatibility_date = "2026-02-08"
+
+# Cron: daily at 03:15 UTC
+triggers = { crons = ["15 3 * * *"] }
+
+[vars]
+STATUS_RETENTION_DAYS = "90"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "linkops-db"
+database_id = "b2b7e2a0-1abb-4dd4-b1b3-8c37a4be2e8b"
