@@ -379,6 +379,15 @@ export async function fetchItemsFeed(params: {
   );
 }
 
+export async function fetchTodoRemaining(params: {
+  from: string;
+  to: string;
+}): Promise<{ remaining: number }> {
+  const sum = await fetchItemsSummary(params.from, params.to);
+  return { remaining: sum?.tabs?.todo ?? 0 };
+}
+
+
 /* =========================
    Admin auth
    ========================= */

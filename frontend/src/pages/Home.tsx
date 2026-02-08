@@ -6,7 +6,6 @@ import Card from "../components/ui/Card";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 import OfflineBanner from "../components/ui/OfflineBanner";
 
-import { getTodayRemainingCount } from "../lib/homeBadge";
 import {
   IconExternal,
   IconHashtag,
@@ -15,6 +14,7 @@ import {
   IconMap,
 } from "../components/ui/icons";
 import { isIOSStandalonePWA } from "../lib/openExternal";
+import { getTodoRemainingCount } from "../lib/homeBadge";
 
 type MenuItem = {
   title: string;
@@ -114,7 +114,7 @@ export default function Home() {
 
     async function refresh() {
       try {
-        const r = await getTodayRemainingCount();
+        const r = await getTodoRemainingCount({ days: 7 });
         if (!alive) return;
         setTodoRemaining(r.remaining);
       } catch {
@@ -156,7 +156,7 @@ export default function Home() {
       badgeCount: todoRemaining,
       badgeLabel:
         todoRemaining != null
-          ? `کارهای باقی‌مانده امروز: ${todoRemaining}`
+          ? `کارهای باقی‌مانده در ۷ روز اخیر: ${todoRemaining}`
           : undefined,
     },
     {
