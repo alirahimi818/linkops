@@ -1,4 +1,3 @@
-// functions/api/items/summary.ts
 import type { EnvAuth } from "../admin/_auth";
 import { requireDeviceId } from "../_device";
 
@@ -40,7 +39,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       );
     }
 
-    // 1) Tabs across range + globals (device-aware)
+    // 1) Tabs across range + globals
     const tabRows = await env.DB.prepare(
       `
       SELECT COALESCE(s.status, 'todo') AS status, COUNT(*) AS cnt
@@ -60,26 +59,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       addTab(tabs, String(r.status), Number(r.cnt ?? 0));
     }
 
-    // totalCount = all items in range + globals (even if category_id is null)
-    const totalCountRow = await env.DB.prepare(
-      `
-      SELECT COUNT(*) AS cnt
-      FROM items i
-      WHERE (i.date BETWEEN ? AND ?) OR i.is_global = 1
-      `,
-    )
-      .bind(from, to)
-      .first<any>();
-
-    const totalCount = Number(totalCountRow?.cnt ?? 0);
-
-    // 2) Category counts:
-    // - return real categories with cnt>0
-    // - return "__other__" only if it has cnt>0
-    //
-    // "__other__" means:
-    // - i.category_id IS NULL
-    // - or category missing (deleted/invalid FK legacy)
+    // 2) Category counts (total items per category, independent of status)
+    // "__other__" if category_id is NULL or category missing
     const catRows = await env.DB.prepare(
       `
       SELECT
@@ -87,40 +68,55 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
           WHEN i.category_id IS NULL THEN '__other__'
           WHEN c.id IS NULL THEN '__other__'
           ELSE c.id
-        END AS id,
-        CASE
-          WHEN i.category_id IS NULL THEN 'سایر'
-          WHEN c.id IS NULL THEN 'سایر'
-          ELSE c.name
-        END AS name,
-        CASE
-          WHEN i.category_id IS NULL THEN NULL
-          WHEN c.id IS NULL THEN NULL
-          ELSE c.image
-        END AS image,
+        END AS cid,
         COUNT(*) AS cnt
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id
       WHERE (i.date BETWEEN ? AND ?) OR i.is_global = 1
-      GROUP BY id, name, image
-      HAVING COUNT(*) > 0
+      GROUP BY cid
       ORDER BY cnt DESC
       `,
     )
       .bind(from, to)
       .all<any>();
 
-    const categoriesRaw = (catRows.results ?? [])
-      .map((r: any) => ({
-        id: String(r.id),
-        name: String(r.name),
-        image: r.image ?? null,
-        count: Number(r.cnt ?? 0),
-      }))
-      // safety: ensure no zero sneaks in
-      .filter((x: any) => Number.isFinite(x.count) && x.count > 0);
+    const countsByCid = new Map<string, number>();
+    for (const r of (catRows.results ?? []) as any[]) {
+      countsByCid.set(String(r.cid), Number(r.cnt ?? 0));
+    }
 
-    // optional UX: keep "__other__" at the end even if it has count>0
+    // totalCount should include everything in range + globals, even if we hide zero-count categories
+    let totalCount = 0;
+    for (const n of countsByCid.values()) totalCount += n;
+
+    // Pull all categories once (for name/image)
+    const allCats = await env.DB.prepare(
+      `SELECT id, name, image FROM categories`,
+    ).all<any>();
+
+    const catMeta = new Map<string, { name: string; image: string | null }>();
+    for (const c of (allCats.results ?? []) as any[]) {
+      catMeta.set(String(c.id), { name: String(c.name), image: c.image ?? null });
+    }
+
+    // Build categories (ONLY count > 0)
+    const categoriesRaw = Array.from(countsByCid.entries())
+      .map(([cid, cnt]) => {
+        if (cid === "__other__") {
+          return { id: "__other__", name: "سایر", image: null, count: cnt };
+        }
+
+        const meta = catMeta.get(cid);
+        return {
+          id: cid,
+          name: meta?.name ?? "سایر",
+          image: meta?.image ?? null,
+          count: cnt,
+        };
+      })
+      .filter((x) => Number(x.count ?? 0) > 0); // <-- hide zero-count categories (including __other__)
+
+    // Sort by count desc, keep __other__ at end when present
     categoriesRaw.sort((a, b) => {
       if (a.id === "__other__") return 1;
       if (b.id === "__other__") return -1;
@@ -131,13 +127,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       range: { from, to },
       tabs,
       categories: [
-        {
-          id: "all",
-          name: "نمایش همه",
-          image: null,
-          count: totalCount,
-          isAll: true,
-        },
+        { id: "all", name: "نمایش همه", image: null, count: totalCount, isAll: true },
         ...categoriesRaw,
       ],
     });
