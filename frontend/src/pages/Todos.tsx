@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { fetchItems } from "../lib/api";
-import type { Item } from "../lib/api";
-
-import { getStatusMap, setItemStatus } from "../lib/statusStore";
-import type { ItemStatus, StatusMap } from "../lib/statusStore";
+import {
+  fetchItems,
+  fetchItemsFeed,
+  fetchItemsSummary,
+  setItemStatusRemote,
+} from "../lib/api";
+import type {
+  Item,
+  ItemSettableStatus,
+  ItemsSummaryResponse,
+  ItemUserStatus,
+  FeedTab,
+  ItemsFeedResponse,
+} from "../lib/api";
 
 import { addDaysYYYYMMDD, todayYYYYMMDD } from "../lib/date";
 
@@ -16,11 +25,13 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 
-import CategoryGrid, {
-  type CategoryCard,
-} from "../components/home/CategoryGrid";
+import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
 import { IconChevronLeft, IconChevronRight } from "../components/ui/icons";
+import {
+  migrateLegacyStatusToServer,
+  shouldRunLegacyMigration,
+} from "../lib/statusMigration";
 
 type View =
   | { kind: "categories" }
@@ -31,27 +42,41 @@ function safeTab(v: string | null): ListTab {
   return "todo";
 }
 
-function isGlobalItem(it: any): boolean {
-  return it?.is_global === 1 || it?.is_global === true;
+function statusOf(i: any): ItemUserStatus {
+  const s = String(i?.user_status ?? "todo");
+  if (s === "later" || s === "done" || s === "hidden") return s;
+  return "todo";
+}
+
+function sumCounts(c: { todo: number; later: number; done: number; hidden: number }) {
+  return (c?.todo ?? 0) + (c?.later ?? 0) + (c?.done ?? 0) + (c?.hidden ?? 0);
+}
+
+function lastNDaysYYYYMMDD(to: string, n: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    out.push(addDaysYYYYMMDD(to, -i));
+  }
+  return out;
 }
 
 export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);
   const [sp, setSp] = useSearchParams();
 
-  // URL state (source of truth)
-  const itemId = sp.get("item") ?? undefined; // new: item id filter
+  const itemId = sp.get("item") ?? undefined;
   const isItemView = !!itemId;
+
   const date = sp.get("date") ?? today;
   const tab = safeTab(sp.get("tab"));
-  const cat = sp.get("cat"); // category id or "all"
+  const cat = sp.get("cat");
+
   const view: View = useMemo(() => {
     if (itemId) {
       return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
     }
     if (!cat) return { kind: "categories" };
-    if (cat === "all")
-      return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
+    if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
     return {
       kind: "list",
       categoryId: cat,
@@ -59,13 +84,29 @@ export default function Todos() {
     };
   }, [cat, sp, itemId]);
 
-  // Data
-  const [items, setItems] = useState<Item[]>([]);
-  const [dayStatus, setDayStatus] = useState<StatusMap>({});
-  const [globalStatus, setGlobalStatus] = useState<StatusMap>({});
+  // 7-day window anchored by selected date
+  const range = useMemo(() => {
+    const to = date;
+    const from = addDaysYYYYMMDD(to, -6);
+    return { from, to };
+  }, [date]);
+
   const [loading, setLoading] = useState(true);
 
-  // Keep date valid format (optional strictness)
+  // Summary (for categories view)
+  const [summary, setSummary] = useState<ItemsSummaryResponse | null>(null);
+
+  // Item view (single)
+  const [singleItems, setSingleItems] = useState<Item[]>([]);
+
+  // Feed list (infinite)
+  const [feedItems, setFeedItems] = useState<Item[]>([]);
+  const [feedCounts, setFeedCounts] = useState({ todo: 0, later: 0, done: 0, hidden: 0 });
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Keep date valid format
   useEffect(() => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       setSp((p) => {
@@ -79,157 +120,195 @@ export default function Todos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // One-time legacy migration
+  useEffect(() => {
+    if (!shouldRunLegacyMigration()) return;
+
+    const days = lastNDaysYYYYMMDD(date, 7);
+    migrateLegacyStatusToServer(days).catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeCat = useMemo(() => {
+    if (isItemView) return "all";
+    if (!cat) return "all";
+    if (cat === "all") return "all";
+    return cat; // category_id or "__other__"
+  }, [cat, isItemView]);
+
+  // Load summary always (fast)
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        setLoading(true);
-        const [it, stDay, stGlobal] = await Promise.all([
-          fetchItems(date, itemId),
-          getStatusMap({ kind: "date", date }),
-          getStatusMap({ kind: "global" }),
-        ]);
+        const sum = await fetchItemsSummary(range.from, range.to);
         if (!alive) return;
-        setItems(it);
-        setDayStatus(stDay);
-        setGlobalStatus(stGlobal);
-      } finally {
-        if (alive) setLoading(false);
+        setSummary(sum);
+      } catch {
+        if (!alive) return;
+        setSummary(null);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [date, itemId]);
+  }, [range.from, range.to]);
 
-  function getItemStatus(it: any) {
-    return isGlobalItem(it) ? globalStatus[it.id] : dayStatus[it.id];
-  }
+  // Main data loader (either item view or feed list)
+  useEffect(() => {
+    let alive = true;
 
-  const mergedStatusForUI: StatusMap = useMemo(() => {
-    // ItemList expects one map; we provide per-item correct status by composing
-    const out: StatusMap = {};
-    for (const it of items as any[]) {
-      const s = getItemStatus(it);
-      if (s) out[it.id] = s;
+    (async () => {
+      try {
+        setLoading(true);
+
+        // reset paging state on any main reload
+        setCursor(null);
+        setHasMore(false);
+        setLoadingMore(false);
+
+        if (isItemView) {
+          const it = await fetchItems(date, itemId);
+          if (!alive) return;
+
+          setSingleItems(it ?? []);
+          setFeedItems([]);
+          setFeedCounts({ todo: 0, later: 0, done: 0, hidden: 0 });
+          return;
+        }
+
+        if (view.kind !== "list") {
+          // categories page
+          setSingleItems([]);
+          setFeedItems([]);
+          setFeedCounts({ todo: 0, later: 0, done: 0, hidden: 0 });
+          return;
+        }
+
+        // Feed first page for selected cat+tab+range
+        const res: ItemsFeedResponse = await fetchItemsFeed({
+          from: range.from,
+          to: range.to,
+          tab: tab as FeedTab,
+          cat: activeCat,
+          limit: 20,
+          cursor: null,
+        });
+
+        if (!alive) return;
+
+        setFeedItems(res.items ?? []);
+        setFeedCounts(res.counts ?? { todo: 0, later: 0, done: 0, hidden: 0 });
+        setCursor(res.next_cursor ?? null);
+        setHasMore(!!res.next_cursor);
+
+        setSingleItems([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [isItemView, itemId, date, view.kind, tab, activeCat, range.from, range.to]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    if (isItemView) return;
+    if (view.kind !== "list") return;
+
+    setLoadingMore(true);
+    try {
+      const res: ItemsFeedResponse = await fetchItemsFeed({
+        from: range.from,
+        to: range.to,
+        tab: tab as FeedTab,
+        cat: activeCat,
+        limit: 20,
+        cursor,
+      });
+
+      setFeedItems((prev) => [...prev, ...(res.items ?? [])]);
+      setFeedCounts(res.counts ?? feedCounts);
+      setCursor(res.next_cursor ?? null);
+      setHasMore(!!res.next_cursor);
+    } finally {
+      setLoadingMore(false);
     }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, dayStatus, globalStatus]);
+  }
 
   const categories = useMemo<CategoryCard[]>(() => {
     if (itemId) return [];
+    const list = summary?.categories ?? [];
+    return list.map((c) => ({
+      id: c.id === "all" ? "__all__" : c.id,
+      name: c.name,
+      image: c.image,
+      count: c.count,
+      isAll: c.id === "all" || c.isAll === true,
+    }));
+  }, [summary, itemId]);
 
-    const map = new Map<string, CategoryCard>();
+  async function mark(id: string, s: ItemSettableStatus | null) {
+    const nextStatus: ItemUserStatus = s ?? "todo";
 
-    for (const i of items as any[]) {
-      const rawCid = i.category_id ?? "";
-      const cid = rawCid ? String(rawCid) : "__none__";
-
-      const cname =
-        cid === "__none__" ? "بدون دسته‌بندی" : (i.category_name ?? "دسته");
-
-      const cimg = cid === "__none__" ? null : (i.category_image ?? null);
-
-      if (!map.has(cid)) {
-        map.set(cid, { id: cid, name: cname, image: cimg, count: 0 });
-      }
-      map.get(cid)!.count += 1;
-    }
-
-    const all: CategoryCard = {
-      id: "__all__",
-      name: "نمایش همه",
-      image: null,
-      count: items.length,
-      isAll: true,
-    };
-
-    // Sort: most items first, keep "__none__" at the end (optional)
-    const list = Array.from(map.values()).sort((a, b) => {
-      if (a.id === "__none__") return 1;
-      if (b.id === "__none__") return -1;
-      return b.count - a.count;
-    });
-
-    return [all, ...list];
-  }, [items, itemId]);
-
-  const listItems = useMemo(() => {
-    if (view.kind !== "list") return [];
-
-    let base: any[] = [];
-    if (view.categoryId === null) base = items as any[];
-    else if (view.categoryId === "__none__")
-      base = (items as any[]).filter((i) => !i.category_id);
-    else
-      base = (items as any[]).filter((i) => i.category_id === view.categoryId);
-
-    if (itemId) {
-      return base.filter((i) => String(i.id) === String(itemId));
-    }
-
-    return base;
-  }, [items, view, itemId]);
-
-  function filterByTab(itemsAny: any[], t: ListTab) {
-    return itemsAny.filter((i) => {
-      const s = getItemStatus(i);
-      if (t === "todo") return !s;
-      if (t === "later") return s === "later";
-      if (t === "done") return s === "done";
-      if (t === "hidden") return s === "hidden";
-      return true;
-    });
-  }
-
-  const filtered = useMemo(() => {
-    if (view.kind !== "list") return [];
-    if (isItemView) return listItems as any[]; // show the item regardless of tab
-    return filterByTab(listItems as any[], tab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listItems, tab, view, isItemView, dayStatus, globalStatus]);
-
-  const counts = useMemo(() => {
     if (isItemView) {
-      const base = listItems as any[];
-      return { todo: base.length, later: 0, done: 0, hidden: 0 };
+      setSingleItems((prev) =>
+        prev.map((it: any) =>
+          String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it,
+        ),
+      );
+    } else {
+      // update items
+      setFeedItems((prev) =>
+        prev.map((it: any) =>
+          String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it,
+        ),
+      );
+
+      // adjust counts using prev snapshot (avoid stale closure on feedItems)
+      setFeedCounts((prevCounts) => {
+        // find old status from current list snapshot (best effort)
+        const oldItem = feedItems.find((x: any) => String(x.id) === String(id)) as any;
+        const oldStatus: ItemUserStatus = oldItem ? statusOf(oldItem) : (tab as any);
+
+        const out: any = { ...prevCounts };
+        out[oldStatus] = Math.max(0, (out[oldStatus] ?? 0) - 1);
+        out[nextStatus] = (out[nextStatus] ?? 0) + 1;
+        return out;
+      });
+
+      // remove from current tab list if not matching
+      const currentTab = tab as ItemUserStatus;
+      if (currentTab !== nextStatus) {
+        setFeedItems((prev) => prev.filter((it: any) => String(it.id) !== String(id)));
+      }
     }
 
-    const base = listItems as any[];
-    return {
-      todo: filterByTab(base, "todo").length,
-      later: filterByTab(base, "later").length,
-      done: filterByTab(base, "done").length,
-      hidden: filterByTab(base, "hidden").length,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listItems, isItemView, dayStatus, globalStatus]);
-
-  const total = items.length;
-  const doneCount = useMemo(() => {
-    let c = 0;
-    for (const it of items as any[]) {
-      if (getItemStatus(it) === "done") c++;
+    try {
+      await setItemStatusRemote(id, s);
+    } catch (e) {
+      // rollback via refetch current view
+      if (isItemView) {
+        const it = await fetchItems(date, itemId);
+        setSingleItems(it ?? []);
+      } else if (view.kind === "list") {
+        const res: ItemsFeedResponse = await fetchItemsFeed({
+          from: range.from,
+          to: range.to,
+          tab: tab as FeedTab,
+          cat: activeCat,
+          limit: 20,
+          cursor: null,
+        });
+        setFeedItems(res.items ?? []);
+        setFeedCounts(res.counts ?? { todo: 0, later: 0, done: 0, hidden: 0 });
+        setCursor(res.next_cursor ?? null);
+        setHasMore(!!res.next_cursor);
+      }
+      throw e;
     }
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, dayStatus, globalStatus]);
-
-  async function mark(id: string, s: ItemStatus | null) {
-    const it = (items as any[]).find((x) => x.id === id);
-    const scope = isGlobalItem(it)
-      ? ({ kind: "global" } as const)
-      : ({ kind: "date", date } as const);
-
-    await setItemStatus(scope, id, s);
-
-    const [stDay, stGlobal] = await Promise.all([
-      getStatusMap({ kind: "date", date }),
-      getStatusMap({ kind: "global" }),
-    ]);
-    setDayStatus(stDay);
-    setGlobalStatus(stGlobal);
   }
 
   function setDate(next: string) {
@@ -261,13 +340,15 @@ export default function Todos() {
   function openCategory(c: CategoryCard) {
     setSp((p) => {
       p.set("tab", "todo");
+
       if (c.isAll) {
         p.set("cat", "all");
         p.set("catName", "نمایش همه");
-      } else {
-        p.set("cat", c.id);
-        p.set("catName", c.name);
+        return p;
       }
+
+      p.set("cat", c.id);
+      p.set("catName", c.name);
       return p;
     });
   }
@@ -297,29 +378,39 @@ export default function Todos() {
         </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <Button
-            className="px-2!"
-            variant="secondary"
-            onClick={goNext}
-            title="روز بعد"
-          >
+          <Button className="px-2!" variant="secondary" onClick={goNext} title="روز بعد">
             <IconChevronRight className="h-6 w-6" />
           </Button>
 
           <DatePicker value={date} onChange={setDate} />
 
-          <Button
-            className="px-2!"
-            variant="secondary"
-            onClick={goPrev}
-            title="روز قبل"
-          >
+          <Button className="px-2!" variant="secondary" onClick={goPrev} title="روز قبل">
             <IconChevronLeft className="h-6 w-6" />
           </Button>
         </div>
       )}
     </div>
   );
+
+  const progressCounts = useMemo(() => {
+    if (isItemView) {
+      const it = singleItems?.[0] as any;
+      const done = it && statusOf(it) === "done" ? 1 : 0;
+      return { total: singleItems.length, done };
+    }
+
+    if (view.kind === "categories") {
+      const t = summary?.tabs ?? { todo: 0, later: 0, done: 0, hidden: 0 };
+      return { total: sumCounts(t), done: t.done ?? 0 };
+    }
+
+    return { total: sumCounts(feedCounts), done: feedCounts.done ?? 0 };
+  }, [isItemView, singleItems, view.kind, summary, feedCounts]);
+
+  const listData = isItemView ? singleItems : feedItems;
+  const listCounts = isItemView
+    ? { todo: singleItems.length, later: 0, done: 0, hidden: 0 }
+    : feedCounts;
 
   return (
     <PageShell
@@ -342,12 +433,16 @@ export default function Todos() {
               <div
                 className="h-2 rounded bg-zinc-900"
                 style={{
-                  width: `${total ? (doneCount / total) * 100 : 0}%`,
+                  width: `${
+                    progressCounts.total
+                      ? (progressCounts.done / progressCounts.total) * 100
+                      : 0
+                  }%`,
                 }}
               />
             </div>
             <div className="mt-2 text-xs text-zinc-500">
-              انجام‌شده: {doneCount} از {total}
+              انجام‌شده: {progressCounts.done} از {progressCounts.total}
             </div>
           </div>
         </div>
@@ -357,9 +452,7 @@ export default function Todos() {
         <div className="text-zinc-500">در حال بارگذاری…</div>
       ) : view.kind === "categories" ? (
         categories.length <= 1 ? (
-          <Card className="p-6 text-zinc-600">
-            برای این تاریخ آیتمی وجود ندارد.
-          </Card>
+          <Card className="p-6 text-zinc-600">برای این بازه آیتمی وجود ندارد.</Card>
         ) : (
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )
@@ -367,13 +460,15 @@ export default function Todos() {
         <ItemList
           title={view.categoryName}
           itemId={itemId ?? null}
-          items={filtered as any[]}
-          counts={counts}
+          items={listData as any[]}
+          counts={listCounts}
           tab={tab}
           onTabChange={setTab}
           onMark={mark}
-          statusMap={mergedStatusForUI}
           onBack={backToCategories}
+          hasMore={!isItemView && view.kind === "list" ? hasMore : false}
+          loadingMore={!isItemView && view.kind === "list" ? loadingMore : false}
+          onLoadMore={!isItemView && view.kind === "list" ? loadMore : undefined}
         />
       )}
 

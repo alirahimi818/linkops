@@ -1,4 +1,5 @@
 // functions/api/items.ts
+import { requireDeviceId } from "./_device";
 import type { EnvAuth } from "./admin/_auth";
 
 function isValidDate(d: string) {
@@ -13,6 +14,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
 
+    const deviceId = requireDeviceId(request);
+
     const url = new URL(request.url);
     const itemId = url.searchParams.get("item_id");
     const date = url.searchParams.get("date");
@@ -26,14 +29,18 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
 
     let itemsQuery = `
       SELECT i.*,
-            c.name  AS category_name,
-            c.image AS category_image
+             c.name  AS category_name,
+             c.image AS category_image,
+             COALESCE(s.status, 'todo') AS user_status
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id
+      LEFT JOIN item_status s
+        ON s.item_id = i.id
+       AND s.device_id = ?
       WHERE 1=1
     `;
 
-    const binds: any[] = [];
+    const binds: any[] = [deviceId];
 
     if (itemId) {
       itemsQuery += ` AND i.id = ? `;

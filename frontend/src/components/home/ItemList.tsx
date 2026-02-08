@@ -4,7 +4,7 @@ import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Tabs, { TabButton } from "../ui/Tabs";
-import type { StatusMap, ItemStatus } from "../../lib/statusStore";
+import type { ItemSettableStatus } from "../../lib/api";
 
 import { copyText } from "../../lib/clipboard";
 import CopyPill from "../ui/CopyPill";
@@ -62,9 +62,13 @@ export default function ItemList(props: {
   counts: { todo: number; later: number; done: number; hidden: number };
   tab: ListTab;
   onTabChange: (t: ListTab) => void;
-  onMark: (id: string, s: ItemStatus | null) => Promise<void>;
-  statusMap: StatusMap;
+  onMark: (id: string, s: ItemSettableStatus | null) => Promise<void>;
   onBack: () => void;
+
+  // Infinite list controls (optional)
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: (() => void) | undefined;
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
 
@@ -201,9 +205,7 @@ export default function ItemList(props: {
                           href={url}
                           target={isPwaIOS ? undefined : "_blank"}
                           onClick={(e) => {
-                            if (isPwaIOS) {
-                              return;
-                            }
+                            if (isPwaIOS) return;
                             e.preventDefault();
                             window.open(url, "_blank", "noopener,noreferrer");
                           }}
@@ -226,7 +228,7 @@ export default function ItemList(props: {
                           }
                           actions={[
                             {
-                              key: "copyAndTweet",
+                              key: "openExternal",
                               label: "بازکردن لینک در صفحه جدید",
                               onClick: async () => {
                                 openExternal(url);
@@ -247,8 +249,7 @@ export default function ItemList(props: {
                         {item.description}
                       </div>
 
-                      {Array.isArray(item.actions) &&
-                      item.actions.length > 0 ? (
+                      {Array.isArray(item.actions) && item.actions.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {item.actions.map((a: any) => (
                             <Badge key={a.id}>{a.label ?? a.name}</Badge>
@@ -479,6 +480,22 @@ export default function ItemList(props: {
           })
         )}
       </div>
+
+      {props.itemId ? null : props.onLoadMore ? (
+        <div className="mt-4 flex justify-center">
+          {props.hasMore ? (
+            <Button
+              variant="secondary"
+              onClick={props.onLoadMore}
+              disabled={!!props.loadingMore}
+            >
+              {props.loadingMore ? "در حال بارگذاری…" : "نمایش بیشتر"}
+            </Button>
+          ) : (
+            <div className="text-xs text-zinc-500">مورد دیگری نیست.</div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
