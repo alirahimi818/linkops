@@ -21,12 +21,14 @@ function getAllLegacyKeys(): string[] {
     if (!k) continue;
     if (k === "status:global" || isDateKey(k)) keys.push(k);
   }
-  // Prefer migrating global first (not required, but nice)
+
+  // Prefer migrating global first
   keys.sort((a, b) => {
     if (a === "status:global") return -1;
     if (b === "status:global") return 1;
     return a.localeCompare(b);
   });
+
   return keys;
 }
 
@@ -50,47 +52,84 @@ function remainingLegacyKeysCount(): number {
 }
 
 /**
- * If there are any legacy status keys left, migration should run
- * even if the global flag is already set (self-healing).
+ * If there are any legacy status keys left, migration should run.
+ * (Self-healing even if a flag was set previously)
  */
 export function shouldRunLegacyMigration(): boolean {
-  const hasLegacyLeft = remainingLegacyKeysCount() > 0;
-  return hasLegacyLeft;
+  return remainingLegacyKeysCount() > 0;
 }
 
-async function postStatus(itemId: string, status: LegacyStatus | null): Promise<void> {
-  const res = await fetch("/api/status/set", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "X-Device-Id": getDeviceId(),
-    },
-    body: JSON.stringify({ item_id: itemId, status }),
-  });
+type PostStatusResult =
+  | { ok: true }
+  | { ok: false; retryable: boolean; reason: string };
 
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Migration POST failed (${res.status}): ${txt.slice(0, 200)}`);
+async function postStatus(
+  itemId: string,
+  status: LegacyStatus | null,
+): Promise<PostStatusResult> {
+  let res: Response;
+
+  try {
+    res = await fetch("/api/status/set", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Device-Id": getDeviceId(),
+      },
+      body: JSON.stringify({ item_id: itemId, status }),
+    });
+  } catch (e: any) {
+    // Network error => retryable
+    return { ok: false, retryable: true, reason: String(e?.message ?? e) };
   }
+
+  if (res.ok) return { ok: true };
+
+  // Important: handle permanent vs retryable failures
+  // - 404: item no longer exists => permanent, drop it from legacy
+  // - 400: invalid payload => permanent (shouldn't happen, but don't retry forever)
+  // - 401/403: auth/device issues => retryable? depends, but better keep so you notice
+  // - 429/5xx: retryable
+  const statusCode = res.status;
+  const txt = await res.text().catch(() => "");
+
+  if (statusCode === 404) {
+    return { ok: false, retryable: false, reason: `404: ${txt.slice(0, 120)}` };
+  }
+
+  if (statusCode === 400) {
+    return { ok: false, retryable: false, reason: `400: ${txt.slice(0, 120)}` };
+  }
+
+  if (statusCode === 422) {
+    return { ok: false, retryable: false, reason: `422: ${txt.slice(0, 120)}` };
+  }
+
+  if (statusCode === 429) {
+    return { ok: false, retryable: true, reason: `429: ${txt.slice(0, 120)}` };
+  }
+
+  if (statusCode >= 500) {
+    return { ok: false, retryable: true, reason: `${statusCode}: ${txt.slice(0, 120)}` };
+  }
+
+  // default: treat as retryable so we don't lose data silently
+  return { ok: false, retryable: true, reason: `${statusCode}: ${txt.slice(0, 120)}` };
 }
 
-/**
- * Migrates ALL legacy status keys from localStorage to server.
- * - Sends one request per item_id.
- * - Deletes a localStorage key only when fully migrated.
- * - Sets migration flag only when no legacy keys remain.
- */
 export async function migrateLegacyStatusToServer(): Promise<{
   ok: boolean;
   migratedKeys: number;
   migratedItems: number;
+  droppedItems: number; // items removed due to permanent errors (e.g. 404)
   remainingKeys: number;
 }> {
   const keys = getAllLegacyKeys();
 
   let migratedKeys = 0;
   let migratedItems = 0;
+  let droppedItems = 0;
 
   for (const key of keys) {
     const map = readLegacyMap(key);
@@ -98,44 +137,47 @@ export async function migrateLegacyStatusToServer(): Promise<{
 
     if (entries.length === 0) continue;
 
-    // Try migrate this key completely.
-    // If any item fails, we keep the key (and keep remaining items)
-    // so it can retry later.
     const remaining: LegacyMap = {};
 
     for (const [itemId, st] of entries) {
       if (!itemId) continue;
       if (!isValidStatus(st)) continue;
 
-      try {
-        await postStatus(itemId, st);
+      const r = await postStatus(itemId, st);
+
+      if (r.ok) {
         migratedItems++;
-      } catch {
-        // Keep for retry
+        continue;
+      }
+
+      if (r.retryable) {
+        // Keep for retry later
         remaining[itemId] = st;
+      } else {
+        // Permanent failure (e.g., 404). Drop it so migration can finish.
+        droppedItems++;
       }
     }
 
     if (Object.keys(remaining).length === 0) {
-      // fully migrated => remove this key
       localStorage.removeItem(key);
       migratedKeys++;
     } else {
-      // partially migrated => keep remaining
       localStorage.setItem(key, JSON.stringify(remaining));
     }
   }
 
   const remainingKeys = remainingLegacyKeysCount();
 
-  // Only set global flag when fully clean
   if (remainingKeys === 0) {
     localStorage.setItem(MIGRATION_FLAG_KEY, "1");
-  } else {
-    // Keep flag unset OR remove it to ensure retries
-    // (If it was already set in production, we still self-heal via shouldRunLegacyMigration)
-    // You can also choose to keep it set; self-heal logic above ignores it.
   }
 
-  return { ok: remainingKeys === 0, migratedKeys, migratedItems, remainingKeys };
+  return {
+    ok: remainingKeys === 0,
+    migratedKeys,
+    migratedItems,
+    droppedItems,
+    remainingKeys,
+  };
 }
