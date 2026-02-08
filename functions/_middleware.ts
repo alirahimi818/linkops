@@ -24,9 +24,10 @@ export const onRequest: PagesFunction = async (ctx) => {
       status: 204,
       headers: {
         "Access-Control-Allow-Origin": origin,
-        "Vary": "Origin",
+        Vary: "Origin",
         "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Device-Id",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Authorization, X-Device-Id",
         "Access-Control-Max-Age": "86400",
       },
     });
@@ -47,14 +48,17 @@ export const onRequest: PagesFunction = async (ctx) => {
   if (origin && isAllowedOrigin) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
-    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Id");
+    headers.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Device-Id",
+    );
     headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   }
 
   // Security headers
   headers.set(
     "Strict-Transport-Security",
-    "max-age=31536000; includeSubDomains"
+    "max-age=31536000; includeSubDomains",
   );
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
@@ -62,7 +66,7 @@ export const onRequest: PagesFunction = async (ctx) => {
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
   headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   );
 
   // CSP (keep yours, but consider dev needs if you load from localhost)
@@ -81,7 +85,7 @@ export const onRequest: PagesFunction = async (ctx) => {
       "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com",
       "manifest-src 'self'",
       "upgrade-insecure-requests",
-    ].join("; ")
+    ].join("; "),
   );
 
   return new Response(res.body, {
@@ -94,25 +98,31 @@ export const onRequest: PagesFunction = async (ctx) => {
 async function ensureDevice(request: Request, env: any) {
   // Only for public /api endpoints (not admin)
   const url = new URL(request.url);
+  // Only for /api/* (but NOT /api/admin/*)
   const isApi = url.pathname.startsWith("/api/");
-  if (!isApi) return;
+  const isAdminApi = url.pathname.startsWith("/api/admin/");
+  if (!isApi || isAdminApi) return;
 
   const deviceId = request.headers.get("X-Device-Id");
   if (!deviceId) {
     // For now: reject public API calls without device id
     // You could also auto-allow for some endpoints, but consistency is better.
-    throw new Response(
-      JSON.stringify({ error: "Missing X-Device-Id" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    throw new Response(JSON.stringify({ error: "Missing X-Device-Id" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Basic validation: UUID v4-ish (loose)
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deviceId)) {
-    throw new Response(
-      JSON.stringify({ error: "Invalid X-Device-Id" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      deviceId,
+    )
+  ) {
+    throw new Response(JSON.stringify({ error: "Invalid X-Device-Id" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const ua = request.headers.get("User-Agent") ?? null;
@@ -125,6 +135,8 @@ async function ensureDevice(request: Request, env: any) {
      ON CONFLICT(id) DO UPDATE SET
        last_seen_at = CURRENT_TIMESTAMP,
        user_agent = COALESCE(excluded.user_agent, devices.user_agent),
-       locale = COALESCE(excluded.locale, devices.locale)`
-  ).bind(deviceId, ua, lang).run();
+       locale = COALESCE(excluded.locale, devices.locale)`,
+  )
+    .bind(deviceId, ua, lang)
+    .run();
 }
