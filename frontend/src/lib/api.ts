@@ -1,5 +1,6 @@
 // frontend/src/lib/api.ts
 
+import { getDeviceId } from "./device";
 import { loadingStart, loadingStop } from "./loadingStore";
 
 /* =========================
@@ -191,6 +192,7 @@ async function requestJSON<T>(
   opts?: { auth?: boolean },
 ): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
+  headers.set("X-Device-Id", getDeviceId());
   headers.set("Accept", "application/json");
 
   const useAuth = opts?.auth ?? false;
