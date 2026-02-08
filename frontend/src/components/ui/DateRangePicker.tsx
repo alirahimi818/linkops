@@ -25,12 +25,17 @@ export default function DateRangePicker(props: {
   const v = clampRange(props.value);
 
   return (
-    <div className={["flex items-center gap-2", props.className ?? ""].join(" ")}>
+    <div
+      className={["flex items-center gap-2", props.className ?? ""].join(" ")}
+    >
+      <span className="text-zinc-500 text-sm">از</span>
       <input
         dir="ltr"
         type="date"
         value={v.from}
-        onChange={(e) => props.onChange(clampRange({ from: e.target.value, to: v.to }))}
+        onChange={(e) =>
+          props.onChange(clampRange({ from: e.target.value, to: v.to }))
+        }
         title={props.titleFrom ?? "از تاریخ"}
         className={[
           "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[16px] text-zinc-900",
@@ -44,7 +49,9 @@ export default function DateRangePicker(props: {
         dir="ltr"
         type="date"
         value={v.to}
-        onChange={(e) => props.onChange(clampRange({ from: v.from, to: e.target.value }))}
+        onChange={(e) =>
+          props.onChange(clampRange({ from: v.from, to: e.target.value }))
+        }
         title={props.titleTo ?? "تا تاریخ"}
         className={[
           "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[16px] text-zinc-900",

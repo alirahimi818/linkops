@@ -415,30 +415,12 @@ export default function Todos() {
         </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <Button
-            className="px-2!"
-            variant="secondary"
-            onClick={goNextRange}
-            title="جلو به اندازه بازه"
-          >
-            +بازه
-          </Button>
-
           <DateRangePicker
             value={range}
             onChange={setRange}
             titleFrom="از تاریخ"
             titleTo="تا تاریخ"
           />
-
-          <Button
-            className="px-2!"
-            variant="secondary"
-            onClick={goPrevRange}
-            title="عقب به اندازه بازه"
-          >
-            -بازه
-          </Button>
         </div>
       )}
     </div>
@@ -475,7 +457,7 @@ export default function Todos() {
             subtitle={
               itemId
                 ? "شما در حال مشاهده یک فعالیت خاص هستید."
-                : `فیلتر بازه: ${range.from} تا ${range.to}`
+                : "یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
             }
             right={headerRight}
           />
