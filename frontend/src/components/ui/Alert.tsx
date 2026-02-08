@@ -22,7 +22,7 @@ export default function Alert(props: {
 
   return (
     <div
-      className={[base, styles[variant], props.className ?? ""].join(" ")}
+      className={[base, styles[variant], "text-right", props.className ?? ""].join(" ")}
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
     >

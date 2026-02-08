@@ -35,7 +35,7 @@ export default function PortalModal(props: {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[9999]">
+      <div className="fixed inset-0 z-[9999]" dir="rtl">
         <div
           className="absolute inset-0 bg-black/50"
           onClick={props.onClose}

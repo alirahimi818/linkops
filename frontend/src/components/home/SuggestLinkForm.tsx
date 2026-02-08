@@ -67,7 +67,10 @@ export default function SuggestLinkForm(props: {
       // Match your backend error pattern
       if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
         setError("این لینک قبلاً در سیستم ثبت شده است.");
-      } else if (e?.status === 409 && e?.data?.code === "DUPLICATE_SUGGESTION") {
+      } else if (
+        e?.status === 409 &&
+        e?.data?.code === "DUPLICATE_SUGGESTION"
+      ) {
         setError("این لینک همین الان در صف بررسی است. 🙏");
       } else if (e?.status === 400 && e?.data?.code === "INVALID_URL") {
         setError("لینک نامعتبر است. لطفاً یک لینک کامل وارد کنید.");
@@ -89,12 +92,7 @@ export default function SuggestLinkForm(props: {
         </Alert>
       ) : null}
 
-      <Input
-        dir="ltr"
-        value={url}
-        onChange={setUrl}
-        placeholder="لینک (URL)"
-      />
+      <Input dir="ltr" value={url} onChange={setUrl} placeholder="لینک (URL)" />
 
       <Input value={title} onChange={setTitle} placeholder="عنوان (اختیاری)" />
 
@@ -106,13 +104,13 @@ export default function SuggestLinkForm(props: {
       />
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-zinc-500">
-          {url.trim() && !urlOk ? "فرمت لینک درست نیست." : " "}
-        </div>
-
         <Button variant="success" onClick={submit} disabled={disabled}>
           {saving ? "در حال ارسال…" : "ارسال پیشنهاد"}
         </Button>
+
+        <div className="text-xs text-zinc-500">
+          {url.trim() && !urlOk ? "فرمت لینک درست نیست." : " "}
+        </div>
       </div>
     </div>
   );

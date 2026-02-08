@@ -44,7 +44,7 @@ export default function SuggestLinkButton(props: { defaultUrl?: string }) {
         />
 
         <div className="mt-3 text-xs text-zinc-500">
-          نکته: اگر لینک تکراری باشد، بهت اطلاع می‌دهیم.
+          نکته: هر یک دقیقه یکبار میشه لینک جدید ثبت کرد.
         </div>
       </PortalModal>
     </>
