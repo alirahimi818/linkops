@@ -13,6 +13,7 @@ import {
   adminRejectSuggestion,
   adminSuggestionsCount,
 } from "../../../lib/api";
+import Portal from "../../ui/Portal";
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -29,32 +30,55 @@ function ModalShell(props: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  useEffect(() => {
+    if (!props.open) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [props.open, props.onClose]);
+
   if (!props.open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={props.onClose}
-        aria-hidden="true"
-      />
-      <div className="absolute inset-0 flex items-center justify-center p-3">
-        <div className="w-full max-w-3xl">
-          <Card>
-            <div className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-3">
-              <div className="text-sm font-medium text-zinc-900">
-                {props.title}
-              </div>
-              <Button variant="secondary" onClick={props.onClose}>
-                بستن
-              </Button>
-            </div>
+    <Portal>
+      <div className="fixed inset-0 z-[9999]">
+        <div
+          className="absolute inset-0 bg-black/40"
+          onClick={props.onClose}
+          aria-hidden="true"
+        />
 
-            <div className="pt-3">{props.children}</div>
-          </Card>
+        {/* Important: overflow-y-auto so content is always reachable */}
+        <div className="absolute inset-0 overflow-y-auto p-3">
+          <div className="min-h-full flex items-start justify-center">
+            <div className="w-full max-w-3xl my-10">
+              <Card>
+                <div className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-3">
+                  <div className="text-sm font-medium text-zinc-900">
+                    {props.title}
+                  </div>
+                  <Button variant="secondary" onClick={props.onClose}>
+                    بستن
+                  </Button>
+                </div>
+
+                <div className="pt-3">{props.children}</div>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   );
 }
 
