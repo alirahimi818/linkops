@@ -48,7 +48,7 @@ export default function PageShell(props: {
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4 border-zinc-200 justify-center">
                   <a
                     href="/"
-                    className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm font-semibold"
+                    className=" border py-1.5 px-3 rounded-2xl bg-white text-zinc-800 hover:bg-zinc-100 text-sm "
                   >
                     بازگشت به صفحه اصلی
                   </a>

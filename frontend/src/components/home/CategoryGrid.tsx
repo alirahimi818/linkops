@@ -24,7 +24,7 @@ export default function CategoryGrid(props: {
           <Card className="transition hover:shadow-md">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-lg font-semibold text-zinc-900">{c.name}</div>
+                <div className="text-lg  text-zinc-900">{c.name}</div>
                 <div className="mt-1 text-sm text-zinc-600">{c.count} آیتم</div>
               </div>
 

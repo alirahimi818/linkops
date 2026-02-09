@@ -86,7 +86,7 @@ export default function DismissibleAnnouncementModal(props: Props) {
       <div className="relative w-full max-w-lg">
         <Card className="p-5 sm:p-6">
           <div className="min-w-0">
-            <div className="text-lg font-semibold text-zinc-900">
+            <div className="text-lg  text-zinc-900">
               {props.title}
             </div>
             {props.description ? (

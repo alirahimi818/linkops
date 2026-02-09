@@ -187,7 +187,7 @@ export default function AdminItemList(props: {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="text-lg font-semibold">{i.title}</div>
+                    <div className="text-lg ">{i.title}</div>
 
                     <a
                       className="mt-1 block truncate text-sm text-zinc-600 underline"

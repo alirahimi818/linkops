@@ -211,7 +211,7 @@ export default function ShareSheet(props: {
                   <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-200" />
 
                   <div className="mb-2 text-right">
-                    <div className="text-sm font-semibold text-zinc-900">
+                    <div className="text-sm  text-zinc-900">
                       اشتراک‌گذاری
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">

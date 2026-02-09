@@ -56,7 +56,7 @@ export default function AdminTable<T>(props: Props<T>) {
         {props.title || props.subtitle || props.headerRight ? (
           <div className={headerRowClass}>
             <div>
-              {props.title ? <div className="text-lg font-semibold">{props.title}</div> : null}
+              {props.title ? <div className="text-lg ">{props.title}</div> : null}
               {props.subtitle ? <div className="mt-1 text-sm text-zinc-500">{props.subtitle}</div> : null}
             </div>
 

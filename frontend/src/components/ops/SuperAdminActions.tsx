@@ -110,7 +110,7 @@ export default function SuperAdminActions() {
             render: (r) => (
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-sm font-semibold text-zinc-900">{r.label}</div>
+                  <div className="text-sm  text-zinc-900">{r.label}</div>
                   <div className="text-xs text-zinc-500">({r.name})</div>
                 </div>
 

@@ -287,10 +287,10 @@ export default function SuperAdminUsers() {
                       ) : ""}
 
                       <div
-                        className="text-lg font-semibold text-zinc-900"
+                        className="text-lg  text-zinc-900"
                         dir="auto"
                       >
-                        <div className="text-lg font-semibold">{u.username}</div>
+                        <div className="text-lg ">{u.username}</div>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">

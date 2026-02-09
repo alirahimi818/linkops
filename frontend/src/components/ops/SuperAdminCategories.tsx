@@ -113,7 +113,7 @@ export default function SuperAdminCategories() {
                 {/* Content */}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-zinc-900">{r.name}</div>
+                    <div className="text-sm  text-zinc-900">{r.name}</div>
                   </div>
                   
                   {/* Inline edit */}

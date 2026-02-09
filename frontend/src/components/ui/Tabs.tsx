@@ -28,7 +28,7 @@ export function TabButton(props: {
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-amber-200 bg-amber-50 text-amber-700",
             "",
-            "text-xs font-semibold leading-none",
+            "text-xs  leading-none",
           ].join(" ")}
           aria-label={`${props.count} items`}
         >

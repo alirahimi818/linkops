@@ -193,7 +193,7 @@ export default function ItemList(props: {
                         )}
 
                         <div
-                          className="text-lg font-semibold text-zinc-900"
+                          className="text-lg  text-zinc-900"
                           dir="auto"
                         >
                           {item.title}
@@ -245,7 +245,7 @@ export default function ItemList(props: {
                         />
                       </div>
 
-                      <div className="mt-2 text-sm text-zinc-600" dir="auto">
+                      <div className="mt-2 text-sm text-zinc-600 whitespace-pre-line" dir="auto">
                         {item.description}
                       </div>
 

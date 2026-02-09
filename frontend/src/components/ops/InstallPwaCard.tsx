@@ -124,7 +124,7 @@ export default function InstallPwaCard(props: {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-base font-semibold text-zinc-900">
+            <div className="text-base  text-zinc-900">
               نصب اپ (PWA)
             </div>
 

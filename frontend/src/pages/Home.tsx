@@ -34,7 +34,7 @@ function BadgeCorner(props: { count: number; title?: string }) {
 
   return (
     <div
-      className="absolute -top-2 -left-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 shadow-sm"
+      className="absolute -top-2 -left-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs  text-rose-700 shadow-sm"
       title={props.title}
       aria-label={props.title ?? `${c} remaining`}
     >
@@ -59,7 +59,7 @@ function MenuCard({ item }: { item: MenuItem }) {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <div className="text-base font-semibold text-zinc-900">
+              <div className="text-base  text-zinc-900">
                 {item.title}
               </div>
 
@@ -187,7 +187,7 @@ export default function Home() {
       <div dir="rtl" className="mx-auto w-full max-w-5xl p-4 sm:p-6">
         <div className="mb-5">
           <div className="flex flex-wrap items-center gap-2 justify-between">
-            <div className="text-xl font-semibold text-zinc-900">داشبورد</div>
+            <div className="text-xl  text-zinc-900">داشبورد</div>
             <a href="/">
               <img src="/assets/flags/flag-ir-640.png" className="h-6" alt="" />
             </a>
