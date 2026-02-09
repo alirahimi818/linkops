@@ -19,7 +19,37 @@ function autoFixUrl(input: string): string {
 function isValidAbsoluteHttpUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
-    return u.protocol === "http:" || u.protocol === "https:";
+
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+
+    const host = u.hostname.trim();
+    if (!host) return false;
+
+    // Reject localhost (public suggestions should be real URLs)
+    if (host === "localhost") return false;
+
+    // If it's an IPv4 address, optionally reject
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      // Basic range check (0-255)
+      const ok = host
+        .split(".")
+        .every((x) => {
+          const n = Number(x);
+          return Number.isInteger(n) && n >= 0 && n <= 255;
+        });
+      if (ok) return false; // reject IPs
+    }
+
+    // If hostname has no dot, it's likely invalid for public web
+    // Allows something like "example.com" or "sub.example.com"
+    if (!host.includes(".")) return false;
+
+    // TLD should have at least 2 chars (e.g., .com, .de, .ir)
+    const parts = host.split(".");
+    const tld = parts[parts.length - 1] ?? "";
+    if (tld.length < 2) return false;
+
+    return true;
   } catch {
     return false;
   }
