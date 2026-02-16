@@ -245,7 +245,7 @@ export default function ItemList(props: {
                         />
                       </div>
 
-                      <div className="mt-2 text-sm text-zinc-600 whitespace-pre-line" dir="auto">
+                      <div className="mt-2 text-sm text-zinc-600 whitespace-pre-line" dir="rtl">
                         {item.description}
                       </div>
 
