@@ -46,20 +46,42 @@ function autoFixComment(comment: string, whitelist: Set<string>): string {
   return applySuggestedReplacements(comment, issues);
 }
 
+function removeDanglingHashtags(text: string) {
+  let s = String(text ?? "");
+
+  // Remove a standalone '#' that is followed by whitespace/end/punctuation
+  // Examples: "# " , "#\n", "#.", "#," , "#)" , "#—"
+  s = s.replace(/(^|\s)#(?=\s|$|[.,;:!?)\]}>"'،؛…—–])/gu, "$1");
+
+  // Also remove trailing lone '#'
+  s = s.replace(/#\s*$/gu, "");
+
+  // Collapse spaces again
+  s = s.replace(/[ \t]{2,}/g, " ").trim();
+
+  return s;
+}
+
+function stripDirectionMarks(s: string) {
+  return String(s ?? "").replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+}
+
 /**
  * Remove unknown hashtags after replacements.
  */
 function pruneUnknownHashtags(text: string, whitelist: Set<string>) {
   if (whitelist.size === 0) return text;
 
+  text = stripDirectionMarks(text);
+  
   const out = text.replace(/(^|\s)#([\p{L}\p{N}_]+)/gu, (_full, lead, tag) => {
     const t = String(tag ?? "").trim();
     if (!t) return lead;
     if (whitelist.has(t)) return `${lead}#${t}`;
-    return lead;
+    return lead; // remove unknown hashtag completely
   });
 
-  return out
+  return removeDanglingHashtags(out)
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
