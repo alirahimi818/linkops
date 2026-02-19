@@ -12,7 +12,6 @@ export function getAIProvider(env: Env): AIProvider {
     case "xai":
       return new XAIProvider(env);
     case "cloudflare":
-      return new CloudflareAIProvider(env);
     default:
       return new CloudflareAIProvider(env);
   }

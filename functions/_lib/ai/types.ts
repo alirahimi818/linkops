@@ -11,28 +11,20 @@ export type Tone =
   | "neutral";     // خنثی، بی‌طرف
 
 export type GenerateInput = {
+  // Optional X URL input
   x_url?: string;
-  // Persian inputs
+
   title_fa: string;
   description_fa: string;
   need_fa: string;
   comment_type_fa: string;
 
   tone: Tone;
-
-  // Fixed domain/topic, but keep field for logging
   stream: "political";
   topic: "iran_revolution_jan_2026";
-
-  // whitelist hashtags (with or without leading #)
   allowed_hashtags: string[];
-
   count: number;
-
-  // Examples to steer style
-  examples?: Array<{
-    text: string; // English sample
-  }>;
+  examples?: Array<{ text: string }>;
 };
 
 export type DraftComment = {
@@ -49,9 +41,7 @@ export type FinalComment = {
 };
 
 export type FinalOutput = {
-  comments: Array<{ text: string; translation_text: string }>;
-
-  // Optional autofill fields
+  comments: FinalComment[];
   meta?: {
     title?: string;
     description?: string;
@@ -76,11 +66,11 @@ export type AIChatRequest = {
   max_tokens?: number;
   mode?: "admin" | "public";
 
-  // xAI server-side tools support (ignored by Cloudflare)
+  // Optional tool support (used by xAI Responses API)
   tools?: any[];
-  tool_choice?: "none" | "auto" | "required" | { type: "function"; name: string };
+  tool_choice?: any;
+  response_format?: any;
   max_turns?: number;
-  response_format?: { type: "text" | "json_object" | "json_schema"; json_schema?: any };
 };
 
 export type AIChatResponse = {

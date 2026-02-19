@@ -1,31 +1,40 @@
 // providers/xai.ts
 import type { AIProvider, AIChatRequest, AIChatResponse } from "../types";
 
-type AIModelMode = "admin" | "public";
-
-function getModel(env: Env, mode: AIModelMode): string {
+function getModel(env: Env, mode: "admin" | "public"): string {
   const adminModel = (env as any).AI_MODEL_ADMIN;
   const publicModel = (env as any).AI_MODEL_PUBLIC;
 
   if (mode === "admin" && typeof adminModel === "string" && adminModel.trim()) return adminModel.trim();
   if (mode === "public" && typeof publicModel === "string" && publicModel.trim()) return publicModel.trim();
 
-  return "grok-2-latest";
+  const fallback = (env as any).AI_MODEL;
+  if (typeof fallback === "string" && fallback.trim()) return fallback.trim();
+
+  return "grok-4-1-fast-reasoning";
 }
 
-async function fetchJson(url: string, init: RequestInit): Promise<any> {
-  const res = await fetch(url, init);
-  const txt = await res.text();
+function toResponsesInput(messages: Array<{ role: string; content: string }>) {
+  return messages.map((m) => ({
+    role: m.role,
+    content: [{ type: "text", text: String(m.content ?? "") }],
+  }));
+}
 
-  if (!res.ok) {
-    throw new Error(`XAI_HTTP_${res.status}: ${txt.slice(0, 500)}`);
+function extractText(data: any): string {
+  if (typeof data?.output_text === "string") return data.output_text;
+
+  const out = Array.isArray(data?.output) ? data.output : [];
+  const texts: string[] = [];
+
+  for (const block of out) {
+    const content = Array.isArray(block?.content) ? block.content : [];
+    for (const c of content) {
+      if (typeof c?.text === "string") texts.push(c.text);
+    }
   }
 
-  try {
-    return JSON.parse(txt);
-  } catch {
-    throw new Error(`XAI_INVALID_JSON: ${txt.slice(0, 500)}`);
-  }
+  return texts.join("").trim();
 }
 
 export class XAIProvider implements AIProvider {
@@ -35,51 +44,45 @@ export class XAIProvider implements AIProvider {
   constructor(private env: Env) {}
 
   async chat(req: AIChatRequest): Promise<AIChatResponse> {
-    const mode: AIModelMode = req.mode === "admin" ? "admin" : "public";
+    const mode = req.mode === "admin" ? "admin" : "public";
     const model = getModel(this.env, mode);
     this.model = model;
 
     const apiKey = (this.env as any).XAI_API_KEY;
-    if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
-      throw new Error("MISSING_XAI_API_KEY");
-    }
+    if (!apiKey) throw new Error("MISSING_XAI_API_KEY");
 
-    const baseUrl = String((this.env as any).XAI_BASE_URL || "https://api.x.ai").trim();
-    const url = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
-
-    const payload: any = {
+    const body: any = {
       model,
-      messages: req.messages,
+      input: toResponsesInput(req.messages),
+      temperature: req.temperature ?? 0.7,
+      max_output_tokens: req.max_tokens ?? 1000,
+      store: false,
     };
 
-    if (typeof req.temperature === "number") payload.temperature = req.temperature;
-    if (typeof req.max_tokens === "number") payload.max_tokens = req.max_tokens;
+    // Tooling support (x_search)
+    if (Array.isArray(req.tools) && req.tools.length) body.tools = req.tools;
+    if (req.tool_choice !== undefined) body.tool_choice = req.tool_choice;
+    if (req.response_format !== undefined) body.response_format = req.response_format;
+    if (typeof req.max_turns === "number") body.max_turns = req.max_turns;
 
-    // Server-side tools (x_search/web_search/etc.)
-    if (Array.isArray(req.tools) && req.tools.length > 0) payload.tools = req.tools;
-    if (req.tool_choice) payload.tool_choice = req.tool_choice;
-    if (typeof req.max_turns === "number") payload.max_turns = req.max_turns;
-
-    // JSON output mode (optional)
-    if (req.response_format) payload.response_format = req.response_format;
-
-    const raw = await fetchJson(url, {
+    const res = await fetch("https://api.x.ai/v1/responses", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${apiKey.trim()}`,
+        authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
-    const content =
-      raw &&
-      typeof raw === "object" &&
-      Array.isArray((raw as any).choices) &&
-      (raw as any).choices[0]?.message?.content
-        ? String((raw as any).choices[0].message.content)
-        : JSON.stringify(raw);
+    const data = await res.json().catch(() => null);
 
-    return { content, raw };
+    if (!res.ok) {
+      const msg =
+        (data && (data.error?.message || data.error || data.message)) ||
+        `XAI_HTTP_${res.status}`;
+      throw new Error(String(msg));
+    }
+
+    return { content: extractText(data), raw: data };
   }
 }
