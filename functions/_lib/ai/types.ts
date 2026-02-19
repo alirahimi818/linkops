@@ -66,11 +66,10 @@ export type AIChatRequest = {
   max_tokens?: number;
   mode?: "admin" | "public";
 
-  // Optional tool support (used by xAI Responses API)
+  // optional tool support (xAI)
   tools?: any[];
   tool_choice?: any;
-  response_format?: any;
-  max_turns?: number;
+  parallel_tool_calls?: boolean;
 };
 
 export type AIChatResponse = {

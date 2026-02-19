@@ -298,9 +298,7 @@ export async function runGenerateCommentsJob(
         max_tokens: 1200,
         validate: (raw) => parseXContext(raw),
         tools: [{ type: "x_search" }],
-        tool_choice: "auto",
-        max_turns: 4,
-        response_format: enableJsonObject ? { type: "json_object" } : undefined,
+        tool_choice: "auto"
       });
 
       meta = buildAutofillMeta(x_url, xContext);
