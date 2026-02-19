@@ -4,20 +4,14 @@ import type { DraftOutput, FinalOutput, GenerateInput } from "./types";
 // Prompts
 import { buildDraftPrompt } from "./prompts/draft_en";
 import { buildTranslateToFaTextPrompt } from "./prompts/translate_to_fa_text";
+import { buildFetchXContextPrompt } from "./prompts/fetch_x_context";
 
 // Validators
-import {
-  validateDraftOutput,
-  validateTranslationBatchOutput,
-} from "./validate";
+import { validateDraftOutput, validateTranslationBatchOutput } from "./validate";
 
 /* ------------------------------ DB helpers ------------------------------ */
 
-export async function getRandomItemCommentExamples(
-  env: Env,
-  itemId: string,
-  limit = 5,
-) {
+export async function getRandomItemCommentExamples(env: Env, itemId: string, limit = 5) {
   const res = await env.DB.prepare(
     `SELECT text, translation_text
      FROM item_comments
@@ -31,9 +25,7 @@ export async function getRandomItemCommentExamples(
   return (res.results || [])
     .map((r) => ({
       text: String(r.text || "").trim(),
-      translation_text: r.translation_text
-        ? String(r.translation_text).trim()
-        : undefined,
+      translation_text: r.translation_text ? String(r.translation_text).trim() : undefined,
     }))
     .filter((e) => e.text.length > 0);
 }
@@ -55,15 +47,7 @@ export async function insertItemComment(
     `INSERT INTO item_comments (id, item_id, text, translation_text, author_type, author_id, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
   )
-    .bind(
-      id,
-      args.item_id,
-      args.text,
-      args.translation_text ?? null,
-      args.author_type,
-      args.author_id ?? null,
-      now,
-    )
+    .bind(id, args.item_id, args.text, args.translation_text ?? null, args.author_type, args.author_id ?? null, now)
     .run();
 
   return { id, created_at: now };
@@ -125,6 +109,60 @@ export async function addJobMessages(
 
 /* ------------------------------ Runner ------------------------------ */
 
+type XContext = { post_text: string; reply_texts: string[] };
+
+function parseXContext(raw: string): XContext {
+  const t = String(raw || "").trim();
+  let obj: any = null;
+
+  try {
+    obj = JSON.parse(t);
+  } catch {
+    const start = t.indexOf("{");
+    const end = t.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      obj = JSON.parse(t.slice(start, end + 1));
+    } else {
+      throw new Error("INVALID_X_CONTEXT_JSON");
+    }
+  }
+
+  if (!obj || typeof obj !== "object") throw new Error("INVALID_X_CONTEXT_SHAPE");
+
+  const post_text = String(obj.post_text || "").trim();
+  const reply_texts = Array.isArray(obj.reply_texts)
+    ? obj.reply_texts
+        .map((x: any) => String(x || "").replace(/[\r\n]/g, " ").trim())
+        .filter(Boolean)
+    : [];
+
+  return { post_text, reply_texts };
+}
+
+function buildAutofillMeta(x_url: string, ctx: XContext) {
+  const post = String(ctx.post_text || "").replace(/\s+/g, " ").trim();
+  const replies = Array.isArray(ctx.reply_texts) ? ctx.reply_texts : [];
+
+  const title = post ? post.slice(0, 120) : "پست X";
+  const description = [
+    post ? `متن پست:\n${post}` : "",
+    replies.length ? `\n\nنمونه ریپلای‌ها:\n- ${replies.slice(0, 8).join("\n- ")}` : "",
+  ]
+    .join("")
+    .trim()
+    .slice(0, 2000);
+
+  return {
+    title,
+    description,
+    source: {
+      x_url,
+      post_text: post,
+      reply_texts: replies.slice(0, 12),
+    },
+  };
+}
+
 export async function runGenerateCommentsJob(
   env: Env,
   args: {
@@ -141,27 +179,17 @@ export async function runGenerateCommentsJob(
   // Stage1 token budget
   const max_tokens_stage1 = args.mode === "admin" ? 2400 : 900;
 
-  // Stage2 token budget (batch)
-  const max_tokens_stage2 = Math.max(650, 140 * args.input.count);
+  // Stage2 token budget (batch) - will be computed after effectiveInput is ready
 
-  // Mark job running + store provider/model/config
   await env.DB.prepare(
     "UPDATE ai_jobs SET status='running', started_at=?1, provider=?2, model=?3, temperature=?4, max_tokens=?5 WHERE id=?6",
   )
-    .bind(
-      new Date().toISOString(),
-      provider.name,
-      (provider as any).model ?? null,
-      temperature,
-      max_tokens_stage1,
-      args.job_id,
-    )
+    .bind(new Date().toISOString(), provider.name, (provider as any).model ?? null, temperature, max_tokens_stage1, args.job_id)
     .run();
 
   function shouldRetry(errMsg: string) {
     const m = String(errMsg || "");
 
-    // We only retry once, so keep this permissive.
     return (
       m.includes("INVALID_JSON_OUTPUT") ||
       m.includes("INVALID_JSON") ||
@@ -173,9 +201,14 @@ export async function runGenerateCommentsJob(
       m.includes("HASHTAGS_NOT_ALLOWED") ||
       m.includes("Expected ',' or '}'") ||
       m.includes("Unterminated string") ||
-      // Batch translation errors:
       m.includes("INVALID_TRANSLATION_JSON_SHAPE") ||
-      m.includes("INVALID_TRANSLATION_COUNT")
+      m.includes("INVALID_TRANSLATION_COUNT") ||
+      // Tool related / transient errors
+      m.toLowerCase().includes("tool") ||
+      m.toLowerCase().includes("x_search") ||
+      m.toLowerCase().includes("timeout") ||
+      m.toLowerCase().includes("rate") ||
+      m.toLowerCase().includes("temporar")
     );
   }
 
@@ -187,12 +220,23 @@ export async function runGenerateCommentsJob(
       .run();
   }
 
-  async function runChatOnce(params: { messages: any[]; max_tokens: number }) {
+  async function runChatOnce(params: {
+    messages: any[];
+    max_tokens: number;
+    tools?: any[];
+    tool_choice?: any;
+    response_format?: any;
+    max_turns?: number;
+  }) {
     const resp = await provider.chat({
       messages: params.messages,
       temperature,
       max_tokens: params.max_tokens,
       mode: args.mode,
+      tools: params.tools,
+      tool_choice: params.tool_choice,
+      response_format: params.response_format,
+      max_turns: params.max_turns,
     });
 
     await storeAssistant(resp.content);
@@ -205,47 +249,88 @@ export async function runGenerateCommentsJob(
     retryNudge: string;
     validate: (raw: string) => T;
     max_tokens: number;
+
+    tools?: any[];
+    tool_choice?: any;
+    response_format?: any;
+    max_turns?: number;
   }): Promise<T> {
-    const { stageLabel, baseMessages, retryNudge, validate, max_tokens } =
-      params;
+    const { stageLabel, baseMessages, retryNudge, validate, max_tokens, tools, tool_choice, response_format, max_turns } = params;
 
     await addJobMessages(env, args.job_id, baseMessages);
 
     try {
-      const raw1 = await runChatOnce({ messages: baseMessages, max_tokens });
+      const raw1 = await runChatOnce({ messages: baseMessages, max_tokens, tools, tool_choice, response_format, max_turns });
       return validate(raw1);
     } catch (e1: any) {
       const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
       if (!shouldRetry(msg1)) throw e1;
 
       await addJobMessages(env, args.job_id, [
-        {
-          role: "user",
-          content: `[RETRY:${stageLabel}] previous output invalid. Return strict output only.`,
-        },
+        { role: "user", content: `[RETRY:${stageLabel}] previous output invalid. Return strict output only.` },
       ]);
 
-      const retryMessages = [
-        ...baseMessages,
-        { role: "user", content: retryNudge },
-      ];
+      const retryMessages = [...baseMessages, { role: "user", content: retryNudge }];
 
-      const raw2 = await runChatOnce({ messages: retryMessages, max_tokens });
+      const raw2 = await runChatOnce({ messages: retryMessages, max_tokens, tools, tool_choice, response_format, max_turns });
       return validate(raw2);
     }
   }
 
   try {
+    let effectiveInput: GenerateInput = args.input;
+    let meta: FinalOutput["meta"] | undefined = undefined;
+
+    /* ------------------------------ Stage 0: Fetch X context (optional) ------------------------------ */
+    if (args.input.x_url && args.input.x_url.trim()) {
+      if (provider.name !== "xai") throw new Error("X_URL_REQUIRES_XAI_PROVIDER");
+
+      const x_url = args.input.x_url.trim();
+      const xMessages = buildFetchXContextPrompt({ x_url });
+
+      // If response_format is not supported, you can disable it via env flag.
+      const enableJsonObject = String((env as any).XAI_RESPONSE_JSON_OBJECT || "").trim() === "1";
+
+      const xContext: XContext = await runStageJsonWithOneRetry<XContext>({
+        stageLabel: "FETCH_X_CONTEXT",
+        baseMessages: xMessages,
+        retryNudge: 'Fix your output. Return ONLY valid JSON exactly: {"post_text":string,"reply_texts":string[]}. No extra keys.',
+        max_tokens: 1200,
+        validate: (raw) => parseXContext(raw),
+        tools: [{ type: "x_search" }],
+        tool_choice: "auto",
+        max_turns: 4,
+        response_format: enableJsonObject ? { type: "json_object" } : undefined,
+      });
+
+      meta = buildAutofillMeta(x_url, xContext);
+
+      const repliesBlock =
+        xContext.reply_texts.length > 0
+          ? `\n\nنمونه‌ای از ریپلای‌های واقعی:\n- ${xContext.reply_texts.slice(0, 8).join("\n- ")}`
+          : "";
+
+      effectiveInput = {
+        ...args.input,
+        title_fa: "متن پست X:",
+        description_fa: (String(xContext.post_text || "") + repliesBlock).trim(),
+        need_fa: "چند ریپلای کوتاه و واقعی برای این پست بنویس (متناسب با لحن انتخاب‌شده).",
+        comment_type_fa: args.input.comment_type_fa || "ریپلای کوتاه",
+      };
+    }
+
+    const max_tokens_stage2 = Math.max(650, 140 * effectiveInput.count);
+
     /* ------------------------------ Stage 1: Draft (EN JSON) ------------------------------ */
 
-    const draftMessages = buildDraftPrompt(args.input);
+    const draftMessages = buildDraftPrompt(effectiveInput);
 
     const draftRetryNudge =
       "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
       `Schema: {"comments":[{"text":string}]}. ` +
       "Top-level JSON must contain ONLY the key 'comments'. " +
       "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
-      `comments.length MUST equal ${args.input.count}. ` +
+      `comments.length MUST equal ${effectiveInput.count}. ` +
       "Each text must be English and single-line. " +
       "Match the examples' style: strong, specific; not generic. " +
       "Use @mentions and whitelisted hashtags naturally when appropriate. " +
@@ -260,8 +345,8 @@ export async function runGenerateCommentsJob(
       validate: (raw) =>
         validateDraftOutput({
           raw,
-          count: args.input.count,
-          allowed_hashtags: args.input.allowed_hashtags,
+          count: effectiveInput.count,
+          allowed_hashtags: effectiveInput.allowed_hashtags,
         }),
     });
 
@@ -271,9 +356,9 @@ export async function runGenerateCommentsJob(
 
     const translateMessages = buildTranslateToFaTextPrompt({
       texts_en: sources_en,
-      tone: args.input.tone,
-      stream: args.input.stream,
-      topic: args.input.topic,
+      tone: effectiveInput.tone,
+      stream: effectiveInput.stream,
+      topic: effectiveInput.topic,
     } as any);
 
     const translateRetryNudge =
@@ -308,11 +393,12 @@ export async function runGenerateCommentsJob(
       });
     }
 
-    const finalOut: FinalOutput = { comments: finalComments };
+    const finalOut: FinalOutput = {
+      comments: finalComments,
+      meta,
+    };
 
-    await env.DB.prepare(
-      "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
-    )
+    await env.DB.prepare("UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2")
       .bind(new Date().toISOString(), args.job_id)
       .run();
 
@@ -320,9 +406,7 @@ export async function runGenerateCommentsJob(
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
 
-    await env.DB.prepare(
-      "UPDATE ai_jobs SET status='failed', error=?1, finished_at=?2 WHERE id=?3",
-    )
+    await env.DB.prepare("UPDATE ai_jobs SET status='failed', error=?1, finished_at=?2 WHERE id=?3")
       .bind(msg, new Date().toISOString(), args.job_id)
       .run();
 

@@ -867,3 +867,36 @@ export async function adminGenerateAIComments(
     { auth: true },
   );
 }
+
+export type AdminAutofillFromXResponse = {
+  ok: true;
+  title: string;
+  description: string;
+  comments: Array<{ text: string; translation_text: string | null }>;
+};
+
+export async function adminAutofillFromX(args: {
+  x_url: string;
+  count: number;
+  tone?: string;
+}): Promise<AdminAutofillFromXResponse> {
+  const res = await fetch("/api/admin/x/autofill", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(args),
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const msg =
+      (data && (data.error || data.message)) ||
+      "Auto-fill از لینک X ناموفق بود.";
+    const err: any = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+
+  return data as AdminAutofillFromXResponse;
+}

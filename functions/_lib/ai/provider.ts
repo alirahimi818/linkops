@@ -1,5 +1,6 @@
 import type { AIProvider, AIProviderName } from "./types";
 import { CloudflareAIProvider } from "./providers/cloudflare";
+import { XAIProvider } from "./providers/xai";
 
 function getProviderName(env: Env): AIProviderName {
   return (env.AI_PROVIDER as AIProviderName) || "cloudflare";
@@ -8,6 +9,8 @@ function getProviderName(env: Env): AIProviderName {
 export function getAIProvider(env: Env): AIProvider {
   const name = getProviderName(env);
   switch (name) {
+    case "xai":
+      return new XAIProvider(env);
     case "cloudflare":
       return new CloudflareAIProvider(env);
     default:

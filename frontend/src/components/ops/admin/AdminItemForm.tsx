@@ -67,6 +67,9 @@ export default function AdminItemForm(props: {
   // actions
   onSubmit: (fixedUrl: string) => Promise<void>;
   onCancelEdit: () => void;
+  
+  autoFilling: boolean;
+  onAutofillFromX: () => Promise<void>;
 }) {
   function validateBeforeSave(currentComments: CommentDraft[]) {
     if (props.whitelist.size === 0) return null;
@@ -191,6 +194,20 @@ export default function AdminItemForm(props: {
             }}
             placeholder="لینک (URL)"
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="info"
+              onClick={() => props.onAutofillFromX()}
+              disabled={props.saving || props.autoFilling || !props.url.trim()}
+            >
+              {props.autoFilling ? "در حال ساخت خودکار…" : "ساخت خودکار از لینک X"}
+            </Button>
+
+            <div className="text-xs text-zinc-500">
+              با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی تولید می‌گردد.
+            </div>
+          </div>
 
           <Select
             value={props.categoryId}

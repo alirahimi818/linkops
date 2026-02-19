@@ -11,6 +11,7 @@ export type Tone =
   | "neutral";     // خنثی، بی‌طرف
 
 export type GenerateInput = {
+  x_url?: string;
   // Persian inputs
   title_fa: string;
   description_fa: string;
@@ -48,8 +49,20 @@ export type FinalComment = {
 };
 
 export type FinalOutput = {
-  comments: FinalComment[];
+  comments: Array<{ text: string; translation_text: string }>;
+
+  // Optional autofill fields
+  meta?: {
+    title?: string;
+    description?: string;
+    source?: {
+      x_url?: string;
+      post_text?: string;
+      reply_texts?: string[];
+    };
+  };
 };
+
 
 // Provider chat types
 export type AIChatMessage = {
@@ -62,6 +75,12 @@ export type AIChatRequest = {
   temperature?: number;
   max_tokens?: number;
   mode?: "admin" | "public";
+
+  // xAI server-side tools support (ignored by Cloudflare)
+  tools?: any[];
+  tool_choice?: "none" | "auto" | "required" | { type: "function"; name: string };
+  max_turns?: number;
+  response_format?: { type: "text" | "json_object" | "json_schema"; json_schema?: any };
 };
 
 export type AIChatResponse = {
@@ -69,7 +88,7 @@ export type AIChatResponse = {
   raw?: unknown;
 };
 
-export type AIProviderName = "cloudflare" | "openai";
+export type AIProviderName = "cloudflare" | "openai" | "xai";
 
 export interface AIProvider {
   name: AIProviderName;

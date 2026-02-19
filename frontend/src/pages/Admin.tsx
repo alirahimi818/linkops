@@ -7,6 +7,7 @@ import {
   fetchActions,
   fetchCategories,
   fetchHashtagWhitelist,
+  adminAutofillFromX,
 } from "../lib/api";
 import type { Action, Category, HashtagWhitelistRow, ItemSuggestion } from "../lib/api";
 import { todayYYYYMMDD } from "../lib/date";
@@ -22,6 +23,7 @@ import {
   autoFixUrl,
   autoCategoryIdFromUrl,
   mapItemCommentsToDrafts,
+  isValidAbsoluteHttpUrl,
 } from "../lib/adminItemUtils";
 import type { CommentDraft } from "../components/ops/CommentsEditor";
 import AdminSuggestionsButton from "../components/ops/admin/AdminSuggestionsButton";
@@ -46,6 +48,8 @@ export default function Admin() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [availableActions, setAvailableActions] = useState<Action[]>([]);
   const [whitelist, setWhitelist] = useState<Set<string>>(new Set());
+
+  const [autoFilling, setAutoFilling] = useState(false);
 
   // Form fields
   const [title, setTitle] = useState("");
@@ -151,6 +155,61 @@ export default function Admin() {
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  async function onAutofillFromX() {
+    setError(null);
+
+    const fixedUrl = autoFixUrl(url || "");
+    setUrl(fixedUrl);
+
+    if (!fixedUrl.trim()) {
+      setError("لطفاً لینک X را وارد کنید.");
+      return;
+    }
+
+    if (!isValidAbsoluteHttpUrl(fixedUrl)) {
+      setError("لطفاً لینک را کامل وارد کنید (با http:// یا https://).");
+      return;
+    }
+
+    setAutoFilling(true);
+    try {
+      const out = await adminAutofillFromX({
+        x_url: fixedUrl.trim(),
+        count: 10,
+        tone: "demanding",
+      });
+
+      // Fill form fields
+      setTitle((out.title ?? "").trim());
+      setDescription((out.description ?? "").trim());
+
+      // Fill comments editor
+      const nextComments: CommentDraft[] = (out.comments ?? [])
+        .map((c) => ({
+          text: String(c.text ?? "").trim(),
+          translation_text:
+            typeof c.translation_text === "string" && c.translation_text.trim()
+              ? c.translation_text.trim()
+              : null,
+        }))
+        .filter((c) => c.text.length > 0);
+
+      setComments(nextComments);
+
+      // Auto category suggestion (already exists)
+      const id = autoCategoryIdFromUrl(categories, fixedUrl);
+      if (id && !categoryTouched) setCategoryIdProgrammatically(id);
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e: any) {
+      setError(e?.message ?? "Auto-fill ناموفق بود.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setAutoFilling(false);
+    }
+  }
+
 
   async function load() {
     setLoading(true);
@@ -317,6 +376,8 @@ export default function Admin() {
         setError={setError}
         onSubmit={onSubmit}
         onCancelEdit={resetForm}
+        autoFilling={autoFilling}
+        onAutofillFromX={onAutofillFromX}
       />
 
       <AdminItemList

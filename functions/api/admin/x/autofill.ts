@@ -1,8 +1,4 @@
-import {
-  createAIJob,
-  runGenerateCommentsJob,
-  insertItemComment,
-} from "../../../_lib/ai/runner";
+import { createAIJob, runGenerateCommentsJob } from "../../../_lib/ai/runner";
 import type { GenerateInput, Tone } from "../../../_lib/ai/types";
 import { requireAuth, requireRole } from "../_auth";
 
@@ -14,7 +10,8 @@ function clampInt(v: any, min: number, max: number, fallback: number) {
   if (i > max) return max;
   return i;
 }
-export function normalizeTone(v: any): Tone {
+
+function normalizeTone(v: any): Tone {
   const t = String(v || "").trim().toLowerCase();
   if (t === "angry") return "angry";
   if (t === "outraged") return "outraged";
@@ -26,13 +23,10 @@ export function normalizeTone(v: any): Tone {
   if (t === "sarcastic") return "sarcastic";
   if (t === "calm_firm") return "calm_firm";
   if (t === "neutral") return "neutral";
-  // Fallback (never default to empty emotion)
   return "demanding";
 }
 
 async function getAllowedHashtagsFromDb(env: Env): Promise<string[]> {
-  // IMPORTANT: Adjust table/column names to your schema.
-  // Assumption: table `allowed_hashtags` with `tag` column and `is_active=1`.
   const res = await env.DB.prepare(
     `SELECT tag
      FROM hashtag_whitelist
@@ -43,14 +37,6 @@ async function getAllowedHashtagsFromDb(env: Env): Promise<string[]> {
   return (res.results || [])
     .map((r) => String(r.tag || "").trim())
     .filter(Boolean);
-}
-
-function normalizeExamples(bodyExamples: any): Array<{ text: string }> {
-  const arr = Array.isArray(bodyExamples) ? bodyExamples : [];
-  return arr
-    .map((e: any) => ({ text: String(e?.text || "").trim() }))
-    .filter((e) => e.text.length > 0)
-    .slice(0, 10);
 }
 
 export async function onRequestPost(ctx: any): Promise<Response> {
@@ -71,55 +57,39 @@ export async function onRequestPost(ctx: any): Promise<Response> {
 
     // 2) Parse payload
     const body = await request.json();
-
-    const item_id = String(body.item_id || "").trim();
-    const save = body.save === true;
-
-    if (!item_id) {
-      return Response.json(
-        { ok: false, error: "MISSING_ITEM_ID" },
-        { status: 400 },
-      );
-    }
-
     const x_url = String(body.x_url || "").trim();
-    const title_fa = String(body.title_fa || "").trim();
-    const description_fa = String(body.description_fa || "").trim();
-    const need_fa = String(body.need_fa || "").trim();
-
-    const hasX = !!x_url;
-
-    if (!hasX) {
-      if (!title_fa || !description_fa || !need_fa) {
-        return Response.json({ ok: false, error: "MISSING_REQUIRED_FIELDS" }, { status: 400 });
-      }
+    if (!x_url) {
+      return Response.json({ ok: false, error: "MISSING_X_URL" }, { status: 400 });
     }
 
     const allowed_hashtags = await getAllowedHashtagsFromDb(env);
 
+    // IMPORTANT:
+    // This assumes you've added support for `x_url` in GenerateInput + runner logic.
+    // If you haven't yet, do that first (I'll show you in the next step if needed).
     const input: GenerateInput = {
-      x_url: hasX ? x_url : undefined,
+      x_url,
 
-      title_fa: hasX ? "" : title_fa,
-      description_fa: hasX ? "" : description_fa,
-      need_fa: hasX ? "" : need_fa,
+      // Keep these for backward compatibility; runner will override them internally when x_url exists.
+      title_fa: "",
+      description_fa: "",
+      need_fa: "",
       comment_type_fa: String(body.comment_type_fa || "ریپلای کوتاه").trim(),
-      tone: normalizeTone(body.tone),
 
+      tone: normalizeTone(body.tone),
       stream: "political",
       topic: "iran_revolution_jan_2026",
 
       allowed_hashtags,
       count: clampInt(body.count, 1, 30, 10),
-
-      examples: normalizeExamples(body.examples),
+      examples: [],
     };
 
-    // 3) Create job
+    // 3) Create job (separate job type)
     const job = await createAIJob(env, {
-      job_type: "generate_item_comments_admin",
-      target_type: "item",
-      target_id: item_id,
+      job_type: "admin_x_autofill",
+      target_type: "x_url",
+      target_id: null,
       requested_by_type: "admin",
       requested_by_id: String(adminId),
     });
@@ -131,29 +101,18 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       mode: "admin",
     });
 
-    // 5) Save comments to item_comments (append)
-    const saved_ids: string[] = [];
-    if (save) {
-      for (const c of output.comments) {
-        const saved = await insertItemComment(env, {
-          item_id,
-          text: c.text,
-          translation_text: c.translation_text, // may be ""
-          author_type: "ai",
-          author_id: null,
-        });
-        saved_ids.push(saved.id);
-      }
-    }
-
+    // 5) Return payload for filling the form
+    // Title/description can be computed in runner and returned, or you can keep it simple:
+    // For now: let frontend keep title/description as-is (or we enhance runner to return them)
     return Response.json({
       ok: true,
       job_id: job.id,
-      saved_comment_ids: saved_ids,
+      title: "",        // we will fill this after we add Stage0 extraction output
+      description: "",  // we will fill this after we add Stage0 extraction output
       comments: output.comments,
     });
   } catch (e: any) {
-    console.error("admin generate-comments failed:", e);
+    console.error("admin x autofill failed:", e);
 
     return new Response(
       JSON.stringify({
