@@ -3,6 +3,8 @@
 export function buildTranslateToFaTextPrompt(args: {
   texts_en: string[];
   tone?: string;
+  stream?: string;
+  topic?: string;
 }) {
   const texts = Array.isArray(args.texts_en) ? args.texts_en : [];
 
@@ -10,26 +12,35 @@ export function buildTranslateToFaTextPrompt(args: {
     {
       role: "system",
       content: [
-        "Translate each English line into Persian (Farsi).",
+        "Translate each English X/Twitter reply into Persian (Farsi).",
         "Return ONLY valid JSON and nothing else.",
         "",
-        "Output schema (MUST follow exactly):",
+        "You MUST follow this exact schema:",
         '{"translations":[{"text":"..."}]}',
         "",
         "Rules:",
-        "- The number of items in translations MUST equal the number of input lines.",
+        "- translations.length must equal the number of input lines.",
         "- Each translations[i].text must be a SINGLE LINE Persian translation.",
         "- Keep hashtags, mentions, and URLs EXACTLY unchanged.",
         "- No emojis. No explanations.",
-        "- If a line is unclear, set that item's text to an empty string.",
+        "- If a line is unclear, output an empty string for that item.",
         "",
-        "Example output:",
-        '{"translations":[{"text":"نمونه ترجمه ۱"},{"text":"نمونه ترجمه ۲"}]}',
+        "Example:",
+        '{"translations":[{"text":"ترجمه ۱"},{"text":"ترجمه ۲"}]}',
       ].join("\n"),
     },
     {
       role: "user",
-      content: JSON.stringify({ lines: texts, tone: args.tone ?? "neutral" }, null, 0),
+      content: JSON.stringify(
+        {
+          lines: texts,
+          tone: args.tone ?? "demanding",
+          stream: args.stream ?? "political",
+          topic: args.topic ?? "iran_revolution_jan_2026",
+        },
+        null,
+        0,
+      ),
     },
   ];
 }

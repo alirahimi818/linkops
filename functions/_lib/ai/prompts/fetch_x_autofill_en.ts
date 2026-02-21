@@ -3,8 +3,10 @@
 export function buildFetchXAutofillAndDraftEnPrompt(args: {
   x_url: string;
   count?: number;
-  allowed_hashtags?: string[];
   tone?: string;
+  stream?: string;
+  topic?: string;
+  allowed_hashtags?: string[];
 }) {
   const url = String(args.x_url || "").trim();
   const count = Math.max(5, Math.min(15, Number(args.count ?? 10)));
@@ -15,7 +17,8 @@ export function buildFetchXAutofillAndDraftEnPrompt(args: {
       role: "system",
       content: [
         "Open the provided X (Twitter) URL using x_search when possible.",
-        `Then write ${count} realistic English reply comments in the same vibe as the thread.`,
+        "Read the main post AND skim several replies to understand the thread vibe.",
+        "",
         "Return PLAIN TEXT only. No JSON. No markdown. No numbering.",
         "",
         "Output format (exact):",
@@ -24,18 +27,20 @@ export function buildFetchXAutofillAndDraftEnPrompt(args: {
         "- Then a line that is exactly: ---",
         `- Then exactly ${count} lines: each line is one English reply comment`,
         "",
-        "English comment requirements:",
-        "- Each line must be between 180 and 280 characters (inclusive).",
-        "- Each line must include 1-2 relevant hashtags.",
-        "- Use ONLY hashtags from the provided whitelist (if any).",
-        "- Optional: add a mention only if it is clearly relevant (do not invent random people).",
-        "- Grounded to the post content. Do not invent facts.",
-        "- No emojis.",
-        "- Avoid slurs and avoid hate phrasing.",
+        "Persian title/description requirements:",
+        "- Write a meaningful Persian title (not too short).",
+        "- Description must be 2-3 lines, each line a complete sentence.",
+        "- Include: who posted (name/handle if visible) + what the post claims + one brief hint about the thread vibe (from replies).",
+        "- Do not invent facts; only use what you can read on the page.",
         "",
-        "Persian meta requirements:",
-        "- title/description must be based only on the visible post.",
-        "- If you cannot identify who posted it, mention 'یک کاربر در X' in the description.",
+        "English reply requirements:",
+        "- Each line must be 180-280 characters (inclusive).",
+        "- Each line must include 1-2 relevant hashtags.",
+        "- Use ONLY hashtags from the whitelist (if provided).",
+        "- Mentions are allowed ONLY if clearly relevant to the post/thread (do not invent random handles).",
+        "- Mirror the dominant vibe of the replies (supportive/angry/sarcastic/etc.) while staying grounded to the post.",
+        "- No emojis.",
+        "- Avoid hate/slurs.",
       ].join("\n"),
     },
     {
@@ -43,7 +48,9 @@ export function buildFetchXAutofillAndDraftEnPrompt(args: {
       content: JSON.stringify(
         {
           x_url: url,
-          tone: String(args.tone || "").trim(),
+          stream: args.stream ?? "political",
+          topic: args.topic ?? "iran_revolution_jan_2026",
+          tone: args.tone ?? "demanding",
           hashtag_whitelist: tags,
         },
         null,

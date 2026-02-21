@@ -292,15 +292,6 @@ function stripCjkOutsideTagsMentions(text: string): string {
     .join("");
 }
 
-/**
- * Batch Stage2 schema (preferred):
- * {"translations":[{"text":string}]}
- *
- * Lenient behavior:
- * - If JSON shape mismatches, throw (so upstream can retry once)
- * - If count mismatches, pad/truncate to match sources_en length (no throw)
- * - For each item, if invalid -> "" (empty)
- */
 export function validateTranslationBatchOutput(args: {
   raw: string;
   sources_en: string[];
@@ -312,23 +303,54 @@ export function validateTranslationBatchOutput(args: {
   }
 
   const translationsRaw = (parsed as any).translations as any[];
+  const n = args.sources_en.length;
 
-  // Accept BOTH:
+  // Normalize possible shapes into string[]
+  // Accept:
   // 1) {"translations":[{"text":"..."}]}
   // 2) {"translations":["...","..."]}
-  const translationsNorm: string[] = translationsRaw.map((item: any) => {
+  let translationsNorm: string[] = translationsRaw.map((item: any) => {
     if (typeof item === "string") return item;
     if (item && typeof item === "object") return String(item.text ?? "");
     return "";
   });
 
-  const n = args.sources_en.length;
+  // Handle common failure mode:
+  // Model returns a single long blob instead of n items (or collapses into 1 object).
+  // Try to split into n lines if we only got 1 non-empty item.
+  if (translationsNorm.length === 1 && n > 1) {
+    const blob = String(translationsNorm[0] ?? "").trim();
+
+    // Try splitting by newlines first
+    let parts = blob
+      .split("\n")
+      .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+      .filter(Boolean);
+
+    // If still not enough parts, split by sentence endings after hashtags/mentions blocks
+    if (parts.length < n) {
+      parts = blob
+        .split(/(?<=#[\p{L}\p{N}_]+)\s*(?=[@#\p{L}\p{N}_])/gu)
+        .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+        .filter(Boolean);
+    }
+
+    // Last resort: split by punctuation boundaries (Persian/English)
+    if (parts.length < n) {
+      parts = blob
+        .split(/(?<=[.!?؟])\s+/g)
+        .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+        .filter(Boolean);
+    }
+
+    // Fit to n (pad/truncate)
+    translationsNorm = new Array(n).fill("").map((_, i) => parts[i] ?? "");
+  }
+
   const out: string[] = [];
 
   for (let i = 0; i < n; i++) {
     const src = String(args.sources_en[i] || "").trim();
-
-    // If missing, treat as empty (keeps backward compatible behavior)
     const rawText = String(translationsNorm[i] ?? "").trim();
 
     if (!rawText) {
@@ -365,7 +387,6 @@ export function validateTranslationBatchOutput(args: {
       continue;
     }
 
-    // Optional: require it to look Persian-ish outside tags/mentions
     const stripped = t
       .replace(/#[\p{L}\p{N}_]+/gu, " ")
       .replace(/@[\p{L}\p{N}_]+/gu, " ")
