@@ -8,6 +8,7 @@ import { buildFetchXContextPrompt } from "./prompts/fetch_x_context";
 
 // Validators
 import { validateDraftOutput, validateTranslationBatchOutput } from "./validate";
+import { fixFaTypography } from "../../utils/fix_fa_typography";
 
 /* ------------------------------ DB helpers ------------------------------ */
 
@@ -363,7 +364,7 @@ export async function runGenerateCommentsJob(
     for (let i = 0; i < sources_en.length; i++) {
       finalComments.push({
         text: sources_en[i],
-        translation_text: translations[i] ?? "",
+        translation_text: fixFaTypography(translations[i] ?? ""),
       });
     }
 

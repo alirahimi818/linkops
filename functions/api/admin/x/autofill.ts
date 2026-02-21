@@ -1,5 +1,6 @@
 import { createAIJob, runGenerateCommentsJob } from "../../../_lib/ai/runner";
 import type { GenerateInput, Tone } from "../../../_lib/ai/types";
+import { fixFaTypography } from "../../../utils/fix_fa_typography";
 import { requireAuth, requireRole } from "../_auth";
 
 function clampInt(v: any, min: number, max: number, fallback: number) {
@@ -107,8 +108,8 @@ export async function onRequestPost(ctx: any): Promise<Response> {
     return Response.json({
       ok: true,
       job_id: job.id,
-      title: "",        // we will fill this after we add Stage0 extraction output
-      description: "",  // we will fill this after we add Stage0 extraction output
+      title: fixFaTypography(output.meta?.title ?? ""),
+      description: fixFaTypography(output.meta?.description ?? ""),
       comments: output.comments,
     });
   } catch (e: any) {
