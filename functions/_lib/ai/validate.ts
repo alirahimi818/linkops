@@ -311,14 +311,25 @@ export function validateTranslationBatchOutput(args: {
     throw new Error("INVALID_TRANSLATION_JSON_SHAPE");
   }
 
-  const translationsArr = (parsed as any).translations as any[];
+  const translationsRaw = (parsed as any).translations as any[];
+
+  // Accept BOTH:
+  // 1) {"translations":[{"text":"..."}]}
+  // 2) {"translations":["...","..."]}
+  const translationsNorm: string[] = translationsRaw.map((item: any) => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") return String(item.text ?? "");
+    return "";
+  });
 
   const n = args.sources_en.length;
   const out: string[] = [];
 
   for (let i = 0; i < n; i++) {
     const src = String(args.sources_en[i] || "").trim();
-    const rawText = String(translationsArr[i]?.text ?? "").trim();
+
+    // If missing, treat as empty (keeps backward compatible behavior)
+    const rawText = String(translationsNorm[i] ?? "").trim();
 
     if (!rawText) {
       out.push("");

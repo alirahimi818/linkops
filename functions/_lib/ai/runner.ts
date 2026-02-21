@@ -283,6 +283,8 @@ export async function runGenerateCommentsJob(
         const messages = buildFetchXAutofillAndDraftEnPrompt({
           x_url,
           count: effectiveInput.count,
+          allowed_hashtags: effectiveInput.allowed_hashtags,
+          tone: effectiveInput.tone,
         });
 
         const retryNudge = [

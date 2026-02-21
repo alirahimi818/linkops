@@ -3,8 +3,6 @@
 export function buildTranslateToFaTextPrompt(args: {
   texts_en: string[];
   tone?: string;
-  stream?: string;
-  topic?: string;
 }) {
   const texts = Array.isArray(args.texts_en) ? args.texts_en : [];
 
@@ -12,31 +10,26 @@ export function buildTranslateToFaTextPrompt(args: {
     {
       role: "system",
       content: [
-        "You translate English X/Twitter replies into natural Persian (Farsi).",
+        "Translate each English line into Persian (Farsi).",
         "Return ONLY valid JSON and nothing else.",
-        'Schema: {"translations":[{"text":string}]}',
         "",
-        "Requirements:",
-        "- translations.length must equal the number of input lines.",
-        "- Each translation must be ONE single-line Persian sentence.",
+        "Output schema (MUST follow exactly):",
+        '{"translations":[{"text":"..."}]}',
+        "",
+        "Rules:",
+        "- The number of items in translations MUST equal the number of input lines.",
+        "- Each translations[i].text must be a SINGLE LINE Persian translation.",
         "- Keep hashtags, mentions, and URLs EXACTLY unchanged.",
-        "- No emojis.",
-        "- No explanations.",
-        "- If a line is unclear, output an empty string for that item.",
+        "- No emojis. No explanations.",
+        "- If a line is unclear, set that item's text to an empty string.",
         "",
-        "Write clean, natural Persian suitable for social media.",
+        "Example output:",
+        '{"translations":[{"text":"نمونه ترجمه ۱"},{"text":"نمونه ترجمه ۲"}]}',
       ].join("\n"),
     },
     {
       role: "user",
-      content: JSON.stringify(
-        {
-          lines: texts,
-          tone: args.tone ?? "neutral",
-        },
-        null,
-        0,
-      ),
+      content: JSON.stringify({ lines: texts, tone: args.tone ?? "neutral" }, null, 0),
     },
   ];
 }
