@@ -1,43 +1,42 @@
-import type { AIChatMessage, Tone } from "../types";
+// prompts/translate_to_fa_text.ts
 
 export function buildTranslateToFaTextPrompt(args: {
   texts_en: string[];
-  tone: Tone;
-  stream: "political";
-  topic: "iran_revolution_jan_2026";
-}): AIChatMessage[] {
-  const count = args.texts_en.length;
+  tone?: string;
+  stream?: string;
+  topic?: string;
+}) {
+  const texts = Array.isArray(args.texts_en) ? args.texts_en : [];
 
   return [
     {
       role: "system",
       content: [
-        "You translate English social media reply comments into Persian (fa).",
-        "Return ONLY valid JSON. No markdown. No extra text.",
+        "You translate English X/Twitter replies into Persian (Farsi).",
+        "Return ONLY valid JSON and nothing else.",
+        'Schema: {"translations":[{"text":string}]}',
         "",
-        "Output schema (strict):",
-        `- Return exactly: {"translations":[{"text":string}]}`,
-        `- translations.length MUST equal ${count}`,
-        '- Top-level JSON must contain ONLY the key "translations".',
-        "",
-        "Rules per item:",
-        "- Output text MUST be a single line (no line breaks).",
-        "- Keep hashtags (#...) and mentions (@...) EXACTLY unchanged (do not translate or edit them).",
-        "- Do NOT output any Chinese/Japanese/Korean characters.",
-        "- Translation does not need to be perfect; just natural Persian.",
-        "- If you are unsure, output an empty string for that item.",
+        "Rules:",
+        "- translations.length MUST equal the number of input lines.",
+        "- Each translation must be a SINGLE LINE in Persian.",
+        "- Keep hashtags (#...) and mentions (@...) EXACTLY unchanged.",
+        "- Keep URLs unchanged.",
+        "- No emojis.",
+        "- If any line is unclear, output an empty string for that item.",
       ].join("\n"),
     },
     {
       role: "user",
-      content: [
-        `Tone: ${args.tone}`,
-        `Stream: ${args.stream}`,
-        `Topic: ${args.topic}`,
-        "",
-        `Translate these ${count} texts into Persian. Return JSON only:`,
-        JSON.stringify({ texts: args.texts_en }, null, 0),
-      ].join("\n"),
+      content: JSON.stringify(
+        {
+          tone: args.tone ?? "neutral",
+          stream: args.stream ?? "",
+          topic: args.topic ?? "",
+          lines: texts,
+        },
+        null,
+        0,
+      ),
     },
   ];
 }

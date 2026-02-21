@@ -1,6 +1,6 @@
 import type { DraftOutput } from "./types";
 
-/* ------------------------------ Utils ------------------------------ */
+/* ------------------------------ Helpers ------------------------------ */
 
 function normalizeHashtags(tags: string[]): string[] {
   return (tags || [])
@@ -9,112 +9,9 @@ function normalizeHashtags(tags: string[]): string[] {
     .map((t) => (t.startsWith("#") ? t : `#${t}`));
 }
 
-function extractFirstJsonObject(raw: string): string | null {
-  const s = String(raw || "");
-  const start = s.indexOf("{");
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start; i < s.length; i++) {
-    const ch = s[i];
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-
-    if (ch === "{") depth++;
-    if (ch === "}") depth--;
-
-    if (depth === 0) return s.slice(start, i + 1);
-  }
-
-  return null;
+function isSingleLine(s: string) {
+  return !/[\r\n]/.test(String(s || ""));
 }
-
-
-/* ------------------------------ Stage 1 ------------------------------ */
-/**
- * Stage 1 output schema:
- * {"comments":[{"text":string}]}
- *
- * - English only (reject Arabic/Persian script)
- * - Each text single-line
- * - Hashtags in text must be from allowed whitelist
- * - comments.length MUST equal count
- */
-export function validateDraftOutput(args: {
-  raw: string;
-  count: number;
-  allowed_hashtags: string[];
-}): DraftOutput {
-  const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
-  const parsed = safeParseJson(args.raw);
-
-  const root =
-    parsed &&
-    typeof parsed === "object" &&
-    Array.isArray((parsed as any).comments)
-      ? (parsed as any)
-      : parsed &&
-          typeof parsed === "object" &&
-          (parsed as any).response &&
-          typeof (parsed as any).response === "object" &&
-          Array.isArray((parsed as any).response.comments)
-        ? (parsed as any).response
-        : null;
-
-  if (!root) throw new Error("INVALID_JSON_SHAPE");
-
-  if (root.comments.length !== args.count) {
-    throw new Error("INVALID_COMMENTS_COUNT");
-  }
-
-  const comments = root.comments.map((c: any, idx: number) => {
-    const text = String(c?.text || "").trim();
-
-    if (!text) throw new Error(`EMPTY_TEXT_${idx}`);
-    if (!isSingleLine(text)) throw new Error("INVALID_LINEBREAKS");
-
-    // Must be English: reject if Persian/Arabic appears
-    if (hasArabicScript(text)) {
-      throw new Error(`INVALID_TEXT_NOT_ENGLISH_${idx}`);
-    }
-
-    // Enforce hashtag whitelist based on text content
-    const inText = extractHashtagsFromText(text);
-
-    if (allowed.size === 0 && inText.length > 0) {
-      throw new Error(`HASHTAGS_NOT_ALLOWED_${idx}`);
-    }
-
-    for (const h of inText) {
-      if (!allowed.has(h)) {
-        throw new Error(`ILLEGAL_HASHTAG_IN_TEXT_${idx}`);
-      }
-    }
-
-    return { text };
-  });
-
-  return { comments };
-}
-
-/* ------------------------------ Extra utils for Stage2 batch ------------------------------ */
 
 function hasArabicScript(s: string) {
   return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(String(s || ""));
@@ -123,10 +20,6 @@ function hasArabicScript(s: string) {
 function hasCjkScript(s: string) {
   const t = String(s || "");
   return /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/.test(t);
-}
-
-function isSingleLine(s: string) {
-  return !/[\r\n]/.test(String(s || ""));
 }
 
 function extractHashtagsFromText(text: string): string[] {
@@ -164,16 +57,140 @@ function ensureSameMentionsAndHashtags(sourceText: string, translatedText: strin
   return true;
 }
 
-function looksLikeJsonOrWrappedOutput(s: string) {
+function looksLikeWrappedOrMarkdown(s: string) {
   const t = String(s || "").trim();
   if (!t) return false;
-  if (t.startsWith("{") || t.startsWith("[")) return true;
   if (t.startsWith("```") || t.includes("```")) return true;
-  if (/^\s*("?response"?\s*:)/i.test(t)) return true;
-  if (/^output\s*:/i.test(t)) return true;
-  if (/^translation\s*:/i.test(t)) return true;
+  if (t.startsWith("{") || t.startsWith("[")) return true;
   return false;
 }
+
+function safeParseJson(raw: string): any | null {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t);
+  } catch {
+    // If it is not JSON, we treat it as plain text.
+    return null;
+  }
+}
+
+function stripCodeFences(text: string) {
+  let s = String(text || "");
+  s = s.replace(/```[\s\S]*?```/g, " ");
+  return s;
+}
+
+function stripBulletsAndNumbering(line: string) {
+  // remove common leading bullets/numbering like:
+  // "- ", "* ", "1) ", "1. ", "• "
+  return String(line || "")
+    .replace(/^\s*(?:[-*•]|(\d+)[\.\)]|(\d+)\s+-)\s+/u, "")
+    .trim();
+}
+
+function normalizeLine(line: string) {
+  return String(line || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function removeIllegalHashtags(text: string, allowed: Set<string>) {
+  if (allowed.size === 0) {
+    // if no whitelist, just remove all hashtags to be safe
+    return String(text || "").replace(/#[\p{L}\p{N}_]+/gu, "").replace(/[ \t]{2,}/g, " ").trim();
+  }
+
+  return String(text || "").replace(/#[\p{L}\p{N}_]+/gu, (m) => {
+    const tag = m.trim();
+    return allowed.has(tag) ? tag : "";
+  }).replace(/[ \t]{2,}/g, " ").trim();
+}
+
+function dedupeCaseInsensitive(lines: string[], maxItems: number) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const l of lines) {
+    const key = l.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
+    if (out.length >= maxItems) break;
+  }
+
+  return out;
+}
+
+/* ------------------------------ Stage 1 (Draft) ------------------------------ */
+/**
+ * Accepts either:
+ * - Plain text: one comment per line (recommended)
+ * - JSON: {"comments":[{"text": "..."}]}
+ *
+ * Returns DraftOutput with lenient cleanup:
+ * - NEVER enforces count
+ * - Drops invalid lines instead of throwing (unless nothing usable)
+ * - Removes illegal hashtags instead of throwing
+ */
+export function validateDraftOutput(args: {
+  raw: string;
+  count: number; // kept for compatibility, not enforced
+  allowed_hashtags: string[];
+}): DraftOutput {
+  const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
+  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2)); // allow extra headroom
+
+  const parsed = safeParseJson(args.raw);
+
+  let candidates: string[] = [];
+
+  // Case A: JSON output
+  if (parsed && typeof parsed === "object" && Array.isArray((parsed as any).comments)) {
+    candidates = (parsed as any).comments
+      .map((c: any) => normalizeLine(String(c?.text || "")))
+      .filter(Boolean);
+  } else {
+    // Case B: Plain text output
+    const cleaned = stripCodeFences(args.raw);
+    candidates = String(cleaned || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((l) => stripBulletsAndNumbering(normalizeLine(l)))
+      .filter(Boolean);
+  }
+
+  // Normalize + filter hard constraints
+  let lines = candidates
+    .map((l) => normalizeLine(l))
+    .map((l) => l.replace(/[\r\n]/g, " ").trim())
+    .filter((l) => l.length > 0)
+    .filter((l) => isSingleLine(l))
+    // If model accidentally outputs Persian/Arabic or CJK in the English draft, drop the line
+    .filter((l) => !hasArabicScript(l))
+    .filter((l) => !hasCjkScript(l))
+    // Remove wrapper-y artifacts
+    .filter((l) => !looksLikeWrappedOrMarkdown(l));
+
+  // Remove illegal hashtags (do not fail)
+  lines = lines.map((l) => removeIllegalHashtags(l, allowed)).filter(Boolean);
+
+  // Dedupe + cap
+  lines = dedupeCaseInsensitive(lines, maxItems);
+
+  if (lines.length === 0) {
+    // One retry is fine, but don't keep failing silently; signal upstream
+    throw new Error("NO_USABLE_DRAFT_LINES");
+  }
+
+  return {
+    comments: lines.map((text) => ({ text })),
+  };
+}
+
+/* ------------------------------ Stage 2 (Translation) ------------------------------ */
 
 function normalizeTranslationText(raw: string) {
   return String(raw || "")
@@ -197,58 +214,14 @@ function stripCjkOutsideTagsMentions(text: string): string {
     .join("");
 }
 
-/* ------------------------------ Stage 2: Batch translation validator ------------------------------ */
-
-function safeParseJson(raw: string): any {
-  const trimmed = String(raw || "").trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    // Very small fallback: try to extract first {...}
-    const start = trimmed.indexOf("{");
-    if (start === -1) throw new Error("INVALID_JSON_OUTPUT");
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-
-    for (let i = start; i < trimmed.length; i++) {
-      const ch = trimmed[i];
-
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (ch === "\\") escaped = true;
-        else if (ch === '"') inString = false;
-        continue;
-      }
-
-      if (ch === '"') {
-        inString = true;
-        continue;
-      }
-
-      if (ch === "{") depth++;
-      if (ch === "}") depth--;
-
-      if (depth === 0) {
-        const extracted = trimmed.slice(start, i + 1);
-        try {
-          return JSON.parse(extracted);
-        } catch {
-          throw new Error("INVALID_JSON_OUTPUT");
-        }
-      }
-    }
-
-    throw new Error("INVALID_JSON_OUTPUT");
-  }
-}
-
 /**
- * Batch Stage2 schema:
+ * Batch Stage2 schema (preferred):
  * {"translations":[{"text":string}]}
  *
- * Returns a string[] where invalid items are set to "" (empty).
- * This is intentionally lenient to avoid wasting retries.
+ * Lenient behavior:
+ * - If JSON shape mismatches, throw (so upstream can retry once)
+ * - If count mismatches, pad/truncate to match sources_en length (no throw)
+ * - For each item, if invalid -> "" (empty)
  */
 export function validateTranslationBatchOutput(args: {
   raw: string;
@@ -256,45 +229,29 @@ export function validateTranslationBatchOutput(args: {
 }): string[] {
   const parsed = safeParseJson(args.raw);
 
-  // Unwrap common wrapper if present (optional). If you want strict reject, remove this.
-  const root =
-    parsed &&
-    typeof parsed === "object" &&
-    Array.isArray((parsed as any).translations)
-      ? (parsed as any)
-      : parsed &&
-          typeof parsed === "object" &&
-          (parsed as any).response &&
-          typeof (parsed as any).response === "object" &&
-          Array.isArray((parsed as any).response.translations)
-        ? (parsed as any).response
-        : null;
-
-  if (!root) throw new Error("INVALID_TRANSLATION_JSON_SHAPE");
-
-  if (root.translations.length !== args.sources_en.length) {
-    throw new Error("INVALID_TRANSLATION_COUNT");
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as any).translations)) {
+    throw new Error("INVALID_TRANSLATION_JSON_SHAPE");
   }
 
+  const translationsArr = (parsed as any).translations as any[];
+
+  const n = args.sources_en.length;
   const out: string[] = [];
 
-  for (let i = 0; i < args.sources_en.length; i++) {
+  for (let i = 0; i < n; i++) {
     const src = String(args.sources_en[i] || "").trim();
-    const rawText = String(root.translations[i]?.text ?? "").trim();
+    const rawText = String(translationsArr[i]?.text ?? "").trim();
 
-    // Default: empty string if anything looks suspicious
     if (!rawText) {
       out.push("");
       continue;
     }
 
-    // Guard wrappers/JSON in item text (rare but possible)
-    if (looksLikeJsonOrWrappedOutput(rawText)) {
+    if (looksLikeWrappedOrMarkdown(rawText)) {
       out.push("");
       continue;
     }
 
-    // Normalize + best-effort strip CJK outside tags/mentions
     let t = normalizeTranslationText(rawText);
     t = stripCjkOutsideTagsMentions(t);
     t = normalizeTranslationText(t);
@@ -304,19 +261,16 @@ export function validateTranslationBatchOutput(args: {
       continue;
     }
 
-    // Must be single line
     if (!isSingleLine(t)) {
       out.push("");
       continue;
     }
 
-    // Hard reject any remaining CJK (including inside tags/mentions)
     if (hasCjkScript(t)) {
       out.push("");
       continue;
     }
 
-    // Tags/mentions must match exactly as multiset
     if (!ensureSameMentionsAndHashtags(src, t)) {
       out.push("");
       continue;

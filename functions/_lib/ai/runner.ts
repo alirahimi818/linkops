@@ -120,11 +120,8 @@ function parseXContext(raw: string): XContext {
   } catch {
     const start = t.indexOf("{");
     const end = t.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      obj = JSON.parse(t.slice(start, end + 1));
-    } else {
-      throw new Error("INVALID_X_CONTEXT_JSON");
-    }
+    if (start >= 0 && end > start) obj = JSON.parse(t.slice(start, end + 1));
+    else throw new Error("INVALID_X_CONTEXT_JSON");
   }
 
   if (!obj || typeof obj !== "object") throw new Error("INVALID_X_CONTEXT_SHAPE");
@@ -173,42 +170,35 @@ export async function runGenerateCommentsJob(
 ): Promise<FinalOutput> {
   const provider = getAIProvider(env);
 
-  // Stage1 quality knobs
   const temperature = args.mode === "admin" ? 0.55 : 0.7;
-
-  // Stage1 token budget
-  const max_tokens_stage1 = args.mode === "admin" ? 2400 : 900;
-
-  // Stage2 token budget (batch) - will be computed after effectiveInput is ready
+  const max_tokens_stage1 = args.mode === "admin" ? 2200 : 900;
 
   await env.DB.prepare(
     "UPDATE ai_jobs SET status='running', started_at=?1, provider=?2, model=?3, temperature=?4, max_tokens=?5 WHERE id=?6",
   )
-    .bind(new Date().toISOString(), provider.name, (provider as any).model ?? null, temperature, max_tokens_stage1, args.job_id)
+    .bind(
+      new Date().toISOString(),
+      provider.name,
+      (provider as any).model ?? null,
+      temperature,
+      max_tokens_stage1,
+      args.job_id,
+    )
     .run();
 
   function shouldRetry(errMsg: string) {
-    const m = String(errMsg || "");
+    const m = String(errMsg || "").toLowerCase();
 
+    // Keep this minimal to avoid wasting calls
     return (
-      m.includes("INVALID_JSON_OUTPUT") ||
-      m.includes("INVALID_JSON") ||
-      m.includes("INVALID_JSON_SHAPE") ||
-      m.includes("INVALID_COMMENTS_COUNT") ||
-      m.includes("INVALID_LINEBREAKS") ||
-      m.includes("INVALID_TEXT_NOT_ENGLISH") ||
-      m.includes("ILLEGAL_HASHTAG_IN_TEXT") ||
-      m.includes("HASHTAGS_NOT_ALLOWED") ||
-      m.includes("Expected ',' or '}'") ||
-      m.includes("Unterminated string") ||
-      m.includes("INVALID_TRANSLATION_JSON_SHAPE") ||
-      m.includes("INVALID_TRANSLATION_COUNT") ||
-      // Tool related / transient errors
-      m.toLowerCase().includes("tool") ||
-      m.toLowerCase().includes("x_search") ||
-      m.toLowerCase().includes("timeout") ||
-      m.toLowerCase().includes("rate") ||
-      m.toLowerCase().includes("temporar")
+      m.includes("no_usable_draft_lines") ||
+      m.includes("invalid_translation_json_shape") ||
+      m.includes("invalid_json_output") ||
+      m.includes("timeout") ||
+      m.includes("rate") ||
+      m.includes("temporar") ||
+      m.includes("xai_http_") ||
+      m.includes("tool")
     );
   }
 
@@ -225,8 +215,6 @@ export async function runGenerateCommentsJob(
     max_tokens: number;
     tools?: any[];
     tool_choice?: any;
-    response_format?: any;
-    max_turns?: number;
   }) {
     const resp = await provider.chat({
       messages: params.messages,
@@ -235,44 +223,38 @@ export async function runGenerateCommentsJob(
       mode: args.mode,
       tools: params.tools,
       tool_choice: params.tool_choice,
-      response_format: params.response_format,
-      max_turns: params.max_turns,
     });
 
     await storeAssistant(resp.content);
     return resp.content;
   }
 
-  async function runStageJsonWithOneRetry<T>(params: {
+  async function runStageWithOneRetry<T>(params: {
     stageLabel: string;
     baseMessages: any[];
     retryNudge: string;
     validate: (raw: string) => T;
     max_tokens: number;
-
     tools?: any[];
     tool_choice?: any;
-    response_format?: any;
-    max_turns?: number;
   }): Promise<T> {
-    const { stageLabel, baseMessages, retryNudge, validate, max_tokens, tools, tool_choice, response_format, max_turns } = params;
+    const { stageLabel, baseMessages, retryNudge, validate, max_tokens, tools, tool_choice } = params;
 
     await addJobMessages(env, args.job_id, baseMessages);
 
     try {
-      const raw1 = await runChatOnce({ messages: baseMessages, max_tokens, tools, tool_choice, response_format, max_turns });
+      const raw1 = await runChatOnce({ messages: baseMessages, max_tokens, tools, tool_choice });
       return validate(raw1);
     } catch (e1: any) {
       const msg1 = e1?.message ? String(e1.message) : "UNKNOWN_ERROR";
       if (!shouldRetry(msg1)) throw e1;
 
       await addJobMessages(env, args.job_id, [
-        { role: "user", content: `[RETRY:${stageLabel}] previous output invalid. Return strict output only.` },
+        { role: "user", content: `[RETRY:${stageLabel}] previous output invalid. Return corrected output only.` },
       ]);
 
       const retryMessages = [...baseMessages, { role: "user", content: retryNudge }];
-
-      const raw2 = await runChatOnce({ messages: retryMessages, max_tokens, tools, tool_choice, response_format, max_turns });
+      const raw2 = await runChatOnce({ messages: retryMessages, max_tokens, tools, tool_choice });
       return validate(raw2);
     }
   }
@@ -288,17 +270,15 @@ export async function runGenerateCommentsJob(
       const x_url = args.input.x_url.trim();
       const xMessages = buildFetchXContextPrompt({ x_url });
 
-      // If response_format is not supported, you can disable it via env flag.
-      const enableJsonObject = String((env as any).XAI_RESPONSE_JSON_OBJECT || "").trim() === "1";
-
-      const xContext: XContext = await runStageJsonWithOneRetry<XContext>({
+      const xContext = await runStageWithOneRetry<XContext>({
         stageLabel: "FETCH_X_CONTEXT",
         baseMessages: xMessages,
-        retryNudge: 'Fix your output. Return ONLY valid JSON exactly: {"post_text":string,"reply_texts":string[]}. No extra keys.',
+        retryNudge:
+          'Return ONLY valid JSON exactly: {"post_text":string,"reply_texts":string[]}. No extra keys.',
         max_tokens: 1200,
         validate: (raw) => parseXContext(raw),
         tools: [{ type: "x_search" }],
-        tool_choice: "auto"
+        tool_choice: "auto",
       });
 
       meta = buildAutofillMeta(x_url, xContext);
@@ -317,25 +297,18 @@ export async function runGenerateCommentsJob(
       };
     }
 
-    const max_tokens_stage2 = Math.max(650, 140 * effectiveInput.count);
-
-    /* ------------------------------ Stage 1: Draft (EN JSON) ------------------------------ */
-
+    /* ------------------------------ Stage 1: Draft (EN, lenient) ------------------------------ */
     const draftMessages = buildDraftPrompt(effectiveInput);
 
-    const draftRetryNudge =
-      "Fix your output. Return ONLY valid JSON (no extra characters before/after). " +
-      `Schema: {"comments":[{"text":string}]}. ` +
-      "Top-level JSON must contain ONLY the key 'comments'. " +
-      "Do NOT include wrapper keys like 'response', 'usage', 'tool_calls'. " +
-      `comments.length MUST equal ${effectiveInput.count}. ` +
-      "Each text must be English and single-line. " +
-      "Match the examples' style: strong, specific; not generic. " +
-      "Use @mentions and whitelisted hashtags naturally when appropriate. " +
-      "Respect hashtag rules strictly. " +
-      "No markdown, no code fences, no commentary.";
+    const draftRetryNudge = [
+      "Your previous output was not usable.",
+      "Return plain text ONLY.",
+      "One comment per line.",
+      "No numbering, no bullets, no JSON, no markdown.",
+      "Write at least 5 lines if possible.",
+    ].join("\n");
 
-    const draft: DraftOutput = await runStageJsonWithOneRetry<DraftOutput>({
+    const draft = await runStageWithOneRetry<DraftOutput>({
       stageLabel: "DRAFT_EN",
       baseMessages: draftMessages,
       retryNudge: draftRetryNudge,
@@ -343,14 +316,18 @@ export async function runGenerateCommentsJob(
       validate: (raw) =>
         validateDraftOutput({
           raw,
-          count: effectiveInput.count,
+          count: effectiveInput.count, // not enforced by validator anymore
           allowed_hashtags: effectiveInput.allowed_hashtags,
         }),
     });
 
-    /* ------------------------------ Stage 2: Translate (FA JSON, batch) ------------------------------ */
+    const sources_en = draft.comments.map((c) => String(c?.text ?? "").trim()).filter(Boolean);
 
-    const sources_en = draft.comments.map((c) => String(c?.text ?? "").trim());
+    // If somehow we got nothing, fail once (will be retried by shouldRetry)
+    if (sources_en.length === 0) throw new Error("NO_USABLE_DRAFT_LINES");
+
+    /* ------------------------------ Stage 2: Translate (FA JSON, batch) ------------------------------ */
+    const max_tokens_stage2 = Math.max(450, 120 * sources_en.length);
 
     const translateMessages = buildTranslateToFaTextPrompt({
       texts_en: sources_en,
@@ -359,17 +336,16 @@ export async function runGenerateCommentsJob(
       topic: effectiveInput.topic,
     } as any);
 
-    const translateRetryNudge =
-      "Fix your output. Return ONLY valid JSON exactly: {\"translations\":[{\"text\":string}]}. " +
-      `translations.length MUST equal ${sources_en.length}. ` +
-      "Top-level JSON must contain ONLY the key 'translations'. " +
-      "Each translation must be a SINGLE LINE in Persian. " +
-      "Keep hashtags (#...) and mentions (@...) EXACTLY unchanged. " +
-      "Do NOT output any Chinese/Japanese/Korean characters. " +
-      "If unsure for an item, output an empty string for that item. " +
-      "No markdown, no extra text.";
+    const translateRetryNudge = [
+      'Return ONLY valid JSON: {"translations":[{"text":string}]}.',
+      `translations.length must equal ${sources_en.length}.`,
+      "Each item must be a SINGLE LINE Persian translation.",
+      "Keep hashtags and mentions EXACTLY unchanged.",
+      "If unsure, output empty string for that item.",
+      "No markdown, no extra text.",
+    ].join("\n");
 
-    const translations: string[] = await runStageJsonWithOneRetry<string[]>({
+    const translations = await runStageWithOneRetry<string[]>({
       stageLabel: "TRANSLATE_FA_BATCH",
       baseMessages: translateMessages,
       retryNudge: translateRetryNudge,
@@ -382,8 +358,8 @@ export async function runGenerateCommentsJob(
     });
 
     /* ------------------------------ Final output ------------------------------ */
-
     const finalComments: Array<{ text: string; translation_text: string }> = [];
+
     for (let i = 0; i < sources_en.length; i++) {
       finalComments.push({
         text: sources_en[i],

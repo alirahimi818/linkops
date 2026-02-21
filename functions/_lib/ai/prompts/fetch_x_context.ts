@@ -1,29 +1,35 @@
 // prompts/fetch_x_context.ts
-import type { AIChatMessage } from "../types";
 
-export function buildFetchXContextPrompt(args: { x_url: string }): AIChatMessage[] {
-  const system = [
-    "You are an agent that reads an X (Twitter) post and a few replies using X Search tool.",
-    "Return ONLY valid JSON with NO extra keys.",
-    "Schema:",
-    '{"post_text":string,"reply_texts":string[]}',
-    "Rules:",
-    "- Use X Search tool as needed (thread fetch if possible).",
-    "- post_text must be the main post text (single string).",
-    "- reply_texts: pick 5-8 representative replies (single-line each).",
-    "- If content is unavailable, return empty strings/arrays but still valid JSON.",
-    "- No markdown, no commentary.",
-  ].join("\n");
-
-  const user = [
-    "Fetch this X URL and extract context:",
-    args.x_url,
-    "",
-    "Return JSON only.",
-  ].join("\n");
+export function buildFetchXContextPrompt(args: { x_url: string }) {
+  const url = String(args.x_url || "").trim();
 
   return [
-    { role: "system", content: system },
-    { role: "user", content: user },
+    {
+      role: "system",
+      content: [
+        "You are an assistant that extracts context from an X (Twitter) URL using the x_search tool when possible.",
+        "Return ONLY valid JSON with NO extra keys.",
+        'Schema: {"post_text":string,"reply_texts":string[]}',
+        "Rules:",
+        "- Prefer using x_search to open the provided URL and read the main post text.",
+        "- If accessible, also collect 5-12 short representative replies (single-line each).",
+        "- If replies are not accessible, return reply_texts as an empty array.",
+        "- post_text should be plain text (no URLs unless they are essential).",
+        "- Each reply_text must be a single line (replace newlines with spaces).",
+        "- Never include markdown or commentary.",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `X URL: ${url}`,
+        "",
+        "Task:",
+        "1) Extract the main post text.",
+        "2) Extract a handful of replies if available.",
+        "",
+        "Return JSON only.",
+      ].join("\n"),
+    },
   ];
 }
