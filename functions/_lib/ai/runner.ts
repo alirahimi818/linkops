@@ -5,9 +5,15 @@ import type { DraftOutput, FinalOutput, GenerateInput } from "./types";
 import { buildDraftPrompt } from "./prompts/draft_en";
 import { buildTranslateToFaTextPrompt } from "./prompts/translate_to_fa_text";
 import { buildFetchXContextPrompt } from "./prompts/fetch_x_context";
+import { buildFetchXAutofillAndDraftEnPrompt } from "./prompts/fetch_x_autofill_en";
 
 // Validators
-import { validateDraftOutput, validateTranslationBatchOutput } from "./validate";
+import {
+  validateAutofillDraftWithMeta,
+  validateDraftOutput,
+  validateTranslationBatchOutput,
+} from "./validate";
+
 import { fixFaTypography } from "../../utils/fix_fa_typography";
 
 /* ------------------------------ DB helpers ------------------------------ */
@@ -199,7 +205,8 @@ export async function runGenerateCommentsJob(
       m.includes("rate") ||
       m.includes("temporar") ||
       m.includes("xai_http_") ||
-      m.includes("tool")
+      m.includes("tool") ||
+      m.includes("autofill_missing_separator")
     );
   }
 
@@ -263,68 +270,120 @@ export async function runGenerateCommentsJob(
   try {
     let effectiveInput: GenerateInput = args.input;
     let meta: FinalOutput["meta"] | undefined = undefined;
+    let draft: DraftOutput | null = null;
 
-    /* ------------------------------ Stage 0: Fetch X context (optional) ------------------------------ */
+    /* ------------------------------ Stage 0: X URL paths ------------------------------ */
     if (args.input.x_url && args.input.x_url.trim()) {
       if (provider.name !== "xai") throw new Error("X_URL_REQUIRES_XAI_PROVIDER");
 
       const x_url = args.input.x_url.trim();
-      const xMessages = buildFetchXContextPrompt({ x_url });
 
-      const xContext = await runStageWithOneRetry<XContext>({
-        stageLabel: "FETCH_X_CONTEXT",
-        baseMessages: xMessages,
-        retryNudge:
-          'Return ONLY valid JSON exactly: {"post_text":string,"reply_texts":string[]}. No extra keys.',
-        max_tokens: 1200,
-        validate: (raw) => parseXContext(raw),
-        tools: [{ type: "x_search" }],
-        tool_choice: "auto",
-      });
+      // ✅ Admin autofill path: one call for FA meta + EN draft using x_search
+      if (args.mode === "admin") {
+        const messages = buildFetchXAutofillAndDraftEnPrompt({
+          x_url,
+          count: effectiveInput.count,
+        });
 
-      meta = buildAutofillMeta(x_url, xContext);
+        const retryNudge = [
+          "Your previous output was invalid.",
+          "Return PLAIN TEXT ONLY (no JSON, no markdown, no numbering).",
+          "Use the exact format:",
+          "TITLE_FA: <short Persian title>",
+          "DESC_FA: <line 1>",
+          "DESC_FA: <line 2>",
+          "DESC_FA: <line 3 (optional)>",
+          "---",
+          "then English comments, one per line.",
+        ].join("\n");
 
-      const repliesBlock =
-        xContext.reply_texts.length > 0
-          ? `\n\nنمونه‌ای از ریپلای‌های واقعی:\n- ${xContext.reply_texts.slice(0, 8).join("\n- ")}`
-          : "";
+        const parsed = await runStageWithOneRetry<{
+          meta: { title: string; description: string };
+          draft: DraftOutput;
+        }>({
+          stageLabel: "FETCH_X_AUTOFILL_DRAFT_EN",
+          baseMessages: messages,
+          retryNudge,
+          max_tokens: 2400,
+          tools: [{ type: "x_search" }],
+          tool_choice: "auto",
+          validate: (raw) =>
+            validateAutofillDraftWithMeta({
+              raw,
+              count: effectiveInput.count,
+              allowed_hashtags: effectiveInput.allowed_hashtags,
+            }),
+        });
 
-      effectiveInput = {
-        ...args.input,
-        title_fa: "متن پست X:",
-        description_fa: (String(xContext.post_text || "") + repliesBlock).trim(),
-        need_fa: "چند ریپلای کوتاه و واقعی برای این پست بنویس (متناسب با لحن انتخاب‌شده).",
-        comment_type_fa: args.input.comment_type_fa || "ریپلای کوتاه",
-      };
+        meta = {
+          title: fixFaTypography(parsed.meta.title ?? ""),
+          description: fixFaTypography(parsed.meta.description ?? ""),
+          source: { x_url },
+        };
+
+        draft = parsed.draft;
+      } else {
+        // ✅ Public/legacy path: keep JSON fetch + draft prompt
+        const xMessages = buildFetchXContextPrompt({ x_url });
+
+        const xContext = await runStageWithOneRetry<XContext>({
+          stageLabel: "FETCH_X_CONTEXT",
+          baseMessages: xMessages,
+          retryNudge:
+            'Return ONLY valid JSON exactly: {"post_text":string,"reply_texts":string[]}. No extra keys.',
+          max_tokens: 1200,
+          validate: (raw) => parseXContext(raw),
+          tools: [{ type: "x_search" }],
+          tool_choice: "auto",
+        });
+
+        meta = buildAutofillMeta(x_url, xContext);
+
+        const repliesBlock =
+          xContext.reply_texts.length > 0
+            ? `\n\nنمونه‌ای از ریپلای‌های واقعی:\n- ${xContext.reply_texts.slice(0, 8).join("\n- ")}`
+            : "";
+
+        effectiveInput = {
+          ...args.input,
+          title_fa: "متن پست X:",
+          description_fa: (String(xContext.post_text || "") + repliesBlock).trim(),
+          need_fa: "چند ریپلای کوتاه و واقعی برای این پست بنویس (متناسب با لحن انتخاب‌شده).",
+          comment_type_fa: args.input.comment_type_fa || "ریپلای کوتاه",
+        };
+      }
     }
 
     /* ------------------------------ Stage 1: Draft (EN, lenient) ------------------------------ */
-    const draftMessages = buildDraftPrompt(effectiveInput);
+    if (!draft) {
+      const draftMessages = buildDraftPrompt(effectiveInput);
 
-    const draftRetryNudge = [
-      "Your previous output was not usable.",
-      "Return plain text ONLY.",
-      "One comment per line.",
-      "No numbering, no bullets, no JSON, no markdown.",
-      "Write at least 5 lines if possible.",
-    ].join("\n");
+      const draftRetryNudge = [
+        "Your previous output was not usable.",
+        "Return plain text ONLY.",
+        "One comment per line.",
+        "No numbering, no bullets, no JSON, no markdown.",
+        "Write at least 5 lines if possible.",
+      ].join("\n");
 
-    const draft = await runStageWithOneRetry<DraftOutput>({
-      stageLabel: "DRAFT_EN",
-      baseMessages: draftMessages,
-      retryNudge: draftRetryNudge,
-      max_tokens: max_tokens_stage1,
-      validate: (raw) =>
-        validateDraftOutput({
-          raw,
-          count: effectiveInput.count, // not enforced by validator anymore
-          allowed_hashtags: effectiveInput.allowed_hashtags,
-        }),
-    });
+      draft = await runStageWithOneRetry<DraftOutput>({
+        stageLabel: "DRAFT_EN",
+        baseMessages: draftMessages,
+        retryNudge: draftRetryNudge,
+        max_tokens: max_tokens_stage1,
+        validate: (raw) =>
+          validateDraftOutput({
+            raw,
+            count: effectiveInput.count,
+            allowed_hashtags: effectiveInput.allowed_hashtags,
+          }),
+      });
+    }
 
-    const sources_en = draft.comments.map((c) => String(c?.text ?? "").trim()).filter(Boolean);
+    const sources_en = (draft?.comments || [])
+      .map((c) => String(c?.text ?? "").trim())
+      .filter(Boolean);
 
-    // If somehow we got nothing, fail once (will be retried by shouldRetry)
     if (sources_en.length === 0) throw new Error("NO_USABLE_DRAFT_LINES");
 
     /* ------------------------------ Stage 2: Translate (FA JSON, batch) ------------------------------ */
@@ -370,7 +429,13 @@ export async function runGenerateCommentsJob(
 
     const finalOut: FinalOutput = {
       comments: finalComments,
-      meta,
+      meta: meta
+        ? {
+            ...meta,
+            title: fixFaTypography(meta.title ?? ""),
+            description: fixFaTypography(meta.description ?? ""),
+          }
+        : undefined,
     };
 
     await env.DB.prepare("UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2")

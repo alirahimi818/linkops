@@ -44,19 +44,14 @@ export async function onRequestPost(ctx: any): Promise<Response> {
   const { request, env } = ctx;
 
   try {
-    // 1) Auth + role check
     const user = await requireAuth(env, request);
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     if (!requireRole(user, ["superadmin", "admin", "editor"])) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const adminId = user.id;
 
-    // 2) Parse payload
     const body = await request.json();
     const x_url = String(body.x_url || "").trim();
     if (!x_url) {
@@ -65,13 +60,10 @@ export async function onRequestPost(ctx: any): Promise<Response> {
 
     const allowed_hashtags = await getAllowedHashtagsFromDb(env);
 
-    // IMPORTANT:
-    // This assumes you've added support for `x_url` in GenerateInput + runner logic.
-    // If you haven't yet, do that first (I'll show you in the next step if needed).
     const input: GenerateInput = {
       x_url,
 
-      // Keep these for backward compatibility; runner will override them internally when x_url exists.
+      // kept for compatibility; runner will override internally for x_url admin mode
       title_fa: "",
       description_fa: "",
       need_fa: "",
@@ -86,7 +78,6 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       examples: [],
     };
 
-    // 3) Create job (separate job type)
     const job = await createAIJob(env, {
       job_type: "admin_x_autofill",
       target_type: "x_url",
@@ -95,16 +86,12 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       requested_by_id: String(adminId),
     });
 
-    // 4) Run job (admin mode)
     const output = await runGenerateCommentsJob(env, {
       job_id: job.id,
       input,
       mode: "admin",
     });
 
-    // 5) Return payload for filling the form
-    // Title/description can be computed in runner and returned, or you can keep it simple:
-    // For now: let frontend keep title/description as-is (or we enhance runner to return them)
     return Response.json({
       ok: true,
       job_id: job.id,

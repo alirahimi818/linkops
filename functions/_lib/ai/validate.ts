@@ -124,6 +124,84 @@ function dedupeCaseInsensitive(lines: string[], maxItems: number) {
   return out;
 }
 
+/* ------------------------------ Stage 0+1 (Autofill: Meta + Draft in one plain-text) ------------------------------ */
+
+export type AutofillDraftWithMeta = {
+  meta: { title: string; description: string };
+  draft: DraftOutput;
+};
+
+function cleanDraftLines(args: {
+  candidates: string[];
+  allowed_hashtags: string[];
+  count: number;
+}): DraftOutput {
+  const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
+  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2)); // allow extra headroom
+
+  let lines = (args.candidates || [])
+    .map((l) => stripBulletsAndNumbering(normalizeLine(l)))
+    .map((l) => normalizeLine(l))
+    .map((l) => l.replace(/[\r\n]/g, " ").trim())
+    .filter((l) => l.length > 0)
+    .filter((l) => isSingleLine(l))
+    .filter((l) => !hasArabicScript(l))
+    .filter((l) => !hasCjkScript(l))
+    .filter((l) => !looksLikeWrappedOrMarkdown(l));
+
+  lines = lines.map((l) => removeIllegalHashtags(l, allowed)).filter(Boolean);
+  lines = dedupeCaseInsensitive(lines, maxItems);
+
+  if (lines.length === 0) throw new Error("NO_USABLE_DRAFT_LINES");
+
+  return { comments: lines.map((text) => ({ text })) };
+}
+
+export function validateAutofillDraftWithMeta(args: {
+  raw: string;
+  count: number;
+  allowed_hashtags: string[];
+}): AutofillDraftWithMeta {
+  const cleaned = stripCodeFences(args.raw);
+
+  const allLines = String(cleaned || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((l) => normalizeLine(l))
+    .filter(Boolean);
+
+  const sepIdx = allLines.findIndex((l) => l.trim() === "---");
+  if (sepIdx < 0) throw new Error("AUTOFILL_MISSING_SEPARATOR");
+
+  const header = allLines.slice(0, sepIdx);
+  const body = allLines.slice(sepIdx + 1);
+
+  let title = "";
+  const descLines: string[] = [];
+
+  for (const l of header) {
+    if (/^TITLE_FA:/i.test(l)) {
+      title = normalizeLine(l.replace(/^TITLE_FA:\s*/i, ""));
+      continue;
+    }
+    if (/^DESC_FA:/i.test(l)) {
+      const d = normalizeLine(l.replace(/^DESC_FA:\s*/i, ""));
+      if (d) descLines.push(d);
+      continue;
+    }
+  }
+
+  const description = descLines.slice(0, 3).join("\n");
+
+  const draft = cleanDraftLines({
+    candidates: body,
+    allowed_hashtags: args.allowed_hashtags,
+    count: args.count,
+  });
+
+  return { meta: { title: title || "", description: description || "" }, draft };
+}
+
 /* ------------------------------ Stage 1 (Draft) ------------------------------ */
 /**
  * Accepts either:
