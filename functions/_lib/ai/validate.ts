@@ -306,36 +306,32 @@ export function validateTranslationBatchOutput(args: {
   const n = args.sources_en.length;
 
   // Normalize possible shapes into string[]
-  // Accept:
-  // 1) {"translations":[{"text":"..."}]}
-  // 2) {"translations":["...","..."]}
   let translationsNorm: string[] = translationsRaw.map((item: any) => {
     if (typeof item === "string") return item;
     if (item && typeof item === "object") return String(item.text ?? "");
     return "";
   });
 
-  // Handle common failure mode:
-  // Model returns a single long blob instead of n items (or collapses into 1 object).
-  // Try to split into n lines if we only got 1 non-empty item.
-  if (translationsNorm.length === 1 && n > 1) {
-    const blob = String(translationsNorm[0] ?? "").trim();
+  // If model collapsed everything into one blob, try to split it into n parts.
+  const nonEmpty = translationsNorm.filter((x) => String(x || "").trim().length > 0);
 
-    // Try splitting by newlines first
+  if (n > 1 && (translationsNorm.length === 1 || nonEmpty.length === 1)) {
+    const blob = String((nonEmpty[0] ?? translationsNorm[0] ?? "")).trim();
+
     let parts = blob
       .split("\n")
       .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
       .filter(Boolean);
 
-    // If still not enough parts, split by sentence endings after hashtags/mentions blocks
+    // If still not enough parts, split by hashtag boundaries (works well for your outputs)
     if (parts.length < n) {
       parts = blob
-        .split(/(?<=#[\p{L}\p{N}_]+)\s*(?=[@#\p{L}\p{N}_])/gu)
+        .split(/(?<=#[\p{L}\p{N}_]+)\s*(?=[^#\s])/gu)
         .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
         .filter(Boolean);
     }
 
-    // Last resort: split by punctuation boundaries (Persian/English)
+    // Last resort: split by sentence endings
     if (parts.length < n) {
       parts = blob
         .split(/(?<=[.!?؟])\s+/g)
@@ -343,7 +339,6 @@ export function validateTranslationBatchOutput(args: {
         .filter(Boolean);
     }
 
-    // Fit to n (pad/truncate)
     translationsNorm = new Array(n).fill("").map((_, i) => parts[i] ?? "");
   }
 
