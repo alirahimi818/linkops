@@ -351,6 +351,11 @@ export function validateTranslationBatchOutput(args: {
     }
 
     if (!ensureSameMentionsAndHashtags(src, t)) {
+      console.log(`Rejected line ${i} - MENTIONS/HASHTAGS MISMATCH`);
+      console.log("Source mentions:", extractMentionsFromText(src));
+      console.log("Trans mentions:", extractMentionsFromText(t));
+      console.log("Source hashtags:", extractHashtagsFromText(src));
+      console.log("Trans hashtags:", extractHashtagsFromText(t));
       out.push("");
       continue;
     }
