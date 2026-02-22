@@ -34,13 +34,16 @@ function extractMentionsFromText(text: string): string[] {
 
 function arraysEqualAsMultiset(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
-  const normalize = (arr: string[]) => arr.map(x => x.toLowerCase()).sort();
+  const normalize = (arr: string[]) => arr.map((x) => x.toLowerCase()).sort();
   const normA = normalize(a);
   const normB = normalize(b);
   return normA.every((val, idx) => val === normB[idx]);
 }
 
-function ensureSameMentionsAndHashtags(sourceText: string, translatedText: string) {
+function ensureSameMentionsAndHashtags(
+  sourceText: string,
+  translatedText: string,
+) {
   const srcTags = extractHashtagsFromText(sourceText);
   const trTags = extractHashtagsFromText(translatedText);
 
@@ -91,13 +94,19 @@ function normalizeLine(line: string) {
 function removeIllegalHashtags(text: string, allowed: Set<string>) {
   if (allowed.size === 0) {
     // No whitelist → remove all hashtags for safety
-    return String(text || "").replace(/#[\p{L}\p{N}_]+/gu, "").replace(/[ \t]{2,}/g, " ").trim();
+    return String(text || "")
+      .replace(/#[\p{L}\p{N}_]+/gu, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   }
 
-  return String(text || "").replace(/#[\p{L}\p{N}_]+/gu, (m) => {
-    const tag = m.trim();
-    return allowed.has(tag) ? tag : "";
-  }).replace(/[ \t]{2,}/g, " ").trim();
+  return String(text || "")
+    .replace(/#[\p{L}\p{N}_]+/gu, (m) => {
+      const tag = m.trim();
+      return allowed.has(tag) ? tag : "";
+    })
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function dedupeCaseInsensitive(lines: string[], maxItems: number) {
@@ -189,7 +198,10 @@ export function validateAutofillDraftWithMeta(args: {
     count: args.count,
   });
 
-  return { meta: { title: title || "", description: description || "" }, draft };
+  return {
+    meta: { title: title || "", description: description || "" },
+    draft,
+  };
 }
 
 /* ------------------------------ Stage 1 (English Draft) ------------------------------ */
@@ -246,12 +258,14 @@ export function validateDraftOutput(args: {
 /* ------------------------------ Stage 2 (Persian Translation Batch) ------------------------------ */
 
 function normalizeTranslationText(raw: string) {
-  return String(raw || "")
-    .replace(/\r/g, "")
-    // Remove problematic bidi / control characters, but KEEP ZWNJ (U+200C)
-    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
+  return (
+    String(raw || "")
+      .replace(/\r/g, "")
+      // Remove problematic bidi / control characters, but KEEP ZWNJ (U+200C)
+      .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim()
+  );
 }
 
 function stripCjkOutsideTagsMentions(text: string): string {
@@ -262,7 +276,10 @@ function stripCjkOutsideTagsMentions(text: string): string {
     .map((tok) => {
       if (!tok.trim()) return tok;
       if (tok.startsWith("#") || tok.startsWith("@")) return tok;
-      return tok.replace(/[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/g, "");
+      return tok.replace(
+        /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/g,
+        "",
+      );
     })
     .join("");
 }
@@ -273,12 +290,25 @@ export function validateTranslationBatchOutput(args: {
 }): string[] {
   const parsed = safeParseJson(args.raw);
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.translations)) {
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    !Array.isArray(parsed.translations)
+  ) {
     throw new Error("INVALID_TRANSLATION_JSON_SHAPE");
   }
 
   const translationsRaw = parsed.translations as any[];
   const n = args.sources_en.length;
+
+  function stripCharCountNote(text: string): string {
+    return text
+      .replace(
+        /\s*\(\s*\d+\s*(?:char|character|chars|characters)?\s*\)\s*$/i,
+        "",
+      )
+      .trim();
+  }
 
   // Normalize to string[]
   let translationsNorm: string[] = translationsRaw.map((item: any) => {
@@ -311,7 +341,9 @@ export function validateTranslationBatchOutput(args: {
         .filter(Boolean);
     }
 
-    translationsNorm = Array(n).fill("").map((_, i) => parts[i] ?? "");
+    translationsNorm = Array(n)
+      .fill("")
+      .map((_, i) => parts[i] ?? "");
   }
 
   const out: string[] = [];
@@ -330,10 +362,11 @@ export function validateTranslationBatchOutput(args: {
     t = normalizeTranslationText(t);
     t = stripCjkOutsideTagsMentions(t);
     t = normalizeTranslationText(t);
+    t = stripCharCountNote(t);
 
     // Clean trailing Persian 'ه' or similar chars that stick to mentions
-    t = t.replace(/([@#][\p{L}\p{N}_]+)[\u0600-\u06FF]$/gu, "$1");  // remove one trailing Persian char after @ or #
-    t = t.replace(/([@#][\p{L}\p{N}_]+)ه\b/gu, "$1");               // specifically for 'ه'
+    t = t.replace(/([@#][\p{L}\p{N}_]+)[\u0600-\u06FF]$/gu, "$1"); // remove one trailing Persian char after @ or #
+    t = t.replace(/([@#][\p{L}\p{N}_]+)ه\b/gu, "$1"); // specifically for 'ه'
 
     if (!t) {
       out.push("");
