@@ -331,6 +331,10 @@ export function validateTranslationBatchOutput(args: {
     t = stripCjkOutsideTagsMentions(t);
     t = normalizeTranslationText(t);
 
+    // Clean trailing Persian 'ه' or similar chars that stick to mentions
+    t = t.replace(/([@#][\p{L}\p{N}_]+)[\u0600-\u06FF]$/gu, "$1");  // remove one trailing Persian char after @ or #
+    t = t.replace(/([@#][\p{L}\p{N}_]+)ه\b/gu, "$1");               // specifically for 'ه'
+
     if (!t) {
       out.push("");
       continue;
