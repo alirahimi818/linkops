@@ -1,22 +1,25 @@
-// Fix common Persian (Farsi) typography issues while keeping hashtags/mentions/URLs intact.
-export function fixFaTypography(input: string) {
-  // Coerce null/undefined to an empty string so the function is safe for any input.
-  let t = String(input ?? "");
+export function fixFaTypography(input: string): string {
+  if (!input || typeof input !== "string") return "";
 
-  // 1) Protect hashtags, mentions, URLs (do not touch them)
-  // Temporarily replace matched segments with placeholders so later rules won't alter them.
+  let t = input.trim();
+
+  // مرحله ۰: حذف یادداشت طول کاراکتر انتهایی (رایج در خروجی‌های LLM)
+  t = t.replace(/\s*\(\s*\d+\s*(?:char|character)s?\s*\)\s*$/i, "").trim();
+
   const protectedParts: string[] = [];
   const protect = (s: string) => {
     protectedParts.push(s);
-    return `__P${protectedParts.length - 1}__`;
+    return `__PROTECT_${protectedParts.length - 1}__`;
   };
 
-  // Protect URLs first so @/# inside URLs won't be treated as mentions/hashtags.
+  // حفاظت قوی‌تر: URL + @mention + #hashtag + هر چیزی داخل پرانتز انتهایی
   t = t.replace(/https?:\/\/\S+/gi, protect);
-  // Protect @mentions and #hashtags (including Persian/Arabic letters).
-  t = t.replace(/[@#][\w\u0600-\u06FF_]+/g, protect);
+  t = t.replace(/[@#][^\s!@#$%^&*()[\]{}<>"',.?؛،:؛؟!]+/g, protect); // هشتگ/منشن تا اولین فاصله یا کاراکتر خاص
 
-  // 2) Normalize Arabic characters to Persian equivalents.
+  // حفاظت اضافی برای هر پرانتز انتهایی که ممکن است باقی مانده باشد
+  t = t.replace(/\s*\([^)]+\)\s*$/, protect);
+
+  // حالا نرمال‌سازی حروف عربی → فارسی
   t = t
     .replace(/ك/g, "ک")
     .replace(/ي/g, "ی")
@@ -24,34 +27,34 @@ export function fixFaTypography(input: string) {
     .replace(/ة/g, "ه")
     .replace(/ؤ/g, "و")
     .replace(/إ|أ/g, "ا")
-    .replace(/ـ/g, ""); // Remove tatweel/kashida elongation character.
+    .replace(/ـ/g, ""); // حذف تطویل
 
-  // 3) Basic whitespace cleanup.
+  // تمیز کردن فاصله‌های اضافی
   t = t.replace(/[ \t]{2,}/g, " ").trim();
 
-  // 4) Insert ZWNJ after "می"/"نمی" when used as a prefix (e.g., "می رود" -> "می‌رود").
-  t = t.replace(/\b(ن?می)\s+([\u0600-\u06FF])/g, "$1\u200c$2");
+  // اضافه کردن نیم‌فاصله (ZWNJ) — با دقت بیشتر
+  // می / نمی + فعل
+  t = t.replace(/\b(ن?می)\s+([آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی])\b/g, "$1\u200c$2");
 
-  // 5) Insert ZWNJ before common plural suffixes "ها"/"های" (with or without spaces).
+  // ها / های بعد از کلمه فارسی (با بررسی اینکه قبلش حرف فارسی باشد)
+  t = t.replace(/([آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی])\s*ها\b/g, "$1\u200cها");
+  t = t.replace(/([آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی])\s*های\b/g, "$1\u200cهای");
+
+  // ترین (فقط بعد از صفت‌های حداقل ۳ حرف)
+  t = t.replace(/([آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی]{3,})\s*ترین\b/g, "$1\u200cترین");
+
+  // اصلاحات واژگانی خاص
   t = t
-    .replace(/([\u0600-\u06FF])\s*ها\b/g, "$1\u200cها")
-    .replace(/([\u0600-\u06FF])\s*های\b/g, "$1\u200cهای");
+    .replace(/\bهستهای\b/gi, "هسته‌ای")
+    .replace(/آیت\s*الله/g, "آیت\u200cالله")
+    .replace(/جمهوری\s*اسلامی/g, "جمهوری\u200cاسلامی")     // اختیاری، اگر زیاد استفاده می‌شود
+    .replace(/تغییر\s*رژیم/g, "تغییر\u200cرژیم");
 
-  // 6) Insert ZWNJ before the superlative suffix "ترین" (safer than handling "تر").
-  // Only applies when the base word is at least 3 Persian/Arabic letters to reduce false positives.
-  t = t.replace(/([\u0600-\u06FF]{3,})\s*ترین\b/g, "$1\u200cترین");
-
-  // 7) High-frequency, low-risk lexical fixes for common mistakes.
-  t = t
-    .replace(/\bهستهای\b/g, "هسته‌ای")
-    // Normalize "آیت‌الله" with ZWNJ so suffix rules behave consistently.
-    .replace(/آیت\s*الله/g, "آیت\u200cالله");
-
-  // 8) Final whitespace polish.
+  // تمیز کردن نهایی فاصله‌ها
   t = t.replace(/[ \t]{2,}/g, " ").trim();
 
-  // 9) Restore protected parts (URLs/mentions/hashtags).
-  t = t.replace(/__P(\d+)__/g, (_, i) => protectedParts[Number(i)] ?? "");
+  // بازگرداندن بخش‌های حفاظت‌شده
+  t = t.replace(/__PROTECT_(\d+)__/g, (_, idx) => protectedParts[Number(idx)] ?? "");
 
   return t;
 }
