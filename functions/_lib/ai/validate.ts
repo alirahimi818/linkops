@@ -34,15 +34,10 @@ function extractMentionsFromText(text: string): string[] {
 
 function arraysEqualAsMultiset(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
-  const map = new Map<string, number>();
-  for (const x of a) map.set(x, (map.get(x) ?? 0) + 1);
-  for (const y of b) {
-    const v = map.get(y);
-    if (!v) return false;
-    if (v === 1) map.delete(y);
-    else map.set(y, v - 1);
-  }
-  return map.size === 0;
+  const normalize = (arr: string[]) => arr.map(x => x.toLowerCase()).sort();
+  const normA = normalize(a);
+  const normB = normalize(b);
+  return normA.every((val, idx) => val === normB[idx]);
 }
 
 function ensureSameMentionsAndHashtags(sourceText: string, translatedText: string) {
