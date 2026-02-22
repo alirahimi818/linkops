@@ -425,7 +425,7 @@ export async function runGenerateCommentsJob(
     for (let i = 0; i < sources_en.length; i++) {
       finalComments.push({
         text: sources_en[i],
-        translation_text: fixFaTypography(translations[i] ?? ""),
+        translation_text: translations[i] ?? "",
       });
     }
 
@@ -434,8 +434,8 @@ export async function runGenerateCommentsJob(
       meta: meta
         ? {
             ...meta,
-            title: fixFaTypography(meta.title ?? ""),
-            description: fixFaTypography(meta.description ?? ""),
+            title: meta.title ?? "",
+            description: meta.description ?? "",
           }
         : undefined,
     };

@@ -253,7 +253,7 @@ export default function AdminItemList(props: {
                                 {c.translation_text ? (
                                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                                     <div className="mb-1 text-xs font-medium text-zinc-700">
-                                      ترجمه
+                                      ترجمه ماشین
                                     </div>
                                     <div
                                       className="whitespace-pre-wrap text-sm text-zinc-700"

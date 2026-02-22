@@ -564,7 +564,7 @@ export default function CommentsEditor({
                     {hasNonEmptyTranslation(c) ? (
                       <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                         <div className="mb-1 text-xs font-medium text-zinc-700">
-                          ترجمه
+                          ترجمه ماشین
                         </div>
                         <div className="whitespace-pre-wrap text-sm text-zinc-700">
                           {c.translation_text}
