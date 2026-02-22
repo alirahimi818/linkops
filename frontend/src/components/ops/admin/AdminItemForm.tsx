@@ -16,6 +16,7 @@ import {
   autoFixUrl,
   isValidAbsoluteHttpUrl,
 } from "../../../lib/adminItemUtils";
+import { isXUrl } from "../../../lib/socialIntents";
 
 export type EditState = { id: string; originalDate: string } | null;
 
@@ -67,7 +68,7 @@ export default function AdminItemForm(props: {
   // actions
   onSubmit: (fixedUrl: string) => Promise<void>;
   onCancelEdit: () => void;
-  
+
   autoFilling: boolean;
   onAutofillFromX: () => Promise<void>;
 }) {
@@ -84,6 +85,35 @@ export default function AdminItemForm(props: {
       return "قبل از ذخیره، لطفاً مشکلات هشتگ‌ها را در بخش کامنت‌ها برطرف کنید.";
 
     return null;
+  }
+
+  const isX = isXUrl(props.url);
+
+  function findActionIdByName(actions: Action[], name: string): string | null {
+    const target = String(name).toLowerCase().trim();
+    const found = actions.find(
+      (a: any) =>
+        String(a?.name || "")
+          .toLowerCase()
+          .trim() === target,
+    );
+    return found ? String((found as any).id) : null;
+  }
+  function autoSelectXActionsIfNeeded(nextUrlRaw: string) {
+    if (!isXUrl(nextUrlRaw)) return;
+    if (!props.actions || props.actions.length === 0) return;
+
+    if (props.selectedActionIds && props.selectedActionIds.length > 0) return;
+
+    const likeId = findActionIdByName(props.actions, "like");
+    const retweetId = findActionIdByName(props.actions, "retweet");
+    const commentId = findActionIdByName(props.actions, "comment");
+
+    const ids = [likeId, retweetId, commentId].filter(Boolean) as string[];
+
+    if (ids.length > 0) {
+      props.setSelectedActionIds(ids);
+    }
   }
 
   function autoSelectCategoryByUrl(nextUrlRaw: string) {
@@ -191,23 +221,31 @@ export default function AdminItemForm(props: {
             onChange={(v) => {
               props.setUrl(v);
               autoSelectCategoryByUrl(v);
+              autoSelectXActionsIfNeeded(v);
             }}
             placeholder="لینک (URL)"
           />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="info"
-              onClick={() => props.onAutofillFromX()}
-              disabled={props.saving || props.autoFilling || !props.url.trim()}
-            >
-              {props.autoFilling ? "در حال ساخت خودکار…" : "ساخت خودکار از لینک X"}
-            </Button>
+          {isX ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="info"
+                onClick={() => props.onAutofillFromX()}
+                disabled={
+                  props.saving || props.autoFilling || !props.url.trim()
+                }
+              >
+                {props.autoFilling
+                  ? "در حال ساخت خودکار…"
+                  : "ساخت خودکار از لینک X"}
+              </Button>
 
-            <div className="text-xs text-zinc-500">
-              با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی تولید می‌گردد.
+              <div className="text-xs text-zinc-500">
+                با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی
+                تولید می‌گردد.
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <Select
             value={props.categoryId}
