@@ -31,6 +31,16 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    if (request.method === "GET") {
+      const { results } = await env.DB.prepare(
+        `SELECT id, tag, priority, is_active, created_at
+         FROM hashtag_whitelist
+         ORDER BY is_active DESC, priority DESC, tag ASC`
+      ).all();
+
+      return Response.json({ hashtags: results ?? [] });
+    }
+
     const url = new URL(request.url);
 
     // You can choose to support GET later; for now, we focus on POST bulk save.
