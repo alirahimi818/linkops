@@ -274,7 +274,7 @@ function normalizeTranslationText(raw: string) {
   return String(raw || "")
     .replace(/\r/g, "")
     // Remove bidi / zero-width chars
-    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, "")
+    .replace(/[\u200B\u200D\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
     .replace(/[ \t]+/g, " ")
     .trim();
 }
