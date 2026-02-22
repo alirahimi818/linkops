@@ -71,20 +71,16 @@ function safeParseJson(raw: string): any | null {
   try {
     return JSON.parse(t);
   } catch {
-    // If it is not JSON, we treat it as plain text.
     return null;
   }
 }
 
 function stripCodeFences(text: string) {
-  let s = String(text || "");
-  s = s.replace(/```[\s\S]*?```/g, " ");
-  return s;
+  return String(text || "").replace(/```[\s\S]*?```/g, " ");
 }
 
 function stripBulletsAndNumbering(line: string) {
-  // remove common leading bullets/numbering like:
-  // "- ", "* ", "1) ", "1. ", "• "
+  // Remove common leading bullets/numbering like: "- ", "* ", "1) ", "1. ", "• "
   return String(line || "")
     .replace(/^\s*(?:[-*•]|(\d+)[\.\)]|(\d+)\s+-)\s+/u, "")
     .trim();
@@ -99,7 +95,7 @@ function normalizeLine(line: string) {
 
 function removeIllegalHashtags(text: string, allowed: Set<string>) {
   if (allowed.size === 0) {
-    // if no whitelist, just remove all hashtags to be safe
+    // No whitelist → remove all hashtags for safety
     return String(text || "").replace(/#[\p{L}\p{N}_]+/gu, "").replace(/[ \t]{2,}/g, " ").trim();
   }
 
@@ -124,7 +120,7 @@ function dedupeCaseInsensitive(lines: string[], maxItems: number) {
   return out;
 }
 
-/* ------------------------------ Stage 0+1 (Autofill: Meta + Draft in one plain-text) ------------------------------ */
+/* ------------------------------ Stage 0+1 (Autofill: Meta + Draft) ------------------------------ */
 
 export type AutofillDraftWithMeta = {
   meta: { title: string; description: string };
@@ -137,14 +133,14 @@ function cleanDraftLines(args: {
   count: number;
 }): DraftOutput {
   const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
-  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2)); // allow extra headroom
+  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2));
 
   let lines = (args.candidates || [])
     .map((l) => stripBulletsAndNumbering(normalizeLine(l)))
     .map((l) => normalizeLine(l))
     .map((l) => l.replace(/[\r\n]/g, " ").trim())
     .filter((l) => l.length > 0)
-    .filter((l) => isSingleLine(l))
+    .filter(isSingleLine)
     .filter((l) => !hasArabicScript(l))
     .filter((l) => !hasCjkScript(l))
     .filter((l) => !looksLikeWrappedOrMarkdown(l));
@@ -167,7 +163,7 @@ export function validateAutofillDraftWithMeta(args: {
   const allLines = String(cleaned || "")
     .replace(/\r/g, "")
     .split("\n")
-    .map((l) => normalizeLine(l))
+    .map(normalizeLine)
     .filter(Boolean);
 
   const sepIdx = allLines.findIndex((l) => l.trim() === "---");
@@ -187,7 +183,6 @@ export function validateAutofillDraftWithMeta(args: {
     if (/^DESC_FA:/i.test(l)) {
       const d = normalizeLine(l.replace(/^DESC_FA:\s*/i, ""));
       if (d) descLines.push(d);
-      continue;
     }
   }
 
@@ -202,64 +197,49 @@ export function validateAutofillDraftWithMeta(args: {
   return { meta: { title: title || "", description: description || "" }, draft };
 }
 
-/* ------------------------------ Stage 1 (Draft) ------------------------------ */
-/**
- * Accepts either:
- * - Plain text: one comment per line (recommended)
- * - JSON: {"comments":[{"text": "..."}]}
- *
- * Returns DraftOutput with lenient cleanup:
- * - NEVER enforces count
- * - Drops invalid lines instead of throwing (unless nothing usable)
- * - Removes illegal hashtags instead of throwing
- */
+/* ------------------------------ Stage 1 (English Draft) ------------------------------ */
+
 export function validateDraftOutput(args: {
   raw: string;
-  count: number; // kept for compatibility, not enforced
+  count: number;
   allowed_hashtags: string[];
 }): DraftOutput {
   const allowed = new Set(normalizeHashtags(args.allowed_hashtags));
-  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2)); // allow extra headroom
+  const maxItems = Math.max(5, Math.min(30, Number(args.count || 10) * 2));
 
   const parsed = safeParseJson(args.raw);
 
   let candidates: string[] = [];
 
-  // Case A: JSON output
-  if (parsed && typeof parsed === "object" && Array.isArray((parsed as any).comments)) {
-    candidates = (parsed as any).comments
+  if (parsed && typeof parsed === "object" && Array.isArray(parsed.comments)) {
+    // JSON format
+    candidates = parsed.comments
       .map((c: any) => normalizeLine(String(c?.text || "")))
       .filter(Boolean);
   } else {
-    // Case B: Plain text output
+    // Plain text: one comment per line
     const cleaned = stripCodeFences(args.raw);
     candidates = String(cleaned || "")
       .replace(/\r/g, "")
       .split("\n")
-      .map((l) => stripBulletsAndNumbering(normalizeLine(l)))
+      .map(stripBulletsAndNumbering)
+      .map(normalizeLine)
       .filter(Boolean);
   }
 
-  // Normalize + filter hard constraints
   let lines = candidates
-    .map((l) => normalizeLine(l))
+    .map(normalizeLine)
     .map((l) => l.replace(/[\r\n]/g, " ").trim())
     .filter((l) => l.length > 0)
-    .filter((l) => isSingleLine(l))
-    // If model accidentally outputs Persian/Arabic or CJK in the English draft, drop the line
+    .filter(isSingleLine)
     .filter((l) => !hasArabicScript(l))
     .filter((l) => !hasCjkScript(l))
-    // Remove wrapper-y artifacts
     .filter((l) => !looksLikeWrappedOrMarkdown(l));
 
-  // Remove illegal hashtags (do not fail)
   lines = lines.map((l) => removeIllegalHashtags(l, allowed)).filter(Boolean);
-
-  // Dedupe + cap
   lines = dedupeCaseInsensitive(lines, maxItems);
 
   if (lines.length === 0) {
-    // One retry is fine, but don't keep failing silently; signal upstream
     throw new Error("NO_USABLE_DRAFT_LINES");
   }
 
@@ -268,14 +248,14 @@ export function validateDraftOutput(args: {
   };
 }
 
-/* ------------------------------ Stage 2 (Translation) ------------------------------ */
+/* ------------------------------ Stage 2 (Persian Translation Batch) ------------------------------ */
 
 function normalizeTranslationText(raw: string) {
   return String(raw || "")
     .replace(/\r/g, "")
-    // Remove bidi / zero-width chars
+    // Remove problematic bidi / control characters, but KEEP ZWNJ (U+200C)
     .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
-    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
 
@@ -298,67 +278,61 @@ export function validateTranslationBatchOutput(args: {
 }): string[] {
   const parsed = safeParseJson(args.raw);
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as any).translations)) {
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.translations)) {
     throw new Error("INVALID_TRANSLATION_JSON_SHAPE");
   }
 
-  const translationsRaw = (parsed as any).translations as any[];
+  const translationsRaw = parsed.translations as any[];
   const n = args.sources_en.length;
 
-  // Normalize possible shapes into string[]
+  // Normalize to string[]
   let translationsNorm: string[] = translationsRaw.map((item: any) => {
-    if (typeof item === "string") return item;
-    if (item && typeof item === "object") return String(item.text ?? "");
+    if (typeof item === "string") return item.trim();
+    if (item && typeof item === "object") return String(item.text ?? "").trim();
     return "";
   });
 
-  // If model collapsed everything into one blob, try to split it into n parts.
-  const nonEmpty = translationsNorm.filter((x) => String(x || "").trim().length > 0);
-
+  // Handle collapsed output (all in one blob)
+  const nonEmpty = translationsNorm.filter(Boolean);
   if (n > 1 && (translationsNorm.length === 1 || nonEmpty.length === 1)) {
-    const blob = String((nonEmpty[0] ?? translationsNorm[0] ?? "")).trim();
+    const blob = (nonEmpty[0] ?? translationsNorm[0] ?? "").trim();
 
     let parts = blob
       .split("\n")
-      .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+      .map((x) => x.replace(/[\r\n]/g, " ").trim())
       .filter(Boolean);
 
-    // If still not enough parts, split by hashtag boundaries (works well for your outputs)
     if (parts.length < n) {
       parts = blob
         .split(/(?<=#[\p{L}\p{N}_]+)\s*(?=[^#\s])/gu)
-        .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+        .map((x) => x.trim())
         .filter(Boolean);
     }
 
-    // Last resort: split by sentence endings
     if (parts.length < n) {
       parts = blob
         .split(/(?<=[.!?؟])\s+/g)
-        .map((x) => String(x || "").replace(/[\r\n]/g, " ").trim())
+        .map((x) => x.trim())
         .filter(Boolean);
     }
 
-    translationsNorm = new Array(n).fill("").map((_, i) => parts[i] ?? "");
+    translationsNorm = Array(n).fill("").map((_, i) => parts[i] ?? "");
   }
 
   const out: string[] = [];
 
   for (let i = 0; i < n; i++) {
     const src = String(args.sources_en[i] || "").trim();
-    const rawText = String(translationsNorm[i] ?? "").trim();
+    let t = String(translationsNorm[i] ?? "").trim();
 
-    if (!rawText) {
+    // Quick rejects
+    if (!t || looksLikeWrappedOrMarkdown(t)) {
       out.push("");
       continue;
     }
 
-    if (looksLikeWrappedOrMarkdown(rawText)) {
-      out.push("");
-      continue;
-    }
-
-    let t = normalizeTranslationText(rawText);
+    // Gentle normalization
+    t = normalizeTranslationText(t);
     t = stripCjkOutsideTagsMentions(t);
     t = normalizeTranslationText(t);
 
@@ -367,9 +341,13 @@ export function validateTranslationBatchOutput(args: {
       continue;
     }
 
+    // If multi-line → keep only first line instead of discarding
     if (!isSingleLine(t)) {
-      out.push("");
-      continue;
+      t = t.split(/[\r\n]+/)[0].trim();
+      if (!t) {
+        out.push("");
+        continue;
+      }
     }
 
     if (hasCjkScript(t)) {
@@ -382,16 +360,21 @@ export function validateTranslationBatchOutput(args: {
       continue;
     }
 
+    // Very relaxed Persian check: only reject if almost no Persian chars + meaningful length
     const stripped = t
       .replace(/#[\p{L}\p{N}_]+/gu, " ")
       .replace(/@[\p{L}\p{N}_]+/gu, " ")
       .trim();
 
-    if (stripped && !hasArabicScript(stripped)) {
-      out.push("");
-      continue;
+    if (stripped.length > 5) {
+      const persianCount = (stripped.match(/[\u0600-\u06FF]/g) || []).length;
+      if (persianCount < 3 && stripped.length > 20) {
+        out.push("");
+        continue;
+      }
     }
 
+    // Accepted
     out.push(t);
   }
 
