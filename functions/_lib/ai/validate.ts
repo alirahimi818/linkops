@@ -23,12 +23,12 @@ function hasCjkScript(s: string) {
 }
 
 function extractHashtagsFromText(text: string): string[] {
-  const matches = String(text || "").match(/#[\p{L}\p{N}_]+/gu);
+  const matches = String(text || "").match(/#[\p{L}\p{M}\p{N}_]+/gu);
   return matches ? matches.map((m) => m.trim()) : [];
 }
 
 function extractMentionsFromText(text: string): string[] {
-  const matches = String(text || "").match(/@[\p{L}\p{N}_]+/gu);
+  const matches = String(text || "").match(/@[\p{L}\p{M}\p{N}_]+/gu);
   return matches ? matches.map((m) => m.trim()) : [];
 }
 
@@ -363,6 +363,9 @@ export function validateTranslationBatchOutput(args: {
     t = stripCjkOutsideTagsMentions(t);
     t = normalizeTranslationText(t);
     t = stripCharCountNote(t);
+
+    // Ensure hashtags are separated properly (sometimes model sticks them)
+    t = t.replace(/([.!?،؛؟!])\s*(#)/g, "$1 $2");
 
     // Clean trailing Persian 'ه' or similar chars that stick to mentions
     t = t.replace(/([@#][\p{L}\p{N}_]+)[\u0600-\u06FF]$/gu, "$1"); // remove one trailing Persian char after @ or #
