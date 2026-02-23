@@ -390,6 +390,16 @@ export function validateTranslationBatchOutput(args: {
       continue;
     }
 
+    if (!ensureSameMentionsAndHashtags(src, t)) {
+      console.log(`Rejected line ${i} - MENTIONS/HASHTAGS MISMATCH`);
+      console.log("Source mentions:", extractMentionsFromText(src));
+      console.log("Trans mentions:", extractMentionsFromText(t));
+      console.log("Source hashtags:", extractHashtagsFromText(src));
+      console.log("Trans hashtags:", extractHashtagsFromText(t));
+      out.push("");
+      continue;
+    }
+
     // Very relaxed Persian check: only reject if almost no Persian chars + meaningful length
     const stripped = t
       .replace(/#[\p{L}\p{N}_]+/gu, " ")
