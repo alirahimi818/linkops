@@ -5,6 +5,8 @@ import InstallPwaCard from "../components/ops/InstallPwaCard";
 import Card from "../components/ui/Card";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 import OfflineBanner from "../components/ui/OfflineBanner";
+import DeviceSyncButton from "../components/home/DeviceSyncButton";
+import { tryApplyDeviceIdFromUrl } from "../lib/deviceSync";
 
 import {
   IconExternal,
@@ -146,6 +148,13 @@ export default function Home() {
     };
   }, []);
 
+  const [syncSuccess, setSyncSuccess] = useState(false);
+
+  useEffect(() => {
+    const r = tryApplyDeviceIdFromUrl();
+    if (r.applied) setSyncSuccess(true);
+  }, []);
+
   const items: MenuItem[] = [
     {
       title: "لیست فعالیت‌ها",
@@ -198,6 +207,12 @@ export default function Home() {
           </div>
         </div>
 
+        {syncSuccess ? (
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            دستگاه با موفقیت وصل شد ✅
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((it) => (
             <MenuCard key={it.title} item={it} />
@@ -218,6 +233,10 @@ export default function Home() {
 
         <div className="my-4">
           <InstallPwaCard scopeKey="/" id="pwa-install" />
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <DeviceSyncButton />
         </div>
       </div>
 
