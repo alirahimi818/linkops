@@ -153,15 +153,6 @@ export default function DeviceSyncButton() {
     };
   }, [open, syncUrl]);
 
-  const copy = async (text: string, okMessage: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setToast({ text: okMessage, tone: "success" });
-    } catch {
-      setToast({ text: "کپی انجام نشد؛ دستی کپی کن.", tone: "warning" });
-    }
-  };
-
   const onRestore = async () => {
     const v = restoreInput.trim();
 
