@@ -1,8 +1,7 @@
 // frontend/src/components/home/DeviceSyncButton.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import Button from "../ui/Button";
-import Alert from "../ui/Alert";
 import PortalModal from "../ui/PortalModal";
 
 import {
@@ -16,172 +15,274 @@ import {
 import { toDataURL } from "qrcode";
 import CopyPill from "../ui/CopyPill";
 
-type Tab = "connect_new" | "restore_here";
+// ---------------------------------------------------------------------------
+// InlineToast
+// ---------------------------------------------------------------------------
 
-function clsx(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
-}
+type ToastTone = "success" | "warning" | "error";
 
-function SegmentedTabs(props: { value: Tab; onChange: (t: Tab) => void }) {
-  const base = "flex-1 rounded-xl px-1 md:px-3 py-2 text-sm transition border";
-  const active = "bg-white border-zinc-200 text-zinc-900 shadow-sm";
-  const inactive =
-    "bg-transparent border-transparent text-zinc-600 hover:text-zinc-900 hover:bg-white/60";
-
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
-      <button
-        type="button"
-        className={clsx(
-          base,
-          props.value === "connect_new" ? active : inactive,
-        )}
-        onClick={() => props.onChange("connect_new")}
-      >
-        اتصال دستگاه جدید
-      </button>
-
-      <button
-        type="button"
-        className={clsx(
-          base,
-          props.value === "restore_here" ? active : inactive,
-        )}
-        onClick={() => props.onChange("restore_here")}
-      >
-        این دستگاه را وصل کن
-      </button>
-    </div>
-  );
-}
-
-function InlineToast(props: {
+interface ToastState {
+  id: number;
   text: string;
-  tone?: "success" | "warning";
-  onDone?: () => void;
+  tone: ToastTone;
+}
+
+function InlineToast({
+  toast,
+  onDone,
+}: {
+  toast: ToastState;
+  onDone: () => void;
 }) {
-  const tone = props.tone ?? "success";
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Animate in on mount / when toast changes
   useEffect(() => {
-    setVisible(true);
+    // Trigger enter animation on next paint
+    const raf = requestAnimationFrame(() => setVisible(true));
 
-    const t = setTimeout(() => {
-      setVisible(false);
-    }, 3000); // 3 seconds visible
+    timerRef.current = setTimeout(() => setVisible(false), 3200);
 
-    return () => clearTimeout(t);
-  }, [props.text]);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [toast.id]);
 
-  // After fade-out animation, notify parent to remove toast
+  // After fade-out, notify parent
   useEffect(() => {
     if (visible) return;
-
-    const t = setTimeout(() => {
-      props.onDone?.();
-    }, 300); // match transition duration
-
+    const t = setTimeout(onDone, 350);
     return () => clearTimeout(t);
-  }, [visible, props]);
+  }, [visible, onDone]);
+
+  const colorMap: Record<ToastTone, string> = {
+    success: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    warning: "border-amber-200 bg-amber-50 text-amber-900",
+    error: "border-rose-200 bg-rose-50 text-rose-900",
+  };
+
+  const iconMap: Record<ToastTone, string> = {
+    success: "✅",
+    warning: "⚠️",
+    error: "❌",
+  };
 
   return (
     <div
-      className={clsx(
-        "mb-3 rounded-xl border p-3 text-sm transition-opacity duration-300",
-        visible ? "opacity-100" : "opacity-0",
-        tone === "success"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-          : "border-amber-200 bg-amber-50 text-amber-900"
-      )}
+      role="status"
+      aria-live="polite"
+      className={[
+        "mb-3 flex items-center gap-2 rounded-xl border p-3 text-sm",
+        "transition-all duration-300 ease-in-out",
+        colorMap[toast.tone],
+        visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
+      ].join(" ")}
     >
-      {props.text}
+      <span>{iconMap[toast.tone]}</span>
+      <span>{toast.text}</span>
     </div>
   );
 }
 
-export default function DeviceSyncButton() {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("connect_new");
+// ---------------------------------------------------------------------------
+// Small reusable pieces
+// ---------------------------------------------------------------------------
 
-  const [revealed, setRevealed] = useState(false);
-  const [toast, setToast] = useState<{
-    text: string;
-    tone?: "success" | "warning";
-  } | null>(null);
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-base font-medium text-zinc-900">{children}</div>
+  );
+}
 
-  const [restoreInput, setRestoreInput] = useState("");
-  const [restoreBusy, setRestoreBusy] = useState(false);
+function SectionDesc({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-1 text-sm text-zinc-500">{children}</div>
+  );
+}
 
+function Divider() {
+  return <div className="my-4 border-t border-zinc-100" />;
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — Share to new device
+// ---------------------------------------------------------------------------
+
+function ShareStep({ syncUrl }: { syncUrl: string }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [qrBusy, setQrBusy] = useState(false);
-
-  const code = useMemo(() => getOrCreateDeviceId(), []);
-  const syncUrl = useMemo(() => buildSyncUrl(code), [code]);
+  const [qrBusy, setQrBusy] = useState(true);
 
   useEffect(() => {
-    if (!open) return;
-
-    setToast(null);
-    setRevealed(false);
-    setRestoreInput("");
-    setRestoreBusy(false);
-    setTab("connect_new");
-
     let alive = true;
-    async function gen() {
+    (async () => {
       setQrBusy(true);
       try {
         const dataUrl = await toDataURL(syncUrl, {
           margin: 1,
-          width: 220,
+          width: 200,
           errorCorrectionLevel: "M",
         });
-        if (!alive) return;
-        setQrDataUrl(dataUrl);
+        if (alive) setQrDataUrl(dataUrl);
       } catch {
-        if (!alive) return;
-        setQrDataUrl(null);
+        if (alive) setQrDataUrl(null);
       } finally {
-        if (!alive) return;
-        setQrBusy(false);
+        if (alive) setQrBusy(false);
       }
-    }
+    })();
+    return () => { alive = false; };
+  }, [syncUrl]);
 
-    void gen();
-    return () => {
-      alive = false;
-    };
-  }, [open, syncUrl]);
+  return (
+    <div className="space-y-4">
+      {/* QR — primary action */}
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        {qrBusy ? (
+          <div className="flex h-[200px] w-[200px] items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm text-zinc-400">
+            در حال ساخت QR...
+          </div>
+        ) : qrDataUrl ? (
+          <img
+            src={qrDataUrl}
+            alt="QR Code برای انتقال پروفایل"
+            className="h-[200px] w-[200px] rounded-xl border border-zinc-200 bg-white"
+          />
+        ) : (
+          <div className="flex h-[200px] w-[200px] items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm text-zinc-400">
+            QR آماده نشد
+          </div>
+        )}
 
-  const onRestore = async () => {
-    const v = restoreInput.trim();
+        <p className="text-center text-sm text-zinc-500">
+          روی دستگاه جدید QR را اسکن کن
+        </p>
+      </div>
 
+      {/* Link — secondary action */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="text-sm font-medium text-zinc-700">
+          یا لینک را کپی کن
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <CopyPill
+            value={syncUrl}
+            label="کپی لینک"
+            dir="auto"
+            className="rounded-xl py-2 text-sm"
+          />
+          <a
+            href={syncUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-zinc-500 underline underline-offset-2 hover:text-zinc-700"
+          >
+            باز کردن
+          </a>
+        </div>
+        <p className="mt-2 text-xs text-zinc-400">
+          بعد از باز شدن، آدرس صفحه خودکار تمیز می‌شود.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Restore on this device
+// ---------------------------------------------------------------------------
+
+function RestoreStep({
+  onSuccess,
+  onToast,
+}: {
+  onSuccess: () => void;
+  onToast: (text: string, tone: ToastTone) => void;
+}) {
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const invalid = input.trim().length > 0 && !isValidUuid(input.trim());
+
+  const handleRestore = async () => {
+    const v = input.trim();
     if (!isValidUuid(v)) {
-      setToast({
-        text: "کد واردشده معتبر نیست. دوباره بررسی کن.",
-        tone: "warning",
-      });
+      onToast("کد واردشده معتبر نیست. دوباره بررسی کن.", "warning");
       return;
     }
 
-    setRestoreBusy(true);
+    setBusy(true);
     try {
       const ok = setDeviceId(v);
       if (!ok) {
-        setToast({
-          text: "ذخیره‌سازی انجام نشد. (احتمالاً دسترسی مرورگر محدود است)",
-          tone: "warning",
-        });
+        onToast("ذخیره‌سازی انجام نشد. (احتمالاً دسترسی مرورگر محدود است)", "error");
         return;
       }
       window.dispatchEvent(new Event("status:changed"));
-      setToast({ text: "این دستگاه با موفقیت وصل شد ✅", tone: "success" });
+      onToast("این دستگاه با موفقیت وصل شد", "success");
+      onSuccess();
     } finally {
-      setRestoreBusy(false);
+      setBusy(false);
     }
   };
 
-  const onRotate = () => {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+      <SectionTitle>وارد کردن کد بازیابی</SectionTitle>
+      <SectionDesc>
+        کدی که از دستگاه قبلی کپی کردی را اینجا وارد کن.
+      </SectionDesc>
+
+      <input
+        className={[
+          "mt-3 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none",
+          "transition focus:ring-2 focus:ring-zinc-300",
+          invalid ? "border-rose-300" : "border-zinc-200",
+        ].join(" ")}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        dir="ltr"
+        inputMode="text"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+
+      {invalid && (
+        <p className="mt-1 text-xs text-rose-500">
+          فرمت کد اشتباه است.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button onClick={() => void handleRestore()} disabled={busy || !input.trim()}>
+          {busy ? "در حال اتصال..." : "اتصال"}
+        </Button>
+        {input && (
+          <Button variant="secondary" onClick={() => setInput("")}>
+            پاک کردن
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Backup code section (accordion-style, always at bottom)
+// ---------------------------------------------------------------------------
+
+function BackupCodeSection({
+  code,
+  onToast,
+}: {
+  code: string;
+  onToast: (text: string, tone: ToastTone) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const handleRotate = () => {
     const ok = window.confirm(
       "ساخت کد جدید باعث می‌شود دستگاه‌های قبلی دیگر به پروفایل فعلی وصل نباشند.\n\nادامه می‌دهی؟",
     );
@@ -189,10 +290,7 @@ export default function DeviceSyncButton() {
 
     const next = rotateDeviceId();
     if (!next) {
-      setToast({
-        text: "ساخت کد جدید انجام نشد. (مشکل در ذخیره‌سازی مرورگر)",
-        tone: "warning",
-      });
+      onToast("ساخت کد جدید انجام نشد. (مشکل در ذخیره‌سازی مرورگر)", "error");
       return;
     }
 
@@ -200,205 +298,137 @@ export default function DeviceSyncButton() {
   };
 
   return (
+    <div className="rounded-2xl border border-zinc-200 bg-white">
+      {/* Accordion toggle */}
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm text-zinc-600 hover:text-zinc-900"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span>کد بازیابی (backup code)</span>
+        <span
+          className={[
+            "text-zinc-400 transition-transform duration-200",
+            open ? "rotate-180" : "",
+          ].join(" ")}
+          aria-hidden
+        >
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-zinc-100 px-4 pb-4 pt-3 space-y-3">
+          <p className="text-xs text-zinc-500">
+            این کد مخصوص توست. اگر localStorage مرورگر پاک شد یا دستگاه عوض
+            کردی، با این کد می‌توانی به همین پروفایل برگردی. آن را در جای امن
+            نگه دار.
+          </p>
+
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <code className="flex-1 select-all text-xs text-zinc-700" dir="ltr">
+              {code}
+            </code>
+            <CopyPill
+              value={code}
+              label="کپی"
+              dir="auto"
+              className="shrink-0 rounded-lg py-1 text-xs"
+            />
+          </div>
+
+          <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+            <p className="text-xs text-amber-800">
+              اگر فکر می‌کنی کد لو رفته، می‌تونی کد جدید بسازی — ولی دستگاه‌های
+              قبلاً وصل‌شده جدا می‌شن.
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900"
+              onClick={handleRotate}
+            >
+              ساخت کد جدید
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Root component
+// ---------------------------------------------------------------------------
+
+export default function DeviceSyncButton() {
+  const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastCounter = useRef(0);
+
+  const code = useMemo(() => getOrCreateDeviceId(), []);
+  const syncUrl = useMemo(() => buildSyncUrl(code), [code]);
+
+  // Reset internal state when modal opens
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => {
+    setOpen(false);
+    setToast(null);
+  };
+
+  const showToast = (text: string, tone: ToastTone = "success") => {
+    toastCounter.current += 1;
+    setToast({ id: toastCounter.current, text, tone });
+  };
+
+  return (
     <>
-      <Button variant="secondary" onClick={() => setOpen(true)}>
+      <Button variant="secondary" onClick={handleOpen}>
         اتصال دستگاه جدید
       </Button>
 
       <PortalModal
         open={open}
         title="اتصال دستگاه‌ها"
-        onClose={() => setOpen(false)}
-        maxWidthClass="max-w-3xl"
+        onClose={handleClose}
+        maxWidthClass="max-w-lg"
       >
-        {toast ? <InlineToast text={toast.text} tone={toast.tone} /> : null}
+        {toast ? (
+          <InlineToast
+            toast={toast}
+            onDone={() => setToast(null)}
+          />
+        ) : null}
 
-        <SegmentedTabs value={tab} onChange={setTab} />
-
-        {tab === "connect_new" ? (
-          <>
-            <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4">
-              <div className="text-base text-zinc-900">
-                روی دستگاه جدید چه کار کنم؟
-              </div>
-              <div className="mt-1 text-sm text-zinc-600">
-                ساده‌ترین روش: QR را اسکن کن تا همان پروفایل روی دستگاه جدید باز
-                شود. اگر امکان اسکن نداری، می‌توانی لینک را کپی کنی یا کد را
-                دستی وارد کنی.
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                  <div className="text-sm font-medium text-zinc-900">
-                    QR برای باز کردن روی دستگاه جدید
-                  </div>
-
-                  <div className="mt-3 flex justify-center">
-                    {qrDataUrl ? (
-                      <img
-                        src={qrDataUrl}
-                        alt="QR"
-                        className="h-[220px] w-[220px] rounded-xl border border-zinc-200 bg-white"
-                      />
-                    ) : (
-                      <div className="text-xs text-zinc-500">
-                        {qrBusy ? "در حال ساخت QR..." : "QR آماده نشد."}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <CopyPill
-                      value={syncUrl}
-                      label="کپی لینک"
-                      dir="auto"
-                      className="rounded-xl py-2 text-sm"
-                    />
-
-                    <a
-                      href={syncUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-zinc-700 underline"
-                    >
-                      باز کردن لینک
-                    </a>
-                  </div>
-
-                  <div className="mt-2 text-xs text-zinc-500">
-                    نکته: بعد از باز شدن روی دستگاه جدید، آدرس صفحه خودکار تمیز
-                    می‌شود.
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                  <div className="text-sm font-medium text-zinc-900">
-                    کد بازیابی
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-600">
-                    این کد مخصوص توست. اگر اطلاعات مرورگر پاک شد یا دستگاه عوض
-                    کردی، با این کد می‌توانی برگردی.
-                  </div>
-
-                  <div className="mt-3">
-                    {!revealed ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => setRevealed(true)}
-                      >
-                        نمایش کد
-                      </Button>
-                    ) : (
-                      <>
-                        <input
-                          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                          value={code}
-                          readOnly
-                          dir="ltr"
-                        />
-
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <CopyPill
-                            value={code}
-                            label="کپی کد"
-                            dir="auto"
-                            className="rounded-xl py-2 text-sm"
-                          />
-
-                          <button
-                            type="button"
-                            className="text-sm text-zinc-700 underline"
-                            onClick={() => setRevealed(false)}
-                          >
-                            مخفی کردن
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    اگر فکر می‌کنی کد در جایی لو رفته، می‌تونی کد جدید بسازی.
-                    <div className="mt-2">
-                      <Button variant="secondary" onClick={onRotate}>
-                        ساخت کد جدید
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 text-xs text-zinc-500">
-              حریم خصوصی: کد فقط روی همین مرورگر ذخیره می‌شود و به کسی ارسال
-              نمی‌شود.
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4">
-              <div className="text-base text-zinc-900">
-                این دستگاه را به پروفایل قبلی وصل کن
-              </div>
-              <div className="mt-1 text-sm text-zinc-600">
-                اگر الان روی یک دستگاه/مرورگر جدید هستی، کدی که از دستگاه قبلی
-                گرفتی را اینجا وارد کن.
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                <label className="text-sm font-medium text-zinc-900">
-                  وارد کردن کد
-                </label>
-
-                <input
-                  className={clsx(
-                    "mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900",
-                    restoreInput.trim() && !isValidUuid(restoreInput)
-                      ? "border-rose-300"
-                      : "border-zinc-200",
-                  )}
-                  value={restoreInput}
-                  onChange={(e) => setRestoreInput(e.target.value)}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  dir="ltr"
-                  inputMode="text"
-                  autoComplete="off"
-                />
-
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Button
-                    onClick={() => void onRestore()}
-                    disabled={restoreBusy}
-                  >
-                    اتصال
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setRestoreInput("");
-                      setToast(null);
-                    }}
-                  >
-                    پاک کردن
-                  </Button>
-                </div>
-
-                <div className="mt-2 text-xs text-zinc-500">
-                  بعد از اتصال موفق، همین دستگاه هم از همان پروفایل استفاده
-                  می‌کند.
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Primary flow: share to a new device */}
+        <SectionTitle>انتقال به دستگاه جدید</SectionTitle>
+        <SectionDesc>
+          QR را اسکن کن یا لینک را در دستگاه جدید باز کن تا همان پروفایل منتقل شود.
+        </SectionDesc>
 
         <div className="mt-4">
-          <Alert variant="warning" className="text-right">
-            توصیه: برای امنیت بیشتر، کد بازیابی را در جای امن نگه دار و با کسی
-            به اشتراک نگذار.
-          </Alert>
+          <ShareStep syncUrl={syncUrl} />
         </div>
+
+        <Divider />
+
+        {/* Secondary flow: restore on this device using a code */}
+        <SectionTitle>این دستگاه را وصل کن</SectionTitle>
+        <SectionDesc>
+          اگر روی دستگاه جدید هستی و کد بازیابی داری، اینجا وارد کن.
+        </SectionDesc>
+
+        <div className="mt-4">
+          <RestoreStep
+            onSuccess={handleClose}
+            onToast={showToast}
+          />
+        </div>
+
+        <Divider />
+
+        {/* Tertiary: backup code — collapsed by default */}
+        <BackupCodeSection code={code} onToast={showToast} />
       </PortalModal>
     </>
   );
