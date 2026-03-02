@@ -23,17 +23,20 @@ export async function getRandomItemCommentExamples(
   env: Env,
   itemId: string,
   limit = 5,
+  authorTypes?: string[], // if provided, restrict to these author_type values
 ) {
-  // Prefer admin/ai comments (higher quality context) over user-generated ones
+  const baseWhere = authorTypes?.length
+    ? `WHERE item_id = ?1 AND author_type IN (${authorTypes.map(() => "?").join(",")})`
+    : `WHERE item_id = ?1`;
+
   const res = await env.DB.prepare(
     `SELECT text, translation_text
      FROM item_comments
-     WHERE item_id = ?1
-     ORDER BY CASE author_type WHEN 'admin' THEN 0 WHEN 'ai' THEN 1 ELSE 2 END,
-              RANDOM()
-     LIMIT ?2`,
+     ${baseWhere}
+     ORDER BY RANDOM()
+     LIMIT ?`,
   )
-    .bind(itemId, limit)
+    .bind(itemId, ...(authorTypes ?? []), limit)
     .all<any>();
 
   return (res.results || [])
@@ -527,6 +530,16 @@ export async function runGenerateCommentsJob(
 
 /* ------------------------------ Public: comment from DB examples ------------------------------ */
 
+function parseEnFaOutput(raw: string): { text: string; translation_text: string } {
+  const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+  const enLine = lines.find((l) => l.startsWith("EN:"));
+  const faLine = lines.find((l) => l.startsWith("FA:"));
+  const text = enLine ? enLine.slice(3).trim() : "";
+  const translation_text = faLine ? fixFaTypography(faLine.slice(3).trim()) : "";
+  if (!text) throw new Error("NO_USABLE_DRAFT_LINES");
+  return { text, translation_text };
+}
+
 export async function runPublicCommentFromExamples(
   env: Env,
   args: {
@@ -540,8 +553,7 @@ export async function runPublicCommentFromExamples(
 ): Promise<{ text: string; translation_text: string }> {
   const provider = getAIProvider(env);
   const temperature = 0.75;
-  const max_tokens_draft = 400;
-  const max_tokens_translate = 300;
+  const max_tokens = 500;
 
   await env.DB.prepare(
     "UPDATE ai_jobs SET status='running', started_at=?1, provider=?2, model=?3, temperature=?4, max_tokens=?5 WHERE id=?6",
@@ -551,7 +563,7 @@ export async function runPublicCommentFromExamples(
       provider.name,
       (provider as any).model ?? null,
       temperature,
-      max_tokens_draft,
+      max_tokens,
       args.job_id,
     )
     .run();
@@ -565,8 +577,7 @@ export async function runPublicCommentFromExamples(
   }
 
   try {
-    /* Stage 1: generate one English comment */
-    const draftMessages = buildPublicCommentFromExamplesPrompt({
+    const messages = buildPublicCommentFromExamplesPrompt({
       title_fa: args.title_fa,
       description_fa: args.description_fa,
       tone: args.tone,
@@ -574,77 +585,18 @@ export async function runPublicCommentFromExamples(
       examples: args.examples,
     });
 
-    await addJobMessages(env, args.job_id, draftMessages);
+    await addJobMessages(env, args.job_id, messages);
 
-    let draftRaw: string;
-    try {
-      const resp = await provider.chat({
-        messages: draftMessages,
-        temperature,
-        max_tokens: max_tokens_draft,
-        mode: "public",
-      });
-      draftRaw = resp.content;
-    } catch (e1: any) {
-      // One retry on transient errors
-      const msg = String(e1?.message || "");
-      if (
-        msg.includes("timeout") ||
-        msg.includes("rate") ||
-        msg.includes("temporar") ||
-        msg.includes("xai_http_")
-      ) {
-        const resp2 = await provider.chat({
-          messages: draftMessages,
-          temperature,
-          max_tokens: max_tokens_draft,
-          mode: "public",
-        });
-        draftRaw = resp2.content;
-      } else {
-        throw e1;
-      }
-    }
-
-    await storeMsg("assistant", draftRaw);
-
-    // Extract first non-empty line
-    const text = draftRaw
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean)[0];
-
-    if (!text) throw new Error("NO_USABLE_DRAFT_LINES");
-
-    /* Stage 2: translate to FA */
-    const translateMessages = buildTranslateToFaTextPrompt({
-      texts_en: [text],
-      tone: args.tone,
-      stream: "political",
-      topic: "iran_revolution_jan_2026",
-    } as any);
-
-    await addJobMessages(env, args.job_id, translateMessages);
-
-    const translateResp = await provider.chat({
-      messages: translateMessages,
+    const resp = await provider.chat({
+      messages,
       temperature,
-      max_tokens: max_tokens_translate,
+      max_tokens,
       mode: "public",
     });
 
-    await storeMsg("assistant", translateResp.content);
+    await storeMsg("assistant", resp.content);
 
-    let translation_text = "";
-    try {
-      const parsed = validateTranslationBatchOutput({
-        raw: translateResp.content,
-        sources_en: [text],
-      });
-      translation_text = fixFaTypography(parsed[0] ?? "");
-    } catch {
-      // translation is best-effort; empty string is acceptable
-    }
+    const result = parseEnFaOutput(resp.content);
 
     await env.DB.prepare(
       "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
@@ -652,7 +604,7 @@ export async function runPublicCommentFromExamples(
       .bind(new Date().toISOString(), args.job_id)
       .run();
 
-    return { text, translation_text };
+    return result;
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
     await env.DB.prepare(
