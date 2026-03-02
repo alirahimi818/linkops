@@ -88,7 +88,7 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       return rateLimitResponse(rl.retry_after);
     }
 
-    const examplesRaw = await getRandomItemCommentExamples(env, item_id, 10, ["admin"]);
+    const examplesRaw = await getRandomItemCommentExamples(env, item_id, 10, ["admin", "superadmin"]);
     const examples = normalizeExamples(examplesRaw);
 
     if (examples.length === 0) {
