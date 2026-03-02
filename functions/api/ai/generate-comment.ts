@@ -1,10 +1,12 @@
 import {
   createAIJob,
   getRandomItemCommentExamples,
-  runGenerateCommentsJob,
+  runPublicCommentFromExamples,
   insertItemComment,
 } from "../../_lib/ai/runner";
-import type { GenerateInput, Tone } from "../../_lib/ai/types";
+import { rateLimitByDevice, rateLimitResponse } from "../_rate_limit";
+import { requireDeviceId } from "../_device";
+import type { Tone } from "../../_lib/ai/types";
 
 export function normalizeTone(v: any): Tone {
   const t = String(v || "").trim().toLowerCase();
@@ -18,7 +20,6 @@ export function normalizeTone(v: any): Tone {
   if (t === "sarcastic") return "sarcastic";
   if (t === "calm_firm") return "calm_firm";
   if (t === "neutral") return "neutral";
-  // Fallback (never default to empty emotion)
   return "demanding";
 }
 
@@ -39,13 +40,21 @@ function normalizeExamples(examples: Array<{ text: string }>) {
   return (examples || [])
     .map((e) => ({ text: String(e.text || "").trim() }))
     .filter((e) => e.text.length > 0)
-    .slice(0, 8);
+    .slice(0, 10);
 }
 
 export async function onRequestPost(ctx: any): Promise<Response> {
   const { request, env } = ctx;
 
   try {
+    // Device ID is required (middleware already validated it)
+    let deviceId: string;
+    try {
+      deviceId = requireDeviceId(request);
+    } catch {
+      return Response.json({ ok: false, error: "MISSING_DEVICE_ID" }, { status: 400 });
+    }
+
     const body = await request.json();
 
     const item_id = String(body.item_id || "").trim();
@@ -56,37 +65,44 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       );
     }
 
-    const title_fa = String(body.title_fa || "").trim();
-    const description_fa = String(body.description_fa || "").trim();
-    const need_fa = String(body.need_fa || "").trim();
+    // Fetch item from DB
+    const item = await env.DB.prepare(
+      `SELECT id, title, url, description FROM items WHERE id = ? LIMIT 1`,
+    )
+      .bind(item_id)
+      .first<any>();
 
-    if (!title_fa || !description_fa || !need_fa) {
+    if (!item) {
+      return Response.json({ ok: false, error: "ITEM_NOT_FOUND" }, { status: 404 });
+    }
+
+    // Rate limit: 1 per minute per device per item
+    const rl = await rateLimitByDevice({
+      db: env.DB,
+      deviceId,
+      action: "ai_comment_public",
+      sub_key: item_id,
+    });
+
+    if (!rl.ok) {
+      return rateLimitResponse(rl.retry_after);
+    }
+
+    const examplesRaw = await getRandomItemCommentExamples(env, item_id, 10);
+    const examples = normalizeExamples(examplesRaw);
+
+    if (examples.length === 0) {
       return Response.json(
-        { ok: false, error: "MISSING_REQUIRED_FIELDS" },
-        { status: 400 },
+        { ok: false, error: "NO_EXAMPLES_AVAILABLE" },
+        { status: 422 },
       );
     }
 
-    const examplesRaw = await getRandomItemCommentExamples(env, item_id, 5);
-    const examples = normalizeExamples(examplesRaw);
-
     const allowed_hashtags = await getAllowedHashtagsFromDb(env);
 
-    const input: GenerateInput = {
-      title_fa,
-      description_fa,
-      need_fa,
-      comment_type_fa: String(body.comment_type_fa || "ریپلای کوتاه").trim(),
-      tone: normalizeTone(body.tone),
-
-      stream: "political",
-      topic: "iran_revolution_jan_2026",
-
-      allowed_hashtags,
-      count: 1,
-
-      examples,
-    };
+    const tone = normalizeTone(body.tone);
+    const title_fa = String(item.title || "").trim();
+    const description_fa = String(item.description || "").trim();
 
     const job = await createAIJob(env, {
       job_type: "generate_item_comment_public",
@@ -96,25 +112,19 @@ export async function onRequestPost(ctx: any): Promise<Response> {
       requested_by_id: null,
     });
 
-    const output = await runGenerateCommentsJob(env, {
+    const result = await runPublicCommentFromExamples(env, {
       job_id: job.id,
-      input,
-      mode: "public",
+      title_fa,
+      description_fa,
+      tone,
+      allowed_hashtags,
+      examples,
     });
 
-    const c = output.comments?.[0];
-    if (!c || !c.text) {
-      return Response.json(
-        { ok: false, error: "NO_COMMENT_GENERATED", job_id: job.id },
-        { status: 502 },
-      );
-    }
-
-    // Save as user type (as requested)
     const saved = await insertItemComment(env, {
       item_id,
-      text: c.text,
-      translation_text: c.translation_text, // may be ""
+      text: result.text,
+      translation_text: result.translation_text,
       author_type: "user",
       author_id: null,
     });
@@ -122,7 +132,7 @@ export async function onRequestPost(ctx: any): Promise<Response> {
     return Response.json({
       ok: true,
       job_id: job.id,
-      comment: c,
+      comment: { text: result.text, translation_text: result.translation_text },
       saved_comment_id: saved.id,
     });
   } catch (e: any) {

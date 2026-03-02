@@ -6,6 +6,7 @@ import { buildDraftPrompt } from "./prompts/draft_en";
 import { buildTranslateToFaTextPrompt } from "./prompts/translate_to_fa_text";
 import { buildFetchXContextPrompt } from "./prompts/fetch_x_context";
 import { buildFetchXAutofillAndDraftEnPrompt } from "./prompts/fetch_x_autofill_en";
+import { buildPublicCommentFromExamplesPrompt } from "./prompts/public_comment_from_examples";
 
 // Validators
 import {
@@ -518,6 +519,145 @@ export async function runGenerateCommentsJob(
       .bind(msg, new Date().toISOString(), args.job_id)
       .run();
 
+    throw new Error(msg);
+  }
+}
+
+/* ------------------------------ Public: comment from DB examples ------------------------------ */
+
+export async function runPublicCommentFromExamples(
+  env: Env,
+  args: {
+    job_id: string;
+    title_fa: string;
+    description_fa: string;
+    tone: string;
+    allowed_hashtags: string[];
+    examples: Array<{ text: string }>;
+  },
+): Promise<{ text: string; translation_text: string }> {
+  const provider = getAIProvider(env);
+  const temperature = 0.75;
+  const max_tokens_draft = 400;
+  const max_tokens_translate = 300;
+
+  await env.DB.prepare(
+    "UPDATE ai_jobs SET status='running', started_at=?1, provider=?2, model=?3, temperature=?4, max_tokens=?5 WHERE id=?6",
+  )
+    .bind(
+      new Date().toISOString(),
+      provider.name,
+      (provider as any).model ?? null,
+      temperature,
+      max_tokens_draft,
+      args.job_id,
+    )
+    .run();
+
+  async function storeMsg(role: string, content: string) {
+    await env.DB.prepare(
+      "INSERT INTO ai_job_messages (id, job_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+      .bind(crypto.randomUUID(), args.job_id, role, content, new Date().toISOString())
+      .run();
+  }
+
+  try {
+    /* Stage 1: generate one English comment */
+    const draftMessages = buildPublicCommentFromExamplesPrompt({
+      title_fa: args.title_fa,
+      description_fa: args.description_fa,
+      tone: args.tone,
+      allowed_hashtags: args.allowed_hashtags,
+      examples: args.examples,
+    });
+
+    await addJobMessages(env, args.job_id, draftMessages);
+
+    let draftRaw: string;
+    try {
+      const resp = await provider.chat({
+        messages: draftMessages,
+        temperature,
+        max_tokens: max_tokens_draft,
+        mode: "public",
+      });
+      draftRaw = resp.content;
+    } catch (e1: any) {
+      // One retry on transient errors
+      const msg = String(e1?.message || "");
+      if (
+        msg.includes("timeout") ||
+        msg.includes("rate") ||
+        msg.includes("temporar") ||
+        msg.includes("xai_http_")
+      ) {
+        const resp2 = await provider.chat({
+          messages: draftMessages,
+          temperature,
+          max_tokens: max_tokens_draft,
+          mode: "public",
+        });
+        draftRaw = resp2.content;
+      } else {
+        throw e1;
+      }
+    }
+
+    await storeMsg("assistant", draftRaw);
+
+    // Extract first non-empty line
+    const text = draftRaw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)[0];
+
+    if (!text) throw new Error("NO_USABLE_DRAFT_LINES");
+
+    /* Stage 2: translate to FA */
+    const translateMessages = buildTranslateToFaTextPrompt({
+      texts_en: [text],
+      tone: args.tone,
+      stream: "political",
+      topic: "iran_revolution_jan_2026",
+    } as any);
+
+    await addJobMessages(env, args.job_id, translateMessages);
+
+    const translateResp = await provider.chat({
+      messages: translateMessages,
+      temperature,
+      max_tokens: max_tokens_translate,
+      mode: "public",
+    });
+
+    await storeMsg("assistant", translateResp.content);
+
+    let translation_text = "";
+    try {
+      const parsed = validateTranslationBatchOutput({
+        raw: translateResp.content,
+        sources_en: [text],
+      });
+      translation_text = fixFaTypography(parsed[0] ?? "");
+    } catch {
+      // translation is best-effort; empty string is acceptable
+    }
+
+    await env.DB.prepare(
+      "UPDATE ai_jobs SET status='done', finished_at=?1 WHERE id=?2",
+    )
+      .bind(new Date().toISOString(), args.job_id)
+      .run();
+
+    return { text, translation_text };
+  } catch (e: any) {
+    const msg = e?.message ? String(e.message) : "UNKNOWN_ERROR";
+    await env.DB.prepare(
+      "UPDATE ai_jobs SET status='failed', error=?1, finished_at=?2 WHERE id=?3",
+    )
+      .bind(msg, new Date().toISOString(), args.job_id)
+      .run();
     throw new Error(msg);
   }
 }

@@ -20,6 +20,7 @@ import { IconPin } from "../ui/icons";
 import ShareSheet from "../ui/ShareSheet";
 import { isIOSStandalonePWA, openExternal } from "../../lib/openExternal";
 import CommentRowUI from "./CommentRowUI";
+import AICommentButton from "./AICommentButton";
 
 export type ListTab = "todo" | "later" | "done" | "hidden";
 
@@ -71,6 +72,9 @@ export default function ItemList(props: {
   onLoadMore?: (() => void) | undefined;
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+
+  // TODO: remove this flag once AI comment button is ready for all users
+  const aiCommentsPreview = new URLSearchParams(window.location.search).get("ai_comments") === "1";
 
   const emptyText = useMemo(() => {
     if (props.tab === "todo")
@@ -261,28 +265,77 @@ export default function ItemList(props: {
                         <div className="text-zinc-400 text-sm">{item.date}</div>
                       </div>
 
-                      {hasComments ? (
+                      {(hasComments || (xEnabled && aiCommentsPreview)) ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
-                          <Button
-                            variant="info"
-                            className="px-3! text-xs"
-                            onClick={() => toggleComments(item.id)}
-                          >
-                            {isOpen
-                              ? "بستن پیام‌ها"
-                              : `پیام‌های پیشنهادی (${comments.length})`}
-                          </Button>
+                          {hasComments ? (
+                            <>
+                              <Button
+                                variant="info"
+                                className="px-3! text-xs"
+                                onClick={() => toggleComments(item.id)}
+                              >
+                                {isOpen
+                                  ? "بستن پیام‌ها"
+                                  : `پیام‌های پیشنهادی (${comments.length})`}
+                              </Button>
 
-                          {xEnabled ? (
-                            <SplitAction
-                              dir="rtl"
-                              disabled={!hasComments}
-                              primary={
+                              {xEnabled ? (
+                                <SplitAction
+                                  dir="rtl"
+                                  disabled={!hasComments}
+                                  primary={
+                                    <CopyPillDynamic
+                                      label="کپی رندوم"
+                                      dir="auto"
+                                      title="یک پیام پیشنهادی رندوم کپی می‌شود"
+                                      className="rounded-e-none rounded-s-xl py-2"
+                                      getValue={() => {
+                                        const list = getComments(item);
+                                        if (!list.length) return null;
+                                        const t = commentText(pickRandom(list));
+                                        return t.trim() ? t : null;
+                                      }}
+                                    />
+                                  }
+                                  actions={[
+                                    {
+                                      key: "copyAndTweet",
+                                      label: "کپی رندوم و توییت",
+                                      onClick: async () => {
+                                        const list = getComments(item);
+                                        if (!list.length) return;
+                                        const t = commentText(pickRandom(list));
+                                        if (!t.trim()) return;
+
+                                        await copyText(t);
+                                        openTweet(t);
+                                      },
+                                      title: "کپی رندوم + باز کردن صفحه توییت",
+                                    },
+                                    {
+                                      key: "copyAndReply",
+                                      label: "کپی رندوم و ریپلای",
+                                      onClick: async () => {
+                                        const list = getComments(item);
+                                        if (!list.length) return;
+                                        const t = commentText(pickRandom(list));
+                                        if (!t.trim()) return;
+
+                                        await copyText(t);
+                                        openReply(url, t);
+                                      },
+                                      title: xEnabled
+                                        ? "کپی رندوم + باز کردن ریپلای"
+                                        : "این لینک استتوس نیست، به توییت معمولی می‌رود",
+                                    },
+                                  ]}
+                                />
+                              ) : (
                                 <CopyPillDynamic
                                   label="کپی رندوم"
                                   dir="auto"
                                   title="یک پیام پیشنهادی رندوم کپی می‌شود"
-                                  className="rounded-e-none rounded-s-xl py-2"
+                                  className="rounded-xl! py-2"
                                   getValue={() => {
                                     const list = getComments(item);
                                     if (!list.length) return null;
@@ -290,54 +343,16 @@ export default function ItemList(props: {
                                     return t.trim() ? t : null;
                                   }}
                                 />
-                              }
-                              actions={[
-                                {
-                                  key: "copyAndTweet",
-                                  label: "کپی رندوم و توییت",
-                                  onClick: async () => {
-                                    const list = getComments(item);
-                                    if (!list.length) return;
-                                    const t = commentText(pickRandom(list));
-                                    if (!t.trim()) return;
+                              )}
+                            </>
+                          ) : null}
 
-                                    await copyText(t);
-                                    openTweet(t);
-                                  },
-                                  title: "کپی رندوم + باز کردن صفحه توییت",
-                                },
-                                {
-                                  key: "copyAndReply",
-                                  label: "کپی رندوم و ریپلای",
-                                  onClick: async () => {
-                                    const list = getComments(item);
-                                    if (!list.length) return;
-                                    const t = commentText(pickRandom(list));
-                                    if (!t.trim()) return;
-
-                                    await copyText(t);
-                                    openReply(url, t);
-                                  },
-                                  title: xEnabled
-                                    ? "کپی رندوم + باز کردن ریپلای"
-                                    : "این لینک استتوس نیست، به توییت معمولی می‌رود",
-                                },
-                              ]}
+                          {xEnabled && aiCommentsPreview ? (
+                            <AICommentButton
+                              itemId={item.id}
+                              itemUrl={url}
                             />
-                          ) : (
-                            <CopyPillDynamic
-                              label="کپی رندوم"
-                              dir="auto"
-                              title="یک پیام پیشنهادی رندوم کپی می‌شود"
-                              className="rounded-xl! py-2"
-                              getValue={() => {
-                                const list = getComments(item);
-                                if (!list.length) return null;
-                                const t = commentText(pickRandom(list));
-                                return t.trim() ? t : null;
-                              }}
-                            />
-                          )}
+                          ) : null}
                         </div>
                       ) : null}
 

@@ -5,7 +5,8 @@ type RateLimitAction =
   | "items_feed"
   | "status_set"
   | "suggestions_create"
-  | "ai_call";
+  | "ai_call"
+  | "ai_comment_public";
 
 type RateLimitRule = {
   windowSec: number; // e.g. 60
@@ -18,6 +19,7 @@ const RULES: Record<RateLimitAction, RateLimitRule> = {
   status_set: { windowSec: 60, limit: 60 },
   suggestions_create: { windowSec: 60, limit: 5 },
   ai_call: { windowSec: 60, limit: 10 }, // later: tighten for AI if needed
+  ai_comment_public: { windowSec: 60, limit: 1 }, // public users: 1 per minute per item
 };
 
 function nowSec() {
@@ -28,8 +30,9 @@ function windowStart(now: number, windowSec: number) {
   return now - (now % windowSec);
 }
 
-function buildKey(deviceId: string, action: RateLimitAction) {
-  return `dev:${deviceId}:${action}`;
+function buildKey(deviceId: string, action: RateLimitAction, sub_key?: string) {
+  const base = `dev:${deviceId}:${action}`;
+  return sub_key ? `${base}:${sub_key}` : base;
 }
 
 async function maybeCleanup(params: {
@@ -51,6 +54,7 @@ export async function rateLimitByDevice(params: {
   db: D1Database;
   deviceId: string;
   action: RateLimitAction;
+  sub_key?: string;
 
   // Optional overrides
   rule?: Partial<RateLimitRule>;
@@ -70,7 +74,7 @@ export async function rateLimitByDevice(params: {
 
   const now = nowSec();
   const wStart = windowStart(now, rule.windowSec);
-  const key = buildKey(params.deviceId, params.action);
+  const key = buildKey(params.deviceId, params.action, params.sub_key);
 
   // UPSERT in one statement:
   // - if same window_start: count += 1

@@ -852,6 +852,31 @@ export async function adminDeleteSuggestion(id: string) {
 
 
 /* =========================
+   Public AI
+   ========================= */
+
+export type PublicGenerateCommentResponse = {
+  ok: boolean;
+  job_id: string;
+  comment: { text: string; translation_text: string | null };
+  saved_comment_id: string;
+};
+
+export async function generatePublicComment(
+  itemId: string,
+  opts?: { tone?: string },
+): Promise<PublicGenerateCommentResponse> {
+  return requestJSON<PublicGenerateCommentResponse>(
+    `/api/ai/generate-comment`,
+    {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId, tone: opts?.tone }),
+    },
+    { auth: false },
+  );
+}
+
+/* =========================
    Admin AI
    ========================= */
 
