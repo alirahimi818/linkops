@@ -24,11 +24,13 @@ export async function getRandomItemCommentExamples(
   itemId: string,
   limit = 5,
 ) {
+  // Prefer admin/ai comments (higher quality context) over user-generated ones
   const res = await env.DB.prepare(
     `SELECT text, translation_text
      FROM item_comments
      WHERE item_id = ?1
-     ORDER BY RANDOM()
+     ORDER BY CASE author_type WHEN 'admin' THEN 0 WHEN 'ai' THEN 1 ELSE 2 END,
+              RANDOM()
      LIMIT ?2`,
   )
     .bind(itemId, limit)

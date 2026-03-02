@@ -138,10 +138,10 @@ export default function AICommentButton(props: {
         dir="rtl"
       >
         {/* Header */}
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-1 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
             <IconSparkles className="h-4 w-4 text-violet-500" />
-            لحن کامنت رو انتخاب کن
+            کامنت با هوش مصنوعی
           </div>
           <button
             type="button"
@@ -154,6 +154,11 @@ export default function AICommentButton(props: {
             </svg>
           </button>
         </div>
+
+        {/* Description */}
+        <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+          یه پیام مشابه و ریفرم‌شده مخصوص شما تولید می‌کنیم — بررسیش کنید و اگه پسندیدید ازش استفاده کنید 😊
+        </p>
 
         {/* Tone chips */}
         <div className="flex flex-wrap gap-2">
