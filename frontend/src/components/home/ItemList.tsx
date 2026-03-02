@@ -73,9 +73,6 @@ export default function ItemList(props: {
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
 
-  // TODO: remove this flag once AI comment button is ready for all users
-  const aiCommentsPreview = new URLSearchParams(window.location.search).get("ai_comments") === "1";
-
   const emptyText = useMemo(() => {
     if (props.tab === "todo")
       return "تبریک! فعلا چیزی برای انجام‌دادن نیست، لطفا چند ساعت بعد مجدد بررسی کنید.";
@@ -265,7 +262,7 @@ export default function ItemList(props: {
                         <div className="text-zinc-400 text-sm">{item.date}</div>
                       </div>
 
-                      {(hasComments || (xEnabled && aiCommentsPreview)) ? (
+                      {(hasComments || xEnabled) ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between md:justify-start gap-2">
                           {hasComments ? (
                             <>
@@ -347,7 +344,7 @@ export default function ItemList(props: {
                             </>
                           ) : null}
 
-                          {xEnabled && aiCommentsPreview ? (
+                          {xEnabled ? (
                             <AICommentButton
                               itemId={item.id}
                               itemUrl={url}

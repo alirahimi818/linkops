@@ -64,21 +64,36 @@ export default function AICommentButton(props: {
     }
   }
 
-  // ── idle: just the button ──────────────────────────────────────────────
-  if (phase === "idle" || phase === "error") {
+  // shared button classes — matches Button base (py-2 rounded-xl text-xs px-3)
+  const btnCls = "inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition";
+
+  // ── idle ───────────────────────────────────────────────────────────────
+  if (phase === "idle") {
     return (
-      <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => setPhase("picking")}
+        className={`${btnCls} border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100`}
+      >
+        <IconSparkles className="h-3.5 w-3.5" />
+        کامنت AI
+      </button>
+    );
+  }
+
+  // ── error ──────────────────────────────────────────────────────────────
+  if (phase === "error") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => { setPhase("picking"); setError(null); }}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-100 active:bg-violet-200"
+          className={`${btnCls} border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100`}
         >
           <IconSparkles className="h-3.5 w-3.5" />
           کامنت AI
         </button>
-        {phase === "error" && error ? (
-          <div className="text-xs text-red-600">{error}</div>
-        ) : null}
+        {error ? <span className="text-xs text-red-600">{error}</span> : null}
       </div>
     );
   }
@@ -86,7 +101,7 @@ export default function AICommentButton(props: {
   // ── loading ────────────────────────────────────────────────────────────
   if (phase === "loading") {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-400">
+      <div className={`${btnCls} border-violet-200 bg-violet-50 text-violet-400 cursor-wait`}>
         <IconSparkles className="h-3.5 w-3.5 animate-pulse" />
         در حال تولید...
       </div>
@@ -142,6 +157,7 @@ export default function AICommentButton(props: {
           <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
             <IconSparkles className="h-4 w-4 text-violet-500" />
             کامنت با هوش مصنوعی
+            <span className="mr-1 text-amber-500">(آزمایشی)</span>
           </div>
           <button
             type="button"
