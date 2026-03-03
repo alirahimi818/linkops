@@ -287,6 +287,7 @@ export default function Admin() {
 
       resetForm();
       await load();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e: any) {
       if (e?.status === 409 && e?.data?.code === "DUPLICATE_URL") {
         setError(
