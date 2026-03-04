@@ -1,4 +1,6 @@
+import { useRef, useState } from "react";
 import type { Action, Category } from "../../../lib/api";
+import { adminCheckItemUrl } from "../../../lib/api";
 
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
@@ -72,6 +74,28 @@ export default function AdminItemForm(props: {
   autoFilling: boolean;
   onAutofillFromX: () => Promise<void>;
 }) {
+  const [urlDupWarning, setUrlDupWarning] = useState<string | null>(null);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function scheduleUrlCheck(rawUrl: string) {
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    setUrlDupWarning(null);
+
+    const fixed = autoFixUrl(rawUrl);
+    if (!isValidAbsoluteHttpUrl(fixed)) return;
+
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await adminCheckItemUrl(fixed, props.itemId ?? undefined);
+        if (res.exists) {
+          setUrlDupWarning("این لینک قبلاً در سیستم ثبت شده است.");
+        }
+      } catch {
+        // silent — don't block UX on check failure
+      }
+    }, 400);
+  }
+
   function validateBeforeSave(currentComments: CommentDraft[]) {
     if (props.whitelist.size === 0) return null;
 
@@ -215,16 +239,26 @@ export default function AdminItemForm(props: {
             placeholder="عنوان"
           />
 
-          <Input
-            dir="ltr"
-            value={props.url}
-            onChange={(v) => {
-              props.setUrl(v);
-              autoSelectCategoryByUrl(v);
-              autoSelectXActionsIfNeeded(v);
-            }}
-            placeholder="لینک (URL)"
-          />
+          <div className="flex flex-col gap-1">
+            <Input
+              dir="ltr"
+              value={props.url}
+              onChange={(v) => {
+                props.setUrl(v);
+                autoSelectCategoryByUrl(v);
+                autoSelectXActionsIfNeeded(v);
+                scheduleUrlCheck(v);
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData("text");
+                if (pasted) scheduleUrlCheck(pasted);
+              }}
+              placeholder="لینک (URL)"
+            />
+            {urlDupWarning ? (
+              <p className="text-xs font-medium text-red-600">{urlDupWarning}</p>
+            ) : null}
+          </div>
 
           {isX ? (
             <div className="flex flex-wrap items-center gap-2">

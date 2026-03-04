@@ -900,6 +900,19 @@ export type AdminAutofillFromXResponse = {
   comments: Array<{ text: string; translation_text: string | null }>;
 };
 
+export async function adminCheckItemUrl(
+  url: string,
+  excludeId?: string | null,
+): Promise<{ exists: boolean; item_id?: string | null }> {
+  const qs = new URLSearchParams({ url });
+  if (excludeId) qs.set("exclude_id", excludeId);
+  return requestJSON<{ exists: boolean; item_id?: string | null }>(
+    `/api/admin/items/check-url?${qs.toString()}`,
+    undefined,
+    { auth: true },
+  );
+}
+
 export async function adminAutofillFromX(payload: {
   x_url: string;
   count: number;
