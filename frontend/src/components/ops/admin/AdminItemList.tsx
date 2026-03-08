@@ -82,8 +82,19 @@ export default function AdminItemList(props: {
   // Needed for modal: hashtag whitelist
   whitelist: Set<string>;
 }) {
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"date" | "pinned">("date");
   const [aiOpen, setAiOpen] = useState(false);
   const [aiItem, setAiItem] = useState<any | null>(null);
+
+  const dateItems = useMemo(
+    () => props.items.filter((i) => !isGlobalItem(i)),
+    [props.items],
+  );
+  const pinnedItems = useMemo(
+    () => props.items.filter((i) => isGlobalItem(i)),
+    [props.items],
+  );
 
   const aiExistingPool = useMemo(() => {
     if (!aiItem) return [];
@@ -101,12 +112,10 @@ export default function AdminItemList(props: {
     setAiItem(null);
   }
 
+  const visibleItems = activeTab === "date" ? dateItems : pinnedItems;
+
   return (
     <section className="mt-6">
-      <div className="mb-3 text-sm text-zinc-500">
-        آیتم‌های تاریخ {props.date}
-      </div>
-
       {/* AI Modal mounted once */}
       {aiOpen && aiItem ? (
         <AICommentsModal
@@ -125,13 +134,62 @@ export default function AdminItemList(props: {
         />
       ) : null}
 
-      {props.loading ? (
-        <div className="text-zinc-500">در حال بارگذاری…</div>
-      ) : props.items.length === 0 ? (
-        <Card className="p-6 text-zinc-600">هنوز آیتمی ثبت نشده است.</Card>
-      ) : (
-        <div className="space-y-3">
-          {props.items.map((i: any) => {
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setSectionOpen((p) => !p)}
+        className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+      >
+        <span>
+          آیتم‌های ثبت‌شده — {props.date}
+          {!props.loading && (
+            <span className="mr-2 text-xs text-zinc-400">
+              ({dateItems.length} روزانه{pinnedItems.length > 0 ? ` • ${pinnedItems.length} پین‌شده` : ""})
+            </span>
+          )}
+        </span>
+        <span className="text-zinc-400">{sectionOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {sectionOpen && (
+        <div className="mt-3">
+          {props.loading ? (
+            <div className="text-zinc-500">در حال بارگذاری…</div>
+          ) : props.items.length === 0 ? (
+            <Card className="p-6 text-zinc-600">هنوز آیتمی ثبت نشده است.</Card>
+          ) : (
+            <>
+              {/* Tabs */}
+              <div className="mb-3 flex gap-2 border-b border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("date")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === "date"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-zinc-500 hover:text-zinc-700"
+                  }`}
+                >
+                  آیتم‌های روز ({dateItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("pinned")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === "pinned"
+                      ? "border-amber-500 text-amber-600"
+                      : "border-transparent text-zinc-500 hover:text-zinc-700"
+                  }`}
+                >
+                  پین‌شده‌ها ({pinnedItems.length})
+                </button>
+              </div>
+
+              {visibleItems.length === 0 ? (
+                <Card className="p-6 text-zinc-600">آیتمی در این بخش وجود ندارد.</Card>
+              ) : (
+                <div className="space-y-3">
+                  {visibleItems.map((i: any) => {
             const comments = normalizeComments(i.comments);
             const hasComments = comments.length > 0;
             const isOpen = !!props.openComments[i.id];
@@ -274,6 +332,10 @@ export default function AdminItemList(props: {
               </Card>
             );
           })}
+        </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </section>
