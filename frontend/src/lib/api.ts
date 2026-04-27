@@ -355,6 +355,8 @@ export async function fetchItemsFeed(params: {
   to: string;
   tab: FeedTab;
   cat?: string; // "all" | "__other__" | categoryId (optional)
+  search?: string;
+  action?: string; // action id
   limit?: number;
   cursor?: string | null;
 }): Promise<ItemsFeedResponse> {
@@ -365,11 +367,15 @@ export async function fetchItemsFeed(params: {
     limit: String(params.limit ?? 10),
   });
 
-  // IMPORTANT: If cat is NOT provided, do not send it (means no category filter)
   if (params.cat != null && String(params.cat).trim() !== "") {
     qs.set("cat", params.cat);
   }
-
+  if (params.search && params.search.trim()) {
+    qs.set("search", params.search.trim());
+  }
+  if (params.action && params.action.trim()) {
+    qs.set("action", params.action.trim());
+  }
   if (params.cursor) qs.set("cursor", params.cursor);
 
   return requestJSON<ItemsFeedResponse>(

@@ -71,6 +71,8 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     const to = url.searchParams.get("to") ?? "";
     const tab = (url.searchParams.get("tab") ?? "todo") as FeedTab;
     const cat = url.searchParams.get("cat") ?? "all";
+    const search = (url.searchParams.get("search") ?? "").trim();
+    const actionFilter = (url.searchParams.get("action") ?? "").trim();
 
     const limitRaw = Number(url.searchParams.get("limit") ?? "10");
     const limit = clampInt(limitRaw, 1, 50);
@@ -163,6 +165,22 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     } else {
       where += ` AND s.status = ? `;
       binds.push(validTab);
+    }
+
+    if (search) {
+      const like = `%${search}%`;
+      where += ` AND (i.title LIKE ? OR i.description LIKE ? OR i.url LIKE ?) `;
+      binds.push(like, like, like);
+    }
+
+    if (actionFilter) {
+      where += `
+        AND EXISTS (
+          SELECT 1 FROM item_actions ia2
+          WHERE ia2.item_id = i.id AND ia2.action_id = ?
+        )
+      `;
+      binds.push(actionFilter);
     }
 
     if (cursor) {

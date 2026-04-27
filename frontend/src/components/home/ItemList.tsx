@@ -264,7 +264,7 @@ export default function ItemList(props: {
                                   key={a.id}
                                   className={
                                     isReport
-                                      ? "bg-red-100 text-red-700"
+                                      ? "bg-red-100! text-red-700!"
                                       : ""
                                   }
                                 >

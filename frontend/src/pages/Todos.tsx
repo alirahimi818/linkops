@@ -5,6 +5,7 @@ import {
   fetchItems,
   fetchItemsFeed,
   fetchItemsSummary,
+  fetchActions,
   setItemStatusRemote,
 } from "../lib/api";
 import type {
@@ -28,6 +29,9 @@ import CategoryGrid, {
   type CategoryCard,
 } from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
+import SearchFilter, {
+  type FilterOption,
+} from "../components/home/SearchFilter";
 import {
   migrateLegacyStatusToServer,
   shouldRunLegacyMigration,
@@ -75,6 +79,10 @@ export default function Todos() {
   const tab = safeTab(sp.get("tab"));
   const cat = sp.get("cat");
 
+  // Search / filter URL params
+  const searchQ = sp.get("q") ?? "";
+  const actionId = sp.get("action") ?? "";
+
   const view: View = useMemo(() => {
     if (itemId) {
       return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
@@ -90,6 +98,22 @@ export default function Todos() {
   }, [cat, sp, itemId]);
 
   const [loading, setLoading] = useState(true);
+
+  // Actions list for the filter dropdown
+  const [allActions, setAllActions] = useState<FilterOption[]>([]);
+
+  useEffect(() => {
+    fetchActions()
+      .then((list) =>
+        setAllActions(
+          (list as any[]).map((a) => ({
+            id: String(a.id),
+            name: a.label ?? a.name,
+          })),
+        ),
+      )
+      .catch(() => null);
+  }, []);
 
   // Summary (for categories view)
   const [summary, setSummary] = useState<ItemsSummaryResponse | null>(null);
@@ -140,7 +164,7 @@ export default function Todos() {
     if (isItemView) return "all";
     if (!cat) return "all";
     if (cat === "all") return "all";
-    return cat; // category_id or "__other__"
+    return cat;
   }, [cat, isItemView]);
 
   // Load summary always (fast)
@@ -169,7 +193,6 @@ export default function Todos() {
       try {
         setLoading(true);
 
-        // reset paging state on any main reload
         setCursor(null);
         setHasMore(false);
         setLoadingMore(false);
@@ -187,19 +210,19 @@ export default function Todos() {
         }
 
         if (view.kind !== "list") {
-          // categories page
           setSingleItems([]);
           setFeedItems([]);
           setFeedCounts({ todo: 0, later: 0, done: 0, hidden: 0 });
           return;
         }
 
-        // Feed first page for selected cat+tab+range
         const res: ItemsFeedResponse = await fetchItemsFeed({
           from: range.from,
           to: range.to,
           tab: tab as FeedTab,
           cat: activeCat,
+          search: searchQ,
+          action: actionId,
           limit: 10,
           cursor: null,
         });
@@ -220,7 +243,7 @@ export default function Todos() {
     return () => {
       alive = false;
     };
-  }, [isItemView, itemId, view.kind, tab, activeCat, range.from, range.to]);
+  }, [isItemView, itemId, view.kind, tab, activeCat, range.from, range.to, searchQ, actionId]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -234,6 +257,8 @@ export default function Todos() {
         to: range.to,
         tab: tab as FeedTab,
         cat: activeCat,
+        search: searchQ,
+        action: actionId,
         limit: 10,
         cursor,
       });
@@ -271,7 +296,6 @@ export default function Todos() {
         ),
       );
     } else {
-      // update items
       setFeedItems((prev) =>
         prev.map((it: any) =>
           String(it.id) === String(id)
@@ -280,9 +304,7 @@ export default function Todos() {
         ),
       );
 
-      // adjust counts using prev snapshot (avoid stale closure on feedItems)
       setFeedCounts((prevCounts) => {
-        // find old status from current list snapshot (best effort)
         const oldItem = feedItems.find(
           (x: any) => String(x.id) === String(id),
         ) as any;
@@ -296,7 +318,6 @@ export default function Todos() {
         return out;
       });
 
-      // remove from current tab list if not matching
       const currentTab = tab as ItemUserStatus;
       if (currentTab !== nextStatus) {
         setFeedItems((prev) =>
@@ -308,7 +329,6 @@ export default function Todos() {
     try {
       await setItemStatusRemote(id, s);
     } catch (e) {
-      // rollback via refetch current view
       if (isItemView) {
         const it = await fetchItems(range.to, itemId);
         setSingleItems(it ?? []);
@@ -318,6 +338,8 @@ export default function Todos() {
           to: range.to,
           tab: tab as FeedTab,
           cat: activeCat,
+          search: searchQ,
+          action: actionId,
           limit: 10,
           cursor: null,
         });
@@ -334,10 +356,11 @@ export default function Todos() {
     setSp((p) => {
       p.set("from", next.from);
       p.set("to", next.to);
-
       p.delete("cat");
       p.delete("catName");
       p.delete("item");
+      p.delete("q");
+      p.delete("action");
       p.set("tab", "todo");
       return p;
     });
@@ -353,6 +376,8 @@ export default function Todos() {
   function openCategory(c: CategoryCard) {
     setSp((p) => {
       p.set("tab", "todo");
+      p.delete("q");
+      p.delete("action");
 
       if (c.isAll) {
         p.set("cat", "all");
@@ -370,7 +395,25 @@ export default function Todos() {
     setSp((p) => {
       p.delete("cat");
       p.delete("catName");
+      p.delete("q");
+      p.delete("action");
       p.set("tab", "todo");
+      return p;
+    });
+  }
+
+  function setSearch(q: string) {
+    setSp((p) => {
+      if (q) p.set("q", q);
+      else p.delete("q");
+      return p;
+    });
+  }
+
+  function setActionFilter(id: string) {
+    setSp((p) => {
+      if (id) p.set("action", id);
+      else p.delete("action");
       return p;
     });
   }
@@ -470,23 +513,34 @@ export default function Todos() {
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )
       ) : (
-        <ItemList
-          title={view.categoryName}
-          itemId={itemId ?? null}
-          items={listData as any[]}
-          counts={listCounts}
-          tab={tab}
-          onTabChange={setTab}
-          onMark={mark}
-          onBack={backToCategories}
-          hasMore={!isItemView && view.kind === "list" ? hasMore : false}
-          loadingMore={
-            !isItemView && view.kind === "list" ? loadingMore : false
-          }
-          onLoadMore={
-            !isItemView && view.kind === "list" ? loadMore : undefined
-          }
-        />
+        <>
+          {!isItemView ? (
+            <SearchFilter
+              searchText={searchQ}
+              actionId={actionId}
+              onSearchChange={setSearch}
+              onActionChange={setActionFilter}
+              actions={allActions}
+            />
+          ) : null}
+          <ItemList
+            title={view.categoryName}
+            itemId={itemId ?? null}
+            items={listData as any[]}
+            counts={listCounts}
+            tab={tab}
+            onTabChange={setTab}
+            onMark={mark}
+            onBack={backToCategories}
+            hasMore={!isItemView && view.kind === "list" ? hasMore : false}
+            loadingMore={
+              !isItemView && view.kind === "list" ? loadingMore : false
+            }
+            onLoadMore={
+              !isItemView && view.kind === "list" ? loadMore : undefined
+            }
+          />
+        </>
       )}
 
       <DismissibleAnnouncementModal
