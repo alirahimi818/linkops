@@ -1,31 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type FilterOption = { id: string; name: string };
 
-function IconSearch() {
-  return (
-    <svg
-      className="h-4 w-4 shrink-0 text-zinc-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
-
 function IconX() {
   return (
-    <svg
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2.5}
-    >
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
       <path d="M18 6 6 18M6 6l12 12" />
     </svg>
   );
@@ -39,119 +18,118 @@ export default function SearchFilter(props: {
   actions: FilterOption[];
 }) {
   const [localText, setLocalText] = useState(props.searchText);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync local text when URL param changes externally (e.g. back button / clear all)
   useEffect(() => {
     setLocalText(props.searchText);
   }, [props.searchText]);
 
-  function handleTextChange(v: string) {
-    setLocalText(v);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      props.onSearchChange(v.trim());
-    }, 400);
+  function submit() {
+    props.onSearchChange(localText.trim());
   }
 
   function clearText() {
     setLocalText("");
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     props.onSearchChange("");
+  }
+
+  function clearAll() {
+    setLocalText("");
+    props.onSearchChange("");
+    props.onActionChange("");
   }
 
   const activeAction = props.actions.find((a) => a.id === props.actionId);
   const hasFilter = !!props.searchText.trim() || !!props.actionId;
 
   return (
-    <div className="mb-3 flex flex-col gap-2" dir="rtl">
-      {/* Search input */}
-      <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 focus-within:border-zinc-400 focus-within:ring-2 focus-within:ring-zinc-100 transition-shadow">
-        <IconSearch />
-        <input
-          type="search"
-          dir="rtl"
-          value={localText}
-          onChange={(e) => handleTextChange(e.target.value)}
-          placeholder="جستجو در عنوان، توضیح و لینک…"
-          className="min-h-11 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
-        />
-        {localText ? (
+    <div className="mb-4" dir="rtl">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+        {/* Search row */}
+        <div className="flex items-center">
+          <input
+            type="search"
+            dir="rtl"
+            value={localText}
+            onChange={(e) => setLocalText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            placeholder="جستجو در عنوان، توضیح و لینک…"
+            className="min-h-11 flex-1 bg-transparent pr-4 pl-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          />
+
+          {/* Clear text */}
+          {localText ? (
+            <button
+              type="button"
+              onClick={clearText}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 transition-colors"
+              aria-label="پاک کردن"
+            >
+              <IconX />
+            </button>
+          ) : null}
+
+          {/* Search button */}
           <button
             type="button"
-            onClick={clearText}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
-            aria-label="پاک کردن جستجو"
+            onClick={submit}
+            className="flex h-11 w-12 shrink-0 items-center justify-center border-r border-zinc-100 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700 transition-colors"
+            aria-label="جستجو"
           >
-            <IconX />
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
           </button>
+        </div>
+
+        {/* Divider + Action select */}
+        {props.actions.length > 0 ? (
+          <>
+            <div className="h-px bg-zinc-100" />
+            <div className="relative">
+              <select
+                dir="rtl"
+                value={props.actionId}
+                onChange={(e) => props.onActionChange(e.target.value)}
+                className="w-full appearance-none bg-transparent py-3 pr-4 pl-9 text-sm outline-none"
+              >
+                <option value="">فیلتر بر اساس اکشن</option>
+                {props.actions.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+            </div>
+          </>
         ) : null}
       </div>
 
-      {/* Action select */}
-      {props.actions.length > 0 ? (
-        <div className="relative">
-          <select
-            dir="rtl"
-            value={props.actionId}
-            onChange={(e) => props.onActionChange(e.target.value)}
-            className={[
-              "w-full appearance-none rounded-2xl border px-4 py-3 text-sm outline-none transition-colors",
-              props.actionId
-                ? "border-zinc-800 bg-zinc-900 text-white"
-                : "border-zinc-200 bg-white text-zinc-700",
-            ].join(" ")}
-          >
-            <option value="">فیلتر بر اساس اکشن</option>
-            {props.actions.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          {/* Custom dropdown arrow */}
-          <span
-            className={[
-              "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2",
-              props.actionId ? "text-white/70" : "text-zinc-400",
-            ].join(" ")}
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </span>
-        </div>
-      ) : null}
-
-      {/* Active filter summary + clear all */}
+      {/* Active filter chips */}
       {hasFilter ? (
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {props.searchText.trim() ? (
-              <span className="rounded-md bg-zinc-200 px-2 py-0.5 text-zinc-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700">
                 «{props.searchText}»
               </span>
             ) : null}
             {activeAction ? (
-              <span className="rounded-md bg-zinc-900 px-2 py-0.5 text-white">
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-2.5 py-1 text-xs text-white">
                 {activeAction.name}
               </span>
             ) : null}
           </div>
           <button
             type="button"
-            onClick={() => {
-              clearText();
-              props.onActionChange("");
-            }}
-            className="shrink-0 text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-800"
+            onClick={clearAll}
+            className="shrink-0 text-xs text-zinc-400 underline underline-offset-2 hover:text-zinc-700"
           >
-            پاک کردن همه
+            پاک کردن
           </button>
         </div>
       ) : null}

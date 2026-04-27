@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
-import Tabs, { TabButton } from "../ui/Tabs";
+import { TabButton } from "../ui/Tabs";
 import type { ItemSettableStatus } from "../../lib/api";
 
 import { copyText } from "../../lib/clipboard";
@@ -107,48 +107,51 @@ export default function ItemList(props: {
   return (
     <div dir="rtl" className="text-right">
       {props.itemId ? null : (
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-sm text-zinc-600">
-            دسته:{" "}
-            <span className="font-medium text-zinc-900">{props.title}</span>
-          </div>
-          <Button variant="secondary" onClick={props.onBack}>
-            بازگشت
-          </Button>
-        </div>
-      )}
+        <div className="mb-1 mt-8 flex flex-col gap-3">
+          {/* Back link */}
+          <button
+            type="button"
+            onClick={props.onBack}
+            className="flex w-fit items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+            بازگشت به دسته‌ها
+          </button>
 
-      {props.itemId ? null : (
-        <Tabs>
-          <TabButton
-            active={props.tab === "todo"}
-            onClick={() => props.onTabChange("todo")}
-            count={props.counts.todo}
-          >
-            انجام‌نشده
-          </TabButton>
-          <TabButton
-            active={props.tab === "later"}
-            onClick={() => props.onTabChange("later")}
-            count={props.counts.later}
-          >
-            بعدا
-          </TabButton>
-          <TabButton
-            active={props.tab === "done"}
-            onClick={() => props.onTabChange("done")}
-            count={props.counts.done}
-          >
-            انجام‌شده
-          </TabButton>
-          <TabButton
-            active={props.tab === "hidden"}
-            onClick={() => props.onTabChange("hidden")}
-            count={props.counts.hidden}
-          >
-            مخفی‌ها
-          </TabButton>
-        </Tabs>
+          {/* Scrollable tabs row */}
+          <div className="flex gap-2 pb-1 scrollbar-none" dir="rtl">
+            <TabButton
+              active={props.tab === "todo"}
+              onClick={() => props.onTabChange("todo")}
+              count={props.counts.todo}
+            >
+              انجام‌نشده
+            </TabButton>
+            <TabButton
+              active={props.tab === "later"}
+              onClick={() => props.onTabChange("later")}
+              count={props.counts.later}
+            >
+              بعدا
+            </TabButton>
+            <TabButton
+              active={props.tab === "done"}
+              onClick={() => props.onTabChange("done")}
+              count={props.counts.done}
+            >
+              انجام‌شده
+            </TabButton>
+            <TabButton
+              active={props.tab === "hidden"}
+              onClick={() => props.onTabChange("hidden")}
+              count={props.counts.hidden}
+            >
+              مخفی‌ها
+            </TabButton>
+          </div>
+        </div>
       )}
 
       <div className="mt-3 space-y-3">

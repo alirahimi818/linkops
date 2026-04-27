@@ -46,7 +46,7 @@ export default function Tabs(props: {
   return (
     <nav
       className={[
-        "mt-6 flex flex-wrap gap-2 justify-end",
+        "flex flex-wrap gap-2 justify-end",
         props.className ?? "",
       ].join(" ")}
     >
