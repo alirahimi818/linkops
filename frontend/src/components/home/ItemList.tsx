@@ -254,9 +254,24 @@ export default function ItemList(props: {
                         {Array.isArray(item.actions) &&
                         item.actions.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
-                            {item.actions.map((a: any) => (
-                              <Badge key={a.id}>{a.label ?? a.name}</Badge>
-                            ))}
+                            {item.actions.map((a: any) => {
+                              const label = a.label ?? a.name;
+                              const isReport =
+                                String(a.name ?? "").trim() === "ریپورت" ||
+                                String(a.label ?? "").trim() === "ریپورت";
+                              return (
+                                <Badge
+                                  key={a.id}
+                                  className={
+                                    isReport
+                                      ? "bg-red-100 text-red-700"
+                                      : ""
+                                  }
+                                >
+                                  {label}
+                                </Badge>
+                              );
+                            })}
                           </div>
                         ) : null}
                         <div className="text-zinc-400 text-sm">{item.date}</div>

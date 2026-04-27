@@ -123,6 +123,34 @@ export default function AdminItemForm(props: {
     );
     return found ? String((found as any).id) : null;
   }
+
+  function extractXUsername(url: string): string | null {
+    try {
+      const u = new URL(url.trim());
+      const segments = u.pathname.split("/").filter(Boolean);
+      return segments[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function handleReportAutofill() {
+    const fixedUrl = autoFixUrl(props.url);
+    const username = extractXUsername(fixedUrl);
+    if (!username) return;
+
+    props.setTitle(`ریپورت ${username}`);
+
+    const xCategoryId = autoCategoryIdFromUrl(props.categories, fixedUrl);
+    if (xCategoryId) props.setCategoryIdProgrammatically(xCategoryId);
+
+    const reportActionId = findActionIdByName(props.actions, "ریپورت");
+    if (reportActionId) props.setSelectedActionIds([reportActionId]);
+
+    props.setDescription(
+      "اول میوت (Mute) کنید و بعد ریپورت از نوع Hate کنید و در نهایت بلاکش کنید.",
+    );
+  }
   function autoSelectXActionsIfNeeded(nextUrlRaw: string) {
     if (!isXUrl(nextUrlRaw)) return;
     if (!props.actions || props.actions.length === 0) return;
@@ -261,22 +289,38 @@ export default function AdminItemForm(props: {
           </div>
 
           {isX ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="info"
-                onClick={() => props.onAutofillFromX()}
-                disabled={
-                  props.saving || props.autoFilling || !props.url.trim()
-                }
-              >
-                {props.autoFilling
-                  ? "در حال ساخت خودکار…"
-                  : "ساخت خودکار از لینک X"}
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="info"
+                  onClick={() => props.onAutofillFromX()}
+                  disabled={
+                    props.saving || props.autoFilling || !props.url.trim()
+                  }
+                >
+                  {props.autoFilling
+                    ? "در حال ساخت خودکار…"
+                    : "ساخت خودکار از لینک X"}
+                </Button>
 
-              <div className="text-xs text-zinc-500">
-                با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی
-                تولید می‌گردد.
+                <div className="text-xs text-zinc-500">
+                  با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی
+                  تولید می‌گردد.
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="danger"
+                  onClick={handleReportAutofill}
+                  disabled={props.saving || !props.url.trim()}
+                >
+                  ریپورت
+                </Button>
+
+                <div className="text-xs text-zinc-500">
+                  عنوان، دسته‌بندی، اکشن و توضیح را برای ریپورت اکانت پر می‌کند.
+                </div>
               </div>
             </div>
           ) : null}
