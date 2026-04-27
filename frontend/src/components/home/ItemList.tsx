@@ -257,8 +257,8 @@ export default function ItemList(props: {
                             {item.actions.map((a: any) => {
                               const label = a.label ?? a.name;
                               const isReport =
-                                String(a.name ?? "").trim() === "ریپورت" ||
-                                String(a.label ?? "").trim() === "ریپورت";
+                                String(a.name ?? "").trim() === "report" ||
+                                String(a.name ?? "").trim() === "block";
                               return (
                                 <Badge
                                   key={a.id}

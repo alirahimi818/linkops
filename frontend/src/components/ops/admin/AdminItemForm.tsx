@@ -113,14 +113,13 @@ export default function AdminItemForm(props: {
 
   const isX = isXUrl(props.url);
 
-  function findActionIdByName(actions: Action[], name: string): string | null {
-    const target = String(name).toLowerCase().trim();
-    const found = actions.find(
-      (a: any) =>
-        String(a?.name || "")
-          .toLowerCase()
-          .trim() === target,
-    );
+  function findActionIdByName(actions: Action[], ...candidates: string[]): string | null {
+    const targets = candidates.map((s) => String(s).toLowerCase().trim());
+    const found = actions.find((a: any) => {
+      const n = String(a?.name || "").toLowerCase().trim();
+      const l = String(a?.label || "").toLowerCase().trim();
+      return targets.some((t) => t === n || t === l);
+    });
     return found ? String((found as any).id) : null;
   }
 
@@ -144,8 +143,10 @@ export default function AdminItemForm(props: {
     const xCategoryId = autoCategoryIdFromUrl(props.categories, fixedUrl);
     if (xCategoryId) props.setCategoryIdProgrammatically(xCategoryId);
 
-    const reportActionId = findActionIdByName(props.actions, "ریپورت");
-    if (reportActionId) props.setSelectedActionIds([reportActionId]);
+    const reportId = findActionIdByName(props.actions, "ریپورت", "report");
+    const blockId = findActionIdByName(props.actions, "بلاک", "block");
+    const ids = [reportId, blockId].filter(Boolean) as string[];
+    props.setSelectedActionIds(ids);
 
     props.setDescription(
       "اول میوت (Mute) کنید و بعد ریپورت از نوع Hate کنید و در نهایت بلاکش کنید.",
