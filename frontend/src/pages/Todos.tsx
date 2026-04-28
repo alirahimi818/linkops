@@ -203,6 +203,7 @@ export default function Todos() {
       name: c.name,
       image: c.image,
       count: c.count,
+      todo: (c as any).todo,
       isAll: c.id === "all" || c.isAll === true,
     }));
   }, [summary, itemId]);

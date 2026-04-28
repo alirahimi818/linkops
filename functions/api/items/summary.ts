@@ -59,8 +59,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       addTab(tabs, String(r.status), Number(r.cnt ?? 0));
     }
 
-    // 2) Category counts (total items per category, independent of status)
-    // "__other__" if category_id is NULL or category missing
+    // 2) Category counts + per-category todo count
     const catRows = await env.DB.prepare(
       `
       SELECT
@@ -69,20 +68,24 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
           WHEN c.id IS NULL THEN '__other__'
           ELSE c.id
         END AS cid,
-        COUNT(*) AS cnt
+        COUNT(*) AS cnt,
+        SUM(CASE WHEN COALESCE(s.status, 'todo') = 'todo' THEN 1 ELSE 0 END) AS todo_cnt
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id
+      LEFT JOIN item_status s ON s.item_id = i.id AND s.device_id = ?
       WHERE (i.date BETWEEN ? AND ?) OR i.is_global = 1
       GROUP BY cid
       ORDER BY cnt DESC
       `,
     )
-      .bind(from, to)
+      .bind(deviceId, from, to)
       .all<any>();
 
     const countsByCid = new Map<string, number>();
+    const todoByCid = new Map<string, number>();
     for (const r of (catRows.results ?? []) as any[]) {
       countsByCid.set(String(r.cid), Number(r.cnt ?? 0));
+      todoByCid.set(String(r.cid), Number(r.todo_cnt ?? 0));
     }
 
     // totalCount should include everything in range + globals, even if we hide zero-count categories
@@ -102,8 +105,9 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
     // Build categories (ONLY count > 0)
     const categoriesRaw = Array.from(countsByCid.entries())
       .map(([cid, cnt]) => {
+        const todo = todoByCid.get(cid) ?? 0;
         if (cid === "__other__") {
-          return { id: "__other__", name: "سایر", image: null, count: cnt };
+          return { id: "__other__", name: "سایر", image: null, count: cnt, todo };
         }
 
         const meta = catMeta.get(cid);
@@ -112,6 +116,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
           name: meta?.name ?? "سایر",
           image: meta?.image ?? null,
           count: cnt,
+          todo,
         };
       })
       .filter((x) => Number(x.count ?? 0) > 0); // <-- hide zero-count categories (including __other__)
@@ -127,7 +132,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
       range: { from, to },
       tabs,
       categories: [
-        { id: "all", name: "نمایش همه", image: null, count: totalCount, isAll: true },
+        { id: "all", name: "نمایش همه", image: null, count: totalCount, todo: tabs.todo, isAll: true },
         ...categoriesRaw,
       ],
     });
