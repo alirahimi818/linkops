@@ -92,7 +92,7 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         : "todo";
 
     // ----------------------------
-    // 1) Counts for tabs (range + cat)
+    // 1) Counts for tabs (range + cat + search + action)
     // NOTE: We assume "todo" is represented by NO ROW in item_status.
     // ----------------------------
     let countsWhere = `
@@ -110,6 +110,22 @@ export const onRequest: PagesFunction<EnvAuth> = async ({ request, env }) => {
         countsWhere += ` AND i.category_id = ? `;
         countsBinds.push(cat);
       }
+    }
+
+    if (search) {
+      const like = `%${search}%`;
+      countsWhere += ` AND (i.title LIKE ? OR i.description LIKE ? OR i.url LIKE ?) `;
+      countsBinds.push(like, like, like);
+    }
+
+    if (actionFilter) {
+      countsWhere += `
+        AND EXISTS (
+          SELECT 1 FROM item_actions ia2
+          WHERE ia2.item_id = i.id AND ia2.action_id = ?
+        )
+      `;
+      countsBinds.push(actionFilter);
     }
 
     // Table name assumption:

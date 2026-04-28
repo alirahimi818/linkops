@@ -49,15 +49,23 @@ function sumCounts(c: { todo: number; later: number; done: number; hidden: numbe
   return (c?.todo ?? 0) + (c?.later ?? 0) + (c?.done ?? 0) + (c?.hidden ?? 0);
 }
 
-// Fixed look-back window — no date picker shown to users
-const LOOKBACK_DAYS = 30;
+const PERIOD_OPTIONS = [
+  { value: "7",  label: "۷ روز گذشته" },
+  { value: "30", label: "۳۰ روز گذشته" },
+  { value: "60", label: "۲ ماه گذشته" },
+  { value: "90", label: "۳ ماه گذشته" },
+];
 
 export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);
-  const from = useMemo(() => addDaysYYYYMMDD(today, -(LOOKBACK_DAYS - 1)), [today]);
-  const to = today;
-
   const [sp, setSp] = useSearchParams();
+
+  const days = PERIOD_OPTIONS.some((o) => o.value === sp.get("days"))
+    ? sp.get("days")!
+    : "30";
+
+  const from = useMemo(() => addDaysYYYYMMDD(today, -(Number(days) - 1)), [today, days]);
+  const to = today;
 
   const itemId = sp.get("item") ?? undefined;
   const isItemView = !!itemId;
@@ -320,9 +328,29 @@ export default function Todos() {
           {/* Progress bar */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-zinc-500">
-                {progressCounts.done} از {progressCounts.total} انجام شده
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500">
+                  {progressCounts.done} از {progressCounts.total} انجام شده
+                </span>
+                <span className="text-zinc-300">─</span>
+                <div className="relative">
+                  <select
+                    dir="rtl"
+                    value={days}
+                    onChange={(e) =>
+                      setSp((p) => { p.set("days", e.target.value); p.delete("q"); p.delete("action"); p.set("tab", "todo"); return p; })
+                    }
+                    className="appearance-none bg-transparent pl-4 text-xs text-zinc-400 outline-none hover:text-zinc-700 cursor-pointer transition-colors"
+                  >
+                    {PERIOD_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <svg className="pointer-events-none absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+              </div>
               {progressCounts.total > 0 ? (
                 <span className="text-xs text-zinc-400">
                   {Math.round((progressCounts.done / progressCounts.total) * 100)}٪
