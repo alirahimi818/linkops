@@ -22,21 +22,12 @@ import { addDaysYYYYMMDD, todayYYYYMMDD } from "../lib/date";
 import PageShell from "../components/layout/PageShell";
 import TopBar from "../components/layout/TopBar";
 import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
 import DismissibleAnnouncementModal from "../components/ui/DismissibleAnnouncementModal";
 
-import CategoryGrid, {
-  type CategoryCard,
-} from "../components/home/CategoryGrid";
+import CategoryGrid, { type CategoryCard } from "../components/home/CategoryGrid";
 import ItemList, { type ListTab } from "../components/home/ItemList";
-import SearchFilter, {
-  type FilterOption,
-} from "../components/home/SearchFilter";
-import {
-  migrateLegacyStatusToServer,
-  shouldRunLegacyMigration,
-} from "../lib/statusMigration";
-import DateRangePicker from "../components/ui/DateRangePicker";
+import SearchFilter, { type FilterOption } from "../components/home/SearchFilter";
+import { migrateLegacyStatusToServer, shouldRunLegacyMigration } from "../lib/statusMigration";
 import SuggestLinkButton from "../components/home/SuggestLinkButton";
 
 type View =
@@ -54,157 +45,90 @@ function statusOf(i: any): ItemUserStatus {
   return "todo";
 }
 
-function sumCounts(c: {
-  todo: number;
-  later: number;
-  done: number;
-  hidden: number;
-}) {
+function sumCounts(c: { todo: number; later: number; done: number; hidden: number }) {
   return (c?.todo ?? 0) + (c?.later ?? 0) + (c?.done ?? 0) + (c?.hidden ?? 0);
 }
 
+// Fixed look-back window — no date picker shown to users
+const LOOKBACK_DAYS = 90;
+
 export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);
+  const from = useMemo(() => addDaysYYYYMMDD(today, -(LOOKBACK_DAYS - 1)), [today]);
+  const to = today;
+
   const [sp, setSp] = useSearchParams();
 
   const itemId = sp.get("item") ?? undefined;
   const isItemView = !!itemId;
 
-  const DEFAULT_DAYS = 7;
-  const to = sp.get("to") ?? today;
-  const from = sp.get("from") ?? addDaysYYYYMMDD(to, -(DEFAULT_DAYS - 1));
-
-  const range = useMemo(() => ({ from, to }), [from, to]);
-
   const tab = safeTab(sp.get("tab"));
   const cat = sp.get("cat");
-
-  // Search / filter URL params
   const searchQ = sp.get("q") ?? "";
   const actionId = sp.get("action") ?? "";
 
   const view: View = useMemo(() => {
-    if (itemId) {
-      return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
-    }
+    if (itemId) return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
     if (!cat) return { kind: "categories" };
-    if (cat === "all")
-      return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
-    return {
-      kind: "list",
-      categoryId: cat,
-      categoryName: sp.get("catName") ?? "دسته",
-    };
+    if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
+    return { kind: "list", categoryId: cat, categoryName: sp.get("catName") ?? "دسته" };
   }, [cat, sp, itemId]);
 
+  const activeCat = useMemo(() => {
+    if (isItemView) return "all";
+    if (!cat || cat === "all") return "all";
+    return cat;
+  }, [cat, isItemView]);
+
   const [loading, setLoading] = useState(true);
-
-  // Actions list for the filter dropdown
   const [allActions, setAllActions] = useState<FilterOption[]>([]);
-
-  useEffect(() => {
-    fetchActions()
-      .then((list) =>
-        setAllActions(
-          (list as any[]).map((a) => ({
-            id: String(a.id),
-            name: a.label ?? a.name,
-          })),
-        ),
-      )
-      .catch(() => null);
-  }, []);
-
-  // Summary (for categories view)
   const [summary, setSummary] = useState<ItemsSummaryResponse | null>(null);
-
-  // Item view (single)
   const [singleItems, setSingleItems] = useState<Item[]>([]);
-
-  // Feed list (infinite)
   const [feedItems, setFeedItems] = useState<Item[]>([]);
-  const [feedCounts, setFeedCounts] = useState({
-    todo: 0,
-    later: 0,
-    done: 0,
-    hidden: 0,
-  });
+  const [feedCounts, setFeedCounts] = useState({ todo: 0, later: 0, done: 0, hidden: 0 });
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Keep date valid format
   useEffect(() => {
-    const ok = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
-
-    if (!ok(from) || !ok(to)) {
-      const fallbackTo = today;
-      const fallbackFrom = addDaysYYYYMMDD(fallbackTo, -(DEFAULT_DAYS - 1));
-
-      setSp((p) => {
-        p.set("from", fallbackFrom);
-        p.set("to", fallbackTo);
-        p.delete("cat");
-        p.delete("catName");
-        p.set("tab", "todo");
-        return p;
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchActions()
+      .then((list) =>
+        setAllActions((list as any[]).map((a) => ({ id: String(a.id), name: a.label ?? a.name }))),
+      )
+      .catch(() => null);
   }, []);
 
-  // One-time legacy migration
   useEffect(() => {
     if (!shouldRunLegacyMigration()) return;
     migrateLegacyStatusToServer().catch(() => null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeCat = useMemo(() => {
-    if (isItemView) return "all";
-    if (!cat) return "all";
-    if (cat === "all") return "all";
-    return cat;
-  }, [cat, isItemView]);
-
-  // Load summary always (fast)
+  // Load category summary
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const sum = await fetchItemsSummary(range.from, range.to);
-        if (!alive) return;
-        setSummary(sum);
-      } catch {
-        if (!alive) return;
-        setSummary(null);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [range.from, range.to]);
+    fetchItemsSummary(from, to)
+      .then((s) => { if (alive) setSummary(s); })
+      .catch(() => { if (alive) setSummary(null); });
+    return () => { alive = false; };
+  }, [from, to]);
 
-  // Main data loader (either item view or feed list)
+  // Main feed loader — resets on any filter/tab/category change
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
         setLoading(true);
-
         setCursor(null);
         setHasMore(false);
         setLoadingMore(false);
 
         if (isItemView) {
-          const it = await fetchItems(range.to, itemId);
+          const it = await fetchItems(to, itemId);
           if (!alive) return;
-
           setSingleItems(it ?? []);
           setFeedItems([]);
-          setCursor(null);
-          setHasMore(false);
           setFeedCounts({ todo: 0, later: 0, done: 0, hidden: 0 });
           return;
         }
@@ -217,52 +141,44 @@ export default function Todos() {
         }
 
         const res: ItemsFeedResponse = await fetchItemsFeed({
-          from: range.from,
-          to: range.to,
+          from,
+          to,
           tab: tab as FeedTab,
           cat: activeCat,
           search: searchQ,
           action: actionId,
-          limit: 10,
+          limit: 15,
           cursor: null,
         });
 
         if (!alive) return;
-
         setFeedItems(res.items ?? []);
         setFeedCounts(res.counts ?? { todo: 0, later: 0, done: 0, hidden: 0 });
         setCursor(res.next_cursor ?? null);
         setHasMore(!!res.next_cursor);
-
         setSingleItems([]);
       } finally {
         if (alive) setLoading(false);
       }
     })();
 
-    return () => {
-      alive = false;
-    };
-  }, [isItemView, itemId, view.kind, tab, activeCat, range.from, range.to, searchQ, actionId]);
+    return () => { alive = false; };
+  }, [isItemView, itemId, view.kind, tab, activeCat, from, to, searchQ, actionId]);
 
   async function loadMore() {
-    if (loadingMore || !hasMore) return;
-    if (isItemView) return;
-    if (view.kind !== "list") return;
-
+    if (loadingMore || !hasMore || isItemView || view.kind !== "list") return;
     setLoadingMore(true);
     try {
       const res: ItemsFeedResponse = await fetchItemsFeed({
-        from: range.from,
-        to: range.to,
+        from,
+        to,
         tab: tab as FeedTab,
         cat: activeCat,
         search: searchQ,
         action: actionId,
-        limit: 10,
+        limit: 15,
         cursor,
       });
-
       setFeedItems((prev) => [...prev, ...(res.items ?? [])]);
       setFeedCounts(res.counts ?? feedCounts);
       setCursor(res.next_cursor ?? null);
@@ -274,8 +190,7 @@ export default function Todos() {
 
   const categories = useMemo<CategoryCard[]>(() => {
     if (itemId) return [];
-    const list = summary?.categories ?? [];
-    return list.map((c) => ({
+    return (summary?.categories ?? []).map((c) => ({
       id: c.id === "all" ? "__all__" : c.id,
       name: c.name,
       image: c.image,
@@ -289,88 +204,44 @@ export default function Todos() {
 
     if (isItemView) {
       setSingleItems((prev) =>
-        prev.map((it: any) =>
-          String(it.id) === String(id)
-            ? { ...it, user_status: nextStatus }
-            : it,
-        ),
+        prev.map((it: any) => String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it),
       );
     } else {
       setFeedItems((prev) =>
-        prev.map((it: any) =>
-          String(it.id) === String(id)
-            ? { ...it, user_status: nextStatus }
-            : it,
-        ),
+        prev.map((it: any) => String(it.id) === String(id) ? { ...it, user_status: nextStatus } : it),
       );
-
       setFeedCounts((prevCounts) => {
-        const oldItem = feedItems.find(
-          (x: any) => String(x.id) === String(id),
-        ) as any;
-        const oldStatus: ItemUserStatus = oldItem
-          ? statusOf(oldItem)
-          : (tab as any);
-
+        const oldItem = feedItems.find((x: any) => String(x.id) === String(id)) as any;
+        const oldStatus: ItemUserStatus = oldItem ? statusOf(oldItem) : (tab as any);
         const out: any = { ...prevCounts };
         out[oldStatus] = Math.max(0, (out[oldStatus] ?? 0) - 1);
         out[nextStatus] = (out[nextStatus] ?? 0) + 1;
         return out;
       });
-
-      const currentTab = tab as ItemUserStatus;
-      if (currentTab !== nextStatus) {
-        setFeedItems((prev) =>
-          prev.filter((it: any) => String(it.id) !== String(id)),
-        );
+      if ((tab as ItemUserStatus) !== nextStatus) {
+        setFeedItems((prev) => prev.filter((it: any) => String(it.id) !== String(id)));
       }
     }
 
     try {
       await setItemStatusRemote(id, s);
-    } catch (e) {
+    } catch {
+      // rollback
       if (isItemView) {
-        const it = await fetchItems(range.to, itemId);
+        const it = await fetchItems(to, itemId);
         setSingleItems(it ?? []);
       } else if (view.kind === "list") {
-        const res: ItemsFeedResponse = await fetchItemsFeed({
-          from: range.from,
-          to: range.to,
-          tab: tab as FeedTab,
-          cat: activeCat,
-          search: searchQ,
-          action: actionId,
-          limit: 10,
-          cursor: null,
-        });
+        const res = await fetchItemsFeed({ from, to, tab: tab as FeedTab, cat: activeCat, search: searchQ, action: actionId, limit: 15, cursor: null });
         setFeedItems(res.items ?? []);
         setFeedCounts(res.counts ?? { todo: 0, later: 0, done: 0, hidden: 0 });
         setCursor(res.next_cursor ?? null);
         setHasMore(!!res.next_cursor);
       }
-      throw e;
     }
   }
 
-  function setRange(next: { from: string; to: string }) {
-    setSp((p) => {
-      p.set("from", next.from);
-      p.set("to", next.to);
-      p.delete("cat");
-      p.delete("catName");
-      p.delete("item");
-      p.delete("q");
-      p.delete("action");
-      p.set("tab", "todo");
-      return p;
-    });
-  }
-
   function setTab(next: ListTab) {
-    setSp((p) => {
-      p.set("tab", next);
-      return p;
-    });
+    setSp((p) => { p.set("tab", next); return p; });
   }
 
   function openCategory(c: CategoryCard) {
@@ -378,85 +249,38 @@ export default function Todos() {
       p.set("tab", "todo");
       p.delete("q");
       p.delete("action");
-
-      if (c.isAll) {
-        p.set("cat", "all");
-        p.set("catName", "نمایش همه");
-        return p;
-      }
-
-      p.set("cat", c.id);
-      p.set("catName", c.name);
+      if (c.isAll) { p.set("cat", "all"); p.set("catName", "نمایش همه"); }
+      else { p.set("cat", c.id); p.set("catName", c.name); }
       return p;
     });
   }
 
   function backToCategories() {
     setSp((p) => {
-      p.delete("cat");
-      p.delete("catName");
-      p.delete("q");
-      p.delete("action");
+      p.delete("cat"); p.delete("catName");
+      p.delete("q"); p.delete("action");
       p.set("tab", "todo");
       return p;
     });
   }
 
   function setSearch(q: string) {
-    setSp((p) => {
-      if (q) p.set("q", q);
-      else p.delete("q");
-      return p;
-    });
+    setSp((p) => { if (q) p.set("q", q); else p.delete("q"); return p; });
   }
 
   function setActionFilter(id: string) {
-    setSp((p) => {
-      if (id) p.set("action", id);
-      else p.delete("action");
-      return p;
-    });
+    setSp((p) => { if (id) p.set("action", id); else p.delete("action"); return p; });
   }
-
-  const headerRight = (
-    <div>
-      {itemId ? (
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setSp((p) => {
-              p.delete("item");
-              return p;
-            });
-          }}
-        >
-          بازگشت به لیست
-        </Button>
-      ) : (
-        <div className="flex items-center gap-2">
-          <DateRangePicker
-            value={range}
-            onChange={setRange}
-            titleFrom="از تاریخ"
-            titleTo="تا تاریخ"
-          />
-        </div>
-      )}
-    </div>
-  );
 
   const progressCounts = useMemo(() => {
     if (isItemView) {
       const it = singleItems?.[0] as any;
-      const done = it && statusOf(it) === "done" ? 1 : 0;
-      return { total: singleItems.length, done };
+      return { total: singleItems.length, done: it && statusOf(it) === "done" ? 1 : 0 };
     }
-
     if (view.kind === "categories") {
       const t = summary?.tabs ?? { todo: 0, later: 0, done: 0, hidden: 0 };
       return { total: sumCounts(t), done: t.done ?? 0 };
     }
-
     return { total: sumCounts(feedCounts), done: feedCounts.done ?? 0 };
   }, [isItemView, singleItems, view.kind, summary, feedCounts]);
 
@@ -478,37 +302,58 @@ export default function Todos() {
                 ? "شما در حال مشاهده یک فعالیت خاص هستید."
                 : "یک دسته رو انتخاب کن و فعالیت‌هاش رو انجام بده."
             }
-            right={headerRight}
-            left={<SuggestLinkButton />}
+            left={
+              itemId ? (
+                <button
+                  type="button"
+                  onClick={() => setSp((p) => { p.delete("item"); return p; })}
+                  className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+                >
+                  ← بازگشت به لیست
+                </button>
+              ) : (
+                <SuggestLinkButton />
+              )
+            }
           />
 
+          {/* Progress bar */}
           <div className="mt-4">
-            <div className="h-2 w-full rounded bg-zinc-200">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-zinc-500">
+                {progressCounts.done} از {progressCounts.total} انجام شده
+              </span>
+              {progressCounts.total > 0 ? (
+                <span className="text-xs text-zinc-400">
+                  {Math.round((progressCounts.done / progressCounts.total) * 100)}٪
+                </span>
+              ) : null}
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-zinc-200">
               <div
-                className="h-2 rounded bg-zinc-900"
+                className="h-1.5 rounded-full bg-zinc-800 transition-all duration-500"
                 style={{
-                  width: `${
-                    progressCounts.total
-                      ? (progressCounts.done / progressCounts.total) * 100
-                      : 0
-                  }%`,
+                  width: progressCounts.total
+                    ? `${(progressCounts.done / progressCounts.total) * 100}%`
+                    : "0%",
                 }}
               />
-            </div>
-            <div className="mt-2 text-xs text-zinc-500">
-              انجام‌شده: {progressCounts.done} از {progressCounts.total}
             </div>
           </div>
         </div>
       }
     >
       {loading ? (
-        <div className="text-zinc-500">در حال بارگذاری…</div>
+        <div className="flex items-center justify-center py-12 text-zinc-400">
+          <svg className="h-5 w-5 animate-spin ml-2" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          در حال بارگذاری…
+        </div>
       ) : view.kind === "categories" ? (
         categories.length <= 1 ? (
-          <Card className="p-6 text-zinc-600">
-            برای این بازه آیتمی وجود ندارد.
-          </Card>
+          <Card className="p-6 text-zinc-600">برای این بازه آیتمی وجود ندارد.</Card>
         ) : (
           <CategoryGrid categories={categories} onSelect={openCategory} />
         )
@@ -533,12 +378,8 @@ export default function Todos() {
             onMark={mark}
             onBack={backToCategories}
             hasMore={!isItemView && view.kind === "list" ? hasMore : false}
-            loadingMore={
-              !isItemView && view.kind === "list" ? loadingMore : false
-            }
-            onLoadMore={
-              !isItemView && view.kind === "list" ? loadMore : undefined
-            }
+            loadingMore={!isItemView && view.kind === "list" ? loadingMore : false}
+            onLoadMore={!isItemView && view.kind === "list" ? loadMore : undefined}
           />
         </>
       )}
@@ -547,7 +388,7 @@ export default function Todos() {
         scopeKey="/"
         id="todos-2026-01"
         title="راهنمای سریع"
-        description="توی این بخش می‌تونی وارد یکی از دسته‌ها (اینستاگرام، X (توییتر) و ...) بشی و لیست لینک‌های مهم روز رو ببینی. کنار هر لینک، کامنت‌ها و ری‌اکشن‌های پیشنهادی آماده‌ست که می‌تونی مستقیم کپی کنی و استفاده کنی و دکمه انجام شدش رو بزنی، خیلی ساده و سریع! سعی میکنم به زودی به این بخش هوش مصنوعی هم اضافه کنم که کار خیلی راحت تر بشه."
+        description="توی این بخش می‌تونی وارد یکی از دسته‌ها (اینستاگرام، X (توییتر) و ...) بشی و لیست لینک‌های مهم روز رو ببینی. کنار هر لینک، کامنت‌ها و ری‌اکشن‌های پیشنهادی آماده‌ست که می‌تونی مستقیم کپی کنی و استفاده کنی و دکمه انجام شدش رو بزنی، خیلی ساده و سریع!"
         imageUrl="/assets/todos-background.jpg"
       />
     </PageShell>

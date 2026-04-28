@@ -1,5 +1,5 @@
 // /frontend/src/components/home/ItemList.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -72,6 +72,20 @@ export default function ItemList(props: {
   onLoadMore?: (() => void) | undefined;
 }) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Auto-load more when sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !props.onLoadMore || !props.hasMore) return;
+
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) props.onLoadMore?.(); },
+      { rootMargin: "300px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [props.hasMore, props.onLoadMore]);
 
   const emptyText = useMemo(() => {
     if (props.tab === "todo")
@@ -107,47 +121,31 @@ export default function ItemList(props: {
   return (
     <div dir="rtl" className="text-right">
       {props.itemId ? null : (
-        <div className="mb-1 mt-8 flex flex-col gap-3">
+        <div className="sticky top-0 z-20 -mx-4 mb-3 bg-zinc-50/95 px-4 pb-3 pt-1 backdrop-blur-sm">
           {/* Back link */}
           <button
             type="button"
             onClick={props.onBack}
-            className="flex w-fit items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+            className="mb-2 flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path d="m9 18 6-6-6-6" />
             </svg>
             بازگشت به دسته‌ها
           </button>
 
-          {/* Scrollable tabs row */}
-          <div className="flex gap-2 pb-1 scrollbar-none" dir="rtl">
-            <TabButton
-              active={props.tab === "todo"}
-              onClick={() => props.onTabChange("todo")}
-              count={props.counts.todo}
-            >
+          {/* Tabs — horizontal scroll, no wrap */}
+          <div className="flex gap-2 pb-0.5 scrollbar-none" dir="rtl">
+            <TabButton active={props.tab === "todo"} onClick={() => props.onTabChange("todo")} count={props.counts.todo}>
               انجام‌نشده
             </TabButton>
-            <TabButton
-              active={props.tab === "later"}
-              onClick={() => props.onTabChange("later")}
-              count={props.counts.later}
-            >
+            <TabButton active={props.tab === "later"} onClick={() => props.onTabChange("later")} count={props.counts.later}>
               بعدا
             </TabButton>
-            <TabButton
-              active={props.tab === "done"}
-              onClick={() => props.onTabChange("done")}
-              count={props.counts.done}
-            >
+            <TabButton active={props.tab === "done"} onClick={() => props.onTabChange("done")} count={props.counts.done}>
               انجام‌شده
             </TabButton>
-            <TabButton
-              active={props.tab === "hidden"}
-              onClick={() => props.onTabChange("hidden")}
-              count={props.counts.hidden}
-            >
+            <TabButton active={props.tab === "hidden"} onClick={() => props.onTabChange("hidden")} count={props.counts.hidden}>
               مخفی‌ها
             </TabButton>
           </div>
@@ -167,6 +165,11 @@ export default function ItemList(props: {
 
             const xEnabled = isXUrl(url);
             const pinned = isGlobalItem(item);
+            const isReportOrBlock = (item.actions ?? []).some((a: any) => {
+              const n = String(a?.name ?? "").toLowerCase().trim();
+              const l = String(a?.label ?? "").toLowerCase().trim();
+              return n === "ریپورت" || n === "report" || n === "بلاک" || n === "block" || l === "ریپورت" || l === "بلاک";
+            });
 
             const isPwaIOS = isIOSStandalonePWA();
 
@@ -362,7 +365,7 @@ export default function ItemList(props: {
                             </>
                           ) : null}
 
-                          {xEnabled ? (
+                          {xEnabled && !isReportOrBlock ? (
                             <AICommentButton
                               itemId={item.id}
                               itemUrl={url}
@@ -515,19 +518,22 @@ export default function ItemList(props: {
         )}
       </div>
 
-      {props.itemId ? null : props.onLoadMore ? (
-        <div className="mt-4 flex justify-center">
-          {props.hasMore ? (
-            <Button
-              variant="secondary"
-              onClick={props.onLoadMore}
-              disabled={!!props.loadingMore}
-            >
-              {props.loadingMore ? "در حال بارگذاری…" : "نمایش بیشتر"}
-            </Button>
+      {/* Infinite scroll sentinel */}
+      {props.hasMore ? (
+        <div ref={sentinelRef} className="mt-4 flex justify-center py-4">
+          {props.loadingMore ? (
+            <svg className="h-5 w-5 animate-spin text-zinc-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
           ) : (
-            <div className="text-xs text-zinc-500">مورد دیگری نیست.</div>
+            <div className="h-1" />
           )}
+        </div>
+      ) : props.items.length > 0 && !props.itemId ? (
+        <div className="mt-6 flex flex-col items-center gap-1 pb-2 text-center">
+          <div className="h-px w-16 bg-zinc-200" />
+          <p className="mt-2 text-xs text-zinc-400">همه آیتم‌ها نمایش داده شدند</p>
         </div>
       ) : null}
     </div>
