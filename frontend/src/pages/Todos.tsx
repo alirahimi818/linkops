@@ -50,7 +50,7 @@ function sumCounts(c: { todo: number; later: number; done: number; hidden: numbe
 }
 
 // Fixed look-back window — no date picker shown to users
-const LOOKBACK_DAYS = 90;
+const LOOKBACK_DAYS = 30;
 
 export default function Todos() {
   const today = useMemo(() => todayYYYYMMDD(), []);

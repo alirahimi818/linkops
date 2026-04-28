@@ -1,5 +1,6 @@
 // /frontend/src/components/home/ItemList.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -126,7 +127,7 @@ export default function ItemList(props: {
           <button
             type="button"
             onClick={props.onBack}
-            className="mb-2 flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+            className="mb-3 mt-1 flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path d="m9 18 6-6-6-6" />
@@ -535,6 +536,21 @@ export default function ItemList(props: {
           <div className="h-px w-16 bg-zinc-200" />
           <p className="mt-2 text-xs text-zinc-400">همه آیتم‌ها نمایش داده شدند</p>
         </div>
+      ) : null}
+
+      {/* Scroll to top — portaled to body to escape PullToRefreshWrap transform */}
+      {!props.itemId ? createPortal(
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 shadow-lg hover:border-zinc-300 hover:text-zinc-900 transition-colors cursor-pointer"
+          aria-label="بازگشت به بالا"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path d="m18 15-6-6-6 6" />
+          </svg>
+        </button>,
+        document.body,
       ) : null}
     </div>
   );
