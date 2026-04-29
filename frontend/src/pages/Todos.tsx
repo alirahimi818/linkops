@@ -79,8 +79,8 @@ export default function Todos() {
     if (itemId) return { kind: "list", categoryId: null, categoryName: "نمایش آیتم" };
     if (!cat) return { kind: "categories" };
     if (cat === "all") return { kind: "list", categoryId: null, categoryName: "نمایش همه" };
-    return { kind: "list", categoryId: cat, categoryName: sp.get("catName") ?? "دسته" };
-  }, [cat, sp, itemId]);
+    return { kind: "list", categoryId: cat, categoryName: cat };
+  }, [cat, itemId]);
 
   const activeCat = useMemo(() => {
     if (isItemView) return "all";
@@ -258,15 +258,15 @@ export default function Todos() {
       p.set("tab", "todo");
       p.delete("q");
       p.delete("action");
-      if (c.isAll) { p.set("cat", "all"); p.set("catName", "نمایش همه"); }
-      else { p.set("cat", c.id); p.set("catName", c.name); }
+      if (c.isAll) { p.set("cat", "all"); }
+      else { p.set("cat", c.id); }
       return p;
     });
   }
 
   function backToCategories() {
     setSp((p) => {
-      p.delete("cat"); p.delete("catName");
+      p.delete("cat");
       p.delete("q"); p.delete("action");
       p.set("tab", "todo");
       return p;
@@ -398,7 +398,11 @@ export default function Todos() {
             />
           ) : null}
           <ItemList
-            title={view.categoryName}
+            title={
+              view.kind === "list" && view.categoryId
+                ? (summary?.categories?.find((c) => c.id === view.categoryId)?.name ?? view.categoryName)
+                : view.categoryName
+            }
             itemId={itemId ?? null}
             items={listData as any[]}
             counts={listCounts}
