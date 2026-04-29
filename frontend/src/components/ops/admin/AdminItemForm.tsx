@@ -134,7 +134,7 @@ export default function AdminItemForm(props: {
     }
   }
 
-  function handleReportAutofill() {
+  function handleReportAutofill(type: "hate" | "spam") {
     const fixedUrl = autoFixUrl(props.url);
     const username = extractXUsername(fixedUrl);
     if (!username) return;
@@ -150,7 +150,9 @@ export default function AdminItemForm(props: {
     props.setSelectedActionIds(ids);
 
     props.setDescription(
-      "اول میوت (Mute) کنید و بعد ریپورت از نوع Hate کنید و در نهایت بلاکش کنید.",
+      type === "spam"
+        ? "اول میوت (Mute) کنید و بعد ریپورت از نوع Spam کنید و در نهایت بلاکش کنید."
+        : "اول میوت (Mute) کنید و بعد ریپورت از نوع Hate کنید و در نهایت بلاکش کنید.",
     );
   }
   function autoSelectXActionsIfNeeded(nextUrlRaw: string) {
@@ -311,14 +313,18 @@ export default function AdminItemForm(props: {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="danger"
-                  onClick={handleReportAutofill}
+                  onClick={() => handleReportAutofill("hate")}
                   disabled={props.saving || !props.url.trim()}
                 >
-                  ریپورت
+                  ریپورت Hate
                 </Button>
-                <div className="text-xs text-zinc-500">
-                  عنوان، دسته‌بندی، اکشن و توضیح را برای ریپورت اکانت پر می‌کند.
-                </div>
+                <Button
+                  variant="danger"
+                  onClick={() => handleReportAutofill("spam")}
+                  disabled={props.saving || !props.url.trim()}
+                >
+                  ریپورت Spam
+                </Button>
               </div>
             </div>
           ) : null}
