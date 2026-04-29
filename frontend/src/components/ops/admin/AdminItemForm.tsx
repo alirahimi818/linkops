@@ -375,6 +375,7 @@ export default function AdminItemForm(props: {
               variant="success"
               onClick={handleSubmit}
               disabled={submitDisabled}
+              className="w-full sm:w-auto"
             >
               {props.editing
                 ? props.saving

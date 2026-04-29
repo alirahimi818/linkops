@@ -207,43 +207,7 @@ export default function AdminItemList(props: {
                   </div>
                 ) : null}
 
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-col justify-center items-center gap-2">
-                    <Button
-                      className="w-full"
-                      variant="danger"
-                      onClick={() => props.onDelete(i.id)}
-                    >
-                      حذف
-                    </Button>
-
-                    <Button
-                      className="w-full"
-                      variant="info"
-                      onClick={() => props.onStartEdit(i)}
-                    >
-                      ویرایش
-                    </Button>
-
-                    <Button
-                      className="w-full"
-                      variant="success"
-                      onClick={() => openAIModal(i)}
-                    >
-                      AI
-                    </Button>
-
-                    <Button
-                      className="w-full"
-                      variant="secondary"
-                      onClick={() => props.toggleComments(i.id)}
-                      disabled={!hasComments}
-                      title={!hasComments ? "کامنتی ثبت نشده است" : undefined}
-                    >
-                      {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${comments.length})`}
-                    </Button>
-                  </div>
-
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="text-lg ">{i.title}</div>
 
@@ -327,6 +291,39 @@ export default function AdminItemList(props: {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  {/* Action buttons: horizontal on mobile, vertical column on sm+ */}
+                  <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
+                    <Button
+                      variant="info"
+                      onClick={() => props.onStartEdit(i)}
+                    >
+                      ویرایش
+                    </Button>
+
+                    <Button
+                      variant="success"
+                      onClick={() => openAIModal(i)}
+                    >
+                      AI
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => props.toggleComments(i.id)}
+                      disabled={!hasComments}
+                      title={!hasComments ? "کامنتی ثبت نشده است" : undefined}
+                    >
+                      {isOpen ? "بستن کامنت‌ها" : `کامنت‌ها (${comments.length})`}
+                    </Button>
+
+                    <Button
+                      variant="danger"
+                      onClick={() => props.onDelete(i.id)}
+                    >
+                      حذف
+                    </Button>
                   </div>
                 </div>
               </Card>

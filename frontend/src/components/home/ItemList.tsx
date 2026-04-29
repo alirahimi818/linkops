@@ -135,8 +135,8 @@ export default function ItemList(props: {
             بازگشت به دسته‌ها
           </button>
 
-          {/* Tabs — horizontal scroll, no wrap */}
-          <div className="flex gap-2 pb-0.5 scrollbar-none" dir="rtl">
+          {/* Tabs — horizontal scroll; pt-2/-mt-1 keeps absolute badges visible */}
+          <div className="flex gap-2 overflow-x-auto pb-1 pt-2 -mt-1 scrollbar-none" dir="rtl">
             <TabButton active={props.tab === "todo"} onClick={() => props.onTabChange("todo")} count={props.counts.todo}>
               انجام‌نشده
             </TabButton>
@@ -414,7 +414,7 @@ export default function ItemList(props: {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap justify-around md:justify-start gap-2 border-t pt-3 border-zinc-200">
+                <div className="mt-4 flex flex-wrap justify-start gap-2 border-t pt-3 border-zinc-200">
                   {props.tab === "todo" ? (
                     <>
                       <Button
