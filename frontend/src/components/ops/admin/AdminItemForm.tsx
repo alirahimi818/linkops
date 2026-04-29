@@ -370,7 +370,7 @@ export default function AdminItemForm(props: {
             maxLen={1000}
           />
 
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3 border-zinc-200">
+          <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center gap-3 border-t border-zinc-200 bg-white px-5 py-4">
             <Button
               variant="success"
               onClick={handleSubmit}
