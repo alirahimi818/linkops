@@ -26,3 +26,12 @@ export function buildXIntentReplyUrl(itemUrl: string, text: string): string | nu
 export function isXUrl(itemUrl: string): boolean {
   return extractXStatusId(itemUrl) !== null;
 }
+
+export function isXDomainUrl(rawUrl: string): boolean {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase();
+    return host.includes("x.com") || host.includes("twitter.com");
+  } catch {
+    return false;
+  }
+}

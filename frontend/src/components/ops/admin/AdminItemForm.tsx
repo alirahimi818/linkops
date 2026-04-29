@@ -18,7 +18,7 @@ import {
   autoFixUrl,
   isValidAbsoluteHttpUrl,
 } from "../../../lib/adminItemUtils";
-import { isXUrl } from "../../../lib/socialIntents";
+import { isXUrl, isXDomainUrl } from "../../../lib/socialIntents";
 
 export type EditState = { id: string; originalDate: string } | null;
 
@@ -112,6 +112,7 @@ export default function AdminItemForm(props: {
   }
 
   const isX = isXUrl(props.url);
+  const isXDomain = isXDomainUrl(props.url);
 
   function findActionIdByName(actions: Action[], ...candidates: string[]): string | null {
     const targets = candidates.map((s) => String(s).toLowerCase().trim());
@@ -289,26 +290,23 @@ export default function AdminItemForm(props: {
             ) : null}
           </div>
 
-          {isX ? (
+          {isXDomain ? (
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="info"
-                  onClick={() => props.onAutofillFromX()}
-                  disabled={
-                    props.saving || props.autoFilling || !props.url.trim()
-                  }
-                >
-                  {props.autoFilling
-                    ? "در حال ساخت خودکار…"
-                    : "ساخت خودکار از لینک X"}
-                </Button>
-
-                <div className="text-xs text-zinc-500">
-                  با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی
-                  تولید می‌گردد.
+              {isX ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="info"
+                    onClick={() => props.onAutofillFromX()}
+                    disabled={props.saving || props.autoFilling || !props.url.trim()}
+                  >
+                    {props.autoFilling ? "در حال ساخت خودکار…" : "ساخت خودکار از لینک X"}
+                  </Button>
+                  <div className="text-xs text-zinc-500">
+                    با این دکمه، متن پست و چند ریپلای خوانده می‌شود و کامنت پیشنهادی
+                    تولید می‌گردد.
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -318,7 +316,6 @@ export default function AdminItemForm(props: {
                 >
                   ریپورت
                 </Button>
-
                 <div className="text-xs text-zinc-500">
                   عنوان، دسته‌بندی، اکشن و توضیح را برای ریپورت اکانت پر می‌کند.
                 </div>
