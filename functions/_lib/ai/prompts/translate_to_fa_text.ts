@@ -25,6 +25,8 @@ export function buildTranslateToFaTextPrompt(args: {
         "- Do NOT add, remove or change any hashtag/mention/URL.",
         "- Preserve demanding, passionate, revolutionary tone — use common opposition phrasing where it fits naturally.",
         "- Use رایج‌ترین واژگان اپوزیسیون فارسی‌زبان در X (مثلاً: مرگ بر دیکتاتور، جاوید شاه، ملاها، رژیم child-killer و غیره اگر در متن اصلی معادل دارد).",
+        "- If English says 'Iranians' or 'the Iranian people' or 'people of Iran', translate as 'مردم ایران' — do NOT substitute with زنان، دانشجویان، جوانان or any narrower demographic unless those exact groups are in the English source.",
+        "- Do NOT introduce 'زن زندگی آزادی' framing unless those words appear in the English source line.",
         "- If source mentions specific year/event (1979, 2026 etc), keep it accurate.",
         "- No extra commentary, no length note, no emojis, no explanations.",
         "- If a line cannot be translated faithfully (very unclear), output empty string ''.",
